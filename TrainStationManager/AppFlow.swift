@@ -35,7 +35,11 @@ struct RootView: View {
             case .select:
                 StationSelectView(onPick: { screen = .play($0) }, onBack: { screen = .menu })
             case .play(let def):
-                StationView(def: def, onExit: { screen = .select }).id(def.id)
+                if def.kind == .saltash {
+                    SaltashView(def: def, onExit: { screen = .select }).id(def.id)
+                } else {
+                    StationView(def: def, onExit: { screen = .select }).id(def.id)
+                }
             }
         }
         .statusBarHidden()

@@ -41,6 +41,8 @@ struct Layout {
 
 // MARK: - Station definition — one row of numbers per station
 
+enum StationKind { case ladder, saltash }   // ladder = generic throat; saltash = bespoke single-line bridge
+
 struct StationDef: Identifiable {
     let id: Int
     let name: String
@@ -52,6 +54,7 @@ struct StationDef: Identifiable {
     let trainLengths: [Int]              // pool of arriving train lengths
     let goal: Int                        // passengers to carry to clear (used from Phase B)
     let expressChance: Double            // hook for the through-express mechanic (Phase B)
+    var kind: StationKind = .ladder
 
     var tier: Int {                      // 1…5, drives the difficulty colour
         switch platformCount { case 2: return 1; case 3: return 2; case 4: return 3
@@ -66,15 +69,16 @@ private func caps(_ n: Int) -> [Int] { (0..<n).map { $0 % 2 == 0 ? 7 : 6 } }
 
 private func def(_ id: Int, _ name: String, platforms n: Int,
                  spawn: ClosedRange<Double>, speed: CGFloat, trains: [Int],
-                 goal: Int, express: Double = 0) -> StationDef {
+                 goal: Int, express: Double = 0, kind: StationKind = .ladder) -> StationDef {
     StationDef(id: id, name: name, platformCount: n, platCars: caps(n), spawnRange: spawn,
-               speed: speed, dwellTime: 3.2, trainLengths: trains, goal: goal, expressChance: express)
+               speed: speed, dwellTime: 3.2, trainLengths: trains, goal: goal,
+               expressChance: express, kind: kind)
 }
 
 /// The 20-station ladder, simplest → hardest.
 let allStations: [StationDef] = [
     // Tier 1 · 2 platforms · gentle
-    def(1,  "Saltash",               platforms: 2, spawn: 2.4...4.4, speed: 64, trains: [2, 3],       goal: 40),
+    def(1,  "Saltash",               platforms: 2, spawn: 2.4...4.4, speed: 64, trains: [2, 3],       goal: 40, kind: .saltash),
     def(2,  "Dawlish",               platforms: 2, spawn: 2.2...4.2, speed: 70, trains: [2, 3],       goal: 45, express: 0.30),
     def(3,  "Windermere",            platforms: 2, spawn: 2.2...4.0, speed: 68, trains: [2, 3, 4],    goal: 50),
     def(4,  "Whitby",                platforms: 2, spawn: 2.0...3.8, speed: 70, trains: [2, 3, 4],    goal: 55),
