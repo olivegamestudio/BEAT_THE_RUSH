@@ -1,16 +1,21 @@
 import SwiftUI
 
-/// A soft drifting cloud (blurred overlapping puffs) centred at screen point `c`;
-/// `s` scales its size.
+/// A drifting cumulus cloud centred at screen point `c`; `s` scales its size.
+/// Bumpy top, flatter base, built as one path so the fill is even (no muddy overlaps).
 func drawCloud(_ ctx: GraphicsContext, at c: CGPoint, s: CGFloat) {
+    var cloud = Path()
+    for (dx, dy, r): (CGFloat, CGFloat, CGFloat) in
+        [(-58, 8, 20), (-32, -2, 28), (-2, -14, 34), (28, -4, 30), (56, 8, 22),
+         (-34, 16, 18), (2, 19, 23), (38, 16, 18)] {
+        cloud.addEllipse(in: CGRect(x: c.x + dx * s - r * s, y: c.y + dy * s - r * s,
+                                    width: r * 2 * s, height: r * 2 * s))
+    }
     ctx.drawLayer { l in
-        l.addFilter(.blur(radius: 11 * s))
-        for (dx, dy, r): (CGFloat, CGFloat, CGFloat) in
-            [(-42, 6, 26), (-16, -10, 30), (16, -8, 33), (46, 8, 26), (2, 12, 36)] {
-            l.fill(Path(ellipseIn: CGRect(x: c.x + dx * s - r * s, y: c.y + dy * s - r * s,
-                                          width: r * 2 * s, height: r * 2 * s)),
-                   with: .color(.white.opacity(0.12)))
-        }
+        l.addFilter(.blur(radius: 3 * s))
+        l.fill(cloud, with: .linearGradient(
+            Gradient(colors: [.white.opacity(0.5), .white.opacity(0.26)]),
+            startPoint: CGPoint(x: c.x, y: c.y - 34 * s),
+            endPoint: CGPoint(x: c.x, y: c.y + 28 * s)))
     }
 }
 

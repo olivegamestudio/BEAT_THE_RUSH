@@ -159,10 +159,6 @@ struct MenuView: View {
                     let foot = field.paths[sig.path].sample(sig.dist).p
                     drawSignal(ctx, at: S(foot), red: sig.red, scale: scale)
                 }
-                // clouds drift over the top of the trains and track
-                for cl in field.clouds {
-                    drawCloud(ctx, at: S(CGPoint(x: cl.x, y: cl.y)), s: cl.size * scale)
-                }
             }
             .ignoresSafeArea()
 

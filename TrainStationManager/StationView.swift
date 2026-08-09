@@ -38,13 +38,19 @@ struct StationView: View {
                     .gesture(
                         MagnifyGesture()
                             .updating($pinch) { v, s, _ in s = v.magnification }
-                            .onEnded { v in zoom = min(max(zoom * v.magnification, 1), 3) }
+                            .onEnded { v in
+                                zoom = min(max(zoom * v.magnification, 1), 3)
+                                clampPan(scale: scale, size: geo.size)
+                            }
                     )
                     .simultaneousGesture(
                         DragGesture()
                             .updating($drag) { v, s, _ in s = v.translation }
-                            .onEnded { v in pan.width += v.translation.width
-                                            pan.height += v.translation.height }
+                            .onEnded { v in
+                                pan.width += v.translation.width
+                                pan.height += v.translation.height
+                                clampPan(scale: scale, size: geo.size)
+                            }
                     )
 
                 controls(scale: scale, zoom: z)
@@ -212,6 +218,14 @@ struct StationView: View {
         }
     }
 
+    /// Keep the pan within the diagram so you can't drag the board off into empty space.
+    private func clampPan(scale: CGFloat, size: CGSize) {
+        let maxX = max(0, (Track.W * scale * zoom - size.width) / 2)
+        let maxY = max(0, (Track.H * scale * zoom - size.height) / 2)
+        pan.width = min(max(pan.width, -maxX), maxX)
+        pan.height = min(max(pan.height, -maxY), maxY)
+    }
+
     // MARK: - Controls (points as buttons) + HUD
 
     private func project(_ p: CGPoint, scale: CGFloat, z: CGFloat, in size: CGSize) -> CGPoint {
@@ -226,7 +240,7 @@ struct StationView: View {
 
     private func controls(scale: CGFloat, zoom z: CGFloat) -> some View {
         GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
+            ZStack {
                 // No switch on the final platform — the ladder ends there, so there's no
                 // choice to make. Points only where a train can divert or carry on.
                 ForEach(Array(1..<station.layout.n), id: \.self) { i in
@@ -234,36 +248,41 @@ struct StationView: View {
                         .position(project(station.layout.junction(i), scale: scale, z: z, in: geo.size))
                         .onTapGesture { station.toggle(i) }
                 }
-                header
-            }
-        }
-    }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            Button(action: onExit) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(white: 0.8))
-                    .frame(width: 34, height: 34)
-                    .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.12)))
+                // back — top left
+                Button(action: onExit) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(white: 0.85))
+                        .frame(width: 36, height: 36)
+                        .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.14)))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(16)
+
+                // score — bottom left, big
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text("\(Int(station.carried))")
+                        .font(.system(size: 44, weight: .black, design: .rounded))
+                        .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
+                    Text("carried")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(white: 0.72))
+                }
+                .shadow(color: .black.opacity(0.75), radius: 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.horizontal, 22).padding(.bottom, 14)
+
+                // station name — bottom right
+                Text(station.name)
+                    .font(.system(size: 27, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.75), radius: 6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.horizontal, 22).padding(.bottom, 16)
             }
-            Text(station.name)
-                .font(.system(size: 20, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(white: 0.92))
-            Spacer()
-            VStack(spacing: 0) {
-                Text("\(Int(station.carried))")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(Color(red: 0.32, green: 0.82, blue: 0.48))
-                Text("Carried").font(.caption2.weight(.semibold)).foregroundStyle(Color(white: 0.6))
-            }
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.12)))
         }
-        .padding(.horizontal, 16).padding(.top, 10)
     }
 }
 
