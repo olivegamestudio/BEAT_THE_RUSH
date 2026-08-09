@@ -53,23 +53,21 @@ final class MenuField: ObservableObject {
     var rakes: [Rake]
 
     init() {
-        var ps: [RoutePath] = []
-        // Near-horizontal wavy lines at a few heights…
-        for (y, amp, ph): (CGFloat, CGFloat, CGFloat) in [(96, 34, 0), (206, 46, 1.4),
-                                                          (312, 30, 3.0), (420, 42, 4.6)] {
-            var pts: [CGPoint] = []
-            var x: CGFloat = -320
-            while x <= 1000 + 320 { pts.append(CGPoint(x: x, y: y + amp * sin(x * 0.011 + ph))); x += 34 }
-            ps.append(RoutePath(pts))
-        }
-        // …and diagonals that cross them.
-        ps.append(MenuField.curve(from: CGPoint(x: -280, y: -40), to: CGPoint(x: 1280, y: 560), bow: 90))
-        ps.append(MenuField.curve(from: CGPoint(x: -280, y: 560), to: CGPoint(x: 1280, y: -40), bow: -90))
-        ps.append(MenuField.curve(from: CGPoint(x: -280, y: 380), to: CGPoint(x: 1280, y: 120), bow: 70))
-        paths = ps
+        // Straight running lines at assorted angles, some left→right, some right→left —
+        // they cross like a junction throat, and trains on them read as trains, not worms.
+        let segs: [(CGPoint, CGPoint)] = [
+            (CGPoint(x: -320, y: 120), CGPoint(x: 1320, y: 205)),
+            (CGPoint(x: 1320, y: 250), CGPoint(x: -320, y: 250)),
+            (CGPoint(x: -320, y: 400), CGPoint(x: 1320, y: 320)),
+            (CGPoint(x: 1320, y: 40),  CGPoint(x: -320, y: 520)),
+            (CGPoint(x: -320, y: 520), CGPoint(x: 1320, y: 70)),
+            (CGPoint(x: 1320, y: 300), CGPoint(x: -320, y: 470)),
+            (CGPoint(x: -320, y: 470), CGPoint(x: 1320, y: 140)),
+        ]
+        paths = segs.map { RoutePath([$0.0, $0.1]) }
 
         var rk: [Rake] = []
-        for (i, path) in ps.enumerated() {
+        for (i, path) in paths.enumerated() {
             for j in 0..<2 {
                 let len = 4 + (i * 3 + j * 2) % 5
                 let tint = trainPalette[(i * 2 + j) % trainPalette.count]
@@ -79,19 +77,6 @@ final class MenuField: ObservableObject {
             }
         }
         rakes = rk
-    }
-
-    static func curve(from a: CGPoint, to b: CGPoint, bow: CGFloat) -> RoutePath {
-        let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + bow)
-        var pts: [CGPoint] = []
-        var t: CGFloat = 0
-        while t <= 1.0001 {
-            let u = 1 - t
-            pts.append(CGPoint(x: u * u * a.x + 2 * u * t * mid.x + t * t * b.x,
-                               y: u * u * a.y + 2 * u * t * mid.y + t * t * b.y))
-            t += 0.035
-        }
-        return RoutePath(pts)
     }
 
     func tick(_ dt: Double) {
