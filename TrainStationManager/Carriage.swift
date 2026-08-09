@@ -1,5 +1,48 @@
 import SwiftUI
 
+/// A soft drifting cloud (blurred overlapping puffs) centred at screen point `c`;
+/// `s` scales its size.
+func drawCloud(_ ctx: GraphicsContext, at c: CGPoint, s: CGFloat) {
+    ctx.drawLayer { l in
+        l.addFilter(.blur(radius: 11 * s))
+        for (dx, dy, r): (CGFloat, CGFloat, CGFloat) in
+            [(-42, 6, 26), (-16, -10, 30), (16, -8, 33), (46, 8, 26), (2, 12, 36)] {
+            l.fill(Path(ellipseIn: CGRect(x: c.x + dx * s - r * s, y: c.y + dy * s - r * s,
+                                          width: r * 2 * s, height: r * 2 * s)),
+                   with: .color(.white.opacity(0.12)))
+        }
+    }
+}
+
+/// A two-aspect running signal standing at screen point `p` (its foot on the track):
+/// a post and head with a red lamp over a green, the active one lit and glowing.
+func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat) {
+    let postH = 13 * scale
+    // post + base
+    var post = Path()
+    post.move(to: p); post.addLine(to: CGPoint(x: p.x, y: p.y - postH))
+    ctx.stroke(post, with: .color(Color(white: 0.34)), style: .init(lineWidth: 2.4 * scale, lineCap: .round))
+    ctx.fill(Path(ellipseIn: CGRect(x: p.x - 2.4 * scale, y: p.y - 2 * scale,
+                                    width: 4.8 * scale, height: 4 * scale)), with: .color(Color(white: 0.3)))
+    // head
+    let hw = 9 * scale, hh = 17 * scale
+    let head = CGRect(x: p.x - hw / 2, y: p.y - postH - hh, width: hw, height: hh)
+    ctx.fill(Path(roundedRect: head, cornerRadius: 3.5 * scale), with: .color(Color(white: 0.13)))
+    ctx.stroke(Path(roundedRect: head, cornerRadius: 3.5 * scale),
+               with: .color(.black.opacity(0.5)), style: .init(lineWidth: 1 * scale))
+    let r = 2.9 * scale
+    let redC = CGPoint(x: head.midX, y: head.minY + hh * 0.29)
+    let grnC = CGPoint(x: head.midX, y: head.minY + hh * 0.71)
+    let redCol = red ? Color(red: 1.0, green: 0.24, blue: 0.24) : Color(red: 0.26, green: 0.06, blue: 0.06)
+    let grnCol = red ? Color(red: 0.06, green: 0.22, blue: 0.10) : Color(red: 0.30, green: 0.95, blue: 0.44)
+    let lit = red ? redC : grnC
+    let litCol = red ? redCol : grnCol
+    ctx.fill(Path(ellipseIn: CGRect(x: lit.x - r * 2, y: lit.y - r * 2, width: r * 4, height: r * 4)),
+             with: .color(litCol.opacity(0.35)))                        // glow
+    ctx.fill(Path(ellipseIn: CGRect(x: redC.x - r, y: redC.y - r, width: r * 2, height: r * 2)), with: .color(redCol))
+    ctx.fill(Path(ellipseIn: CGRect(x: grnC.x - r, y: grnC.y - r, width: r * 2, height: r * 2)), with: .color(grnCol))
+}
+
 /// Draws one carriage centred at screen point `p`, rotated to `angle`, in `tint`.
 /// Shared by the station board and the animated menu. `cw`/`ch` are design-space
 /// dimensions; `scale` maps design units to screen.

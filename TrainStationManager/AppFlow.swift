@@ -49,8 +49,17 @@ final class MenuField: ObservableObject {
     struct Rake { var path: Int; var dist: CGFloat; var speed: CGFloat; var length: Int; var tint: Color }
     let W: CGFloat = 1000
     let H: CGFloat = 520
+    struct Cloud { var x: CGFloat; var y: CGFloat; var size: CGFloat; var speed: CGFloat }
+    struct Signal { var path: Int; var dist: CGFloat; var red: Bool; var clock: Double; var period: Double }
+    let gap: CGFloat = 32
     let paths: [RoutePath]
     var rakes: [Rake]
+    var signals: [Signal] = []
+    var clouds: [Cloud] = [
+        Cloud(x: 120, y: 110, size: 1.1, speed: 11), Cloud(x: 520, y: 80, size: 1.5, speed: 7),
+        Cloud(x: 860, y: 200, size: 1.0, speed: 13), Cloud(x: 360, y: 320, size: 1.3, speed: 9),
+        Cloud(x: 760, y: 430, size: 1.2, speed: 10), Cloud(x: 60, y: 420, size: 1.0, speed: 12),
+    ]
 
     init() {
         // Straight running lines at assorted angles, some left→right, some right→left —
@@ -77,12 +86,35 @@ final class MenuField: ObservableObject {
             }
         }
         rakes = rk
+        // one signal per line, part-way along, that the trains obey
+        signals = paths.enumerated().map { i, p in
+            Signal(path: i, dist: p.total * 0.6, red: i % 3 == 1,
+                   clock: Double(i) * 0.6, period: 3.0 + Double(i % 3))
+        }
     }
 
     func tick(_ dt: Double) {
+        // signals cycle red/green on their own timers
+        for i in signals.indices {
+            signals[i].clock += dt
+            if signals[i].clock > signals[i].period {
+                signals[i].clock = 0
+                signals[i].red.toggle()
+            }
+        }
+        // clouds drift across and wrap
+        for i in clouds.indices {
+            clouds[i].x += clouds[i].speed * CGFloat(dt)
+            if clouds[i].x > W + 240 { clouds[i].x = -240 }
+        }
+        // rakes advance, but stop short of a red signal ahead on their line
         for i in rakes.indices {
-            let total = paths[rakes[i].path].total
+            let p = rakes[i].path
+            let total = paths[p].total
             var d = rakes[i].dist + rakes[i].speed * CGFloat(dt)
+            for s in signals where s.path == p && s.red {
+                if rakes[i].dist <= s.dist && d > s.dist - gap { d = s.dist - gap }
+            }
             if d > total { d -= total }        // wraps off-screen; rakes reappear from the far edge
             rakes[i].dist = d
         }
@@ -122,6 +154,15 @@ struct MenuView: View {
                                      cw: carUnit - 4, ch: carH, scale: scale)
                     }
                 }
+                // signals the trains actually obey, at their positions on the lines
+                for sig in field.signals {
+                    let foot = field.paths[sig.path].sample(sig.dist).p
+                    drawSignal(ctx, at: S(foot), red: sig.red, scale: scale)
+                }
+                // clouds drift over the top of the trains and track
+                for cl in field.clouds {
+                    drawCloud(ctx, at: S(CGPoint(x: cl.x, y: cl.y)), s: cl.size * scale)
+                }
             }
             .ignoresSafeArea()
 
@@ -132,7 +173,7 @@ struct MenuView: View {
 
             VStack(spacing: 10) {
                 Text("BEAT THE RUSH")
-                    .font(.system(size: 52, weight: .black, design: .rounded))
+                    .font(.system(size: 64, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1).minimumScaleFactor(0.6)
                     .shadow(color: .black.opacity(0.6), radius: 10, y: 4)

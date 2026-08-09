@@ -63,6 +63,7 @@ struct StationView: View {
             for t in station.trains { drawTrain(ctx, t, scale: scale, S: S) }
             // Platforms sit in front of the carriages — trains berth behind the platform edge.
             drawPlatforms(ctx, scale: scale, S: S)
+            drawSignals(ctx, scale: scale, S: S)
         }
         .frame(width: Track.W * scale, height: Track.H * scale)
     }
@@ -75,6 +76,15 @@ struct StationView: View {
         ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 12 * scale, lineCap: .round))
         ctx.stroke(p, with: .color(railSheen.opacity(0.5)),
                    style: .init(lineWidth: 3 * scale, lineCap: .round))    // metal sheen
+    }
+
+    /// A standing signal guarding each platform: red when it's occupied, green when clear.
+    private func drawSignals(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
+        let L = station.layout
+        for i in 0..<L.n {
+            drawSignal(ctx, at: S(CGPoint(x: 362, y: L.lineY[i])),
+                       red: station.occupied(i), scale: scale)
+        }
     }
 
     private func drawRails(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
@@ -199,12 +209,6 @@ struct StationView: View {
                        startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * frac), clockwise: false)
             ctx.stroke(arc, with: .color(Color(red: 0.20, green: 0.55, blue: 0.25)),
                        style: .init(lineWidth: 3 * scale, lineCap: .round))
-        }
-        if t.blocked {   // a small red "held" dot at the train's head
-            let head = S(t.path.sample(t.dist).p)
-            ctx.fill(Path(ellipseIn: CGRect(x: head.x + 6 * scale, y: head.y - 18 * scale,
-                                            width: 9 * scale, height: 9 * scale)),
-                     with: .color(.red))
         }
     }
 
