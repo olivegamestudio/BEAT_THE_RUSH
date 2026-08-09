@@ -36,32 +36,15 @@ struct RoutePath {
     }
 }
 
-// MARK: - Track diagram (landscape, trains run left → right through the platforms)
+// MARK: - Constants shared by every station (geometry that never varies)
 
 enum Track {
     static let W: CGFloat = 960
     static let H: CGFloat = 452
     static let carUnit: CGFloat = 50
     static let carHeight: CGFloat = 34
-
-    /// Four running lines, one platform each, drawn as a signalling schematic.
-    static let lineY: [CGFloat] = [64, 166, 268, 370]    // wide lanes: big gap between each platform
     static let platLeft: CGFloat = 385
     static let rightExit: CGFloat = 1030          // off the right edge, so trains slide away, not pop
-
-    static let entry = CGPoint(x: -70, y: 370)    // off the left edge, so trains slide in
-    static let ladderBottom = CGPoint(x: 195, y: 370)
-    static let ladderTop = CGPoint(x: 345, y: 64)
-
-    /// The point (switch) where the throat ladder meets running line `i`.
-    static func junction(_ i: Int) -> CGPoint {
-        let y = lineY[i]
-        let t = (y - ladderBottom.y) / (ladderTop.y - ladderBottom.y)
-        return CGPoint(x: ladderBottom.x + (ladderTop.x - ladderBottom.x) * t, y: y)
-    }
-
-    /// Order the ladder presents its points, nearest the entry first.
-    static let ladderOrder = [3, 2, 1, 0]
 }
 
 // MARK: - Model
@@ -97,37 +80,39 @@ final class ActiveTrain: Identifiable {
 
 @MainActor
 final class Station: ObservableObject {
-    @Published var name = "Exeter St Davids"
+    let def: StationDef
+    let layout: Layout
+    var name: String { def.name }
+    var platCars: [Int] { def.platCars }
+    var speed: CGFloat { def.speed }
+    var dwellTime: Double { def.dwellTime }
+
     @Published var trains: [ActiveTrain] = []
     @Published var dispatched = 0
     @Published var carried = 0.0        // total passengers carried away — the score
     /// Each point's state: `true` = thrown to divert into its platform, `false` = straight on.
-    @Published var divert: [Bool] = [false, false, false, false]
+    @Published var divert: [Bool]
     /// Passengers gathered on each platform, growing until a train collects them.
-    @Published var passengers: [Double] = [2, 0, 1, 0]
+    @Published var passengers: [Double]
 
-    /// Visual platform lengths, in cars — flavour only; routing no longer gates on fit.
-    let platCars = [7, 6, 7, 6]
-    let speed: CGFloat = 78
-    let dwellTime = 3.5
     let perCar = 3.0             // passengers a single carriage can carry away
     let boardOffRate = 6.0       // passengers boarding a berthed train, per second
-    let spawnRange = 1.1...2.6   // seconds between single-passenger arrivals
+    let platformCap = 14.0       // most a platform holds before it's full
 
     private var spawnClock = 0.0
     private var nextSpawn = 1.5
 
-    private var queue: [Train] = []
+    init(_ def: StationDef) {
+        self.def = def
+        self.layout = Layout(platformCount: def.platformCount)
+        self.divert = Array(repeating: false, count: def.platformCount)
+        self.passengers = Array(repeating: 0, count: def.platformCount)
+        spawn()
+    }
 
-    init() { queue = Station.freshQueue(); spawn() }
-
-    static func freshQueue() -> [Train] {
-        let d: [(String, Color, Int)] = [
-            ("Penzance", .indigo, 6), ("Paignton", .green, 3),
-            ("Bristol", .orange, 5), ("Plymouth", .blue, 4),
-            ("Exmouth", .pink, 4), ("London", .red, 6),
-        ]
-        return d.map { Train(length: $0.2, tint: $0.1, name: $0.0) }
+    private func makeTrain() -> Train {
+        Train(length: def.trainLengths.randomElement() ?? 4,
+              tint: trainPalette.randomElement() ?? .blue, name: "")
     }
 
     // MARK: Derived
@@ -144,7 +129,7 @@ final class Station: ObservableObject {
     /// Has this train's tail moved past the far end of platform `i`? Only then is the
     /// platform truly empty and free for the next arrival to enter.
     private func cleared(_ t: ActiveTrain, of i: Int) -> Bool {
-        let farDist = t.path.distanceTo(vertex: 2) + (platformFarX(i) - Track.junction(i).x)
+        let farDist = t.path.distanceTo(vertex: 2) + (platformFarX(i) - layout.junction(i).x)
         return (t.dist - t.spec.carLength) > farDist
     }
 
@@ -154,18 +139,17 @@ final class Station: ObservableObject {
             && !$0.finished && !cleared($0, of: i) }
     }
 
-
     /// Where the points would send a train arriving now — drives the switch blades
     /// and the platform highlight.
     var predicted: Int {
-        for i in Track.ladderOrder where divert[i] { return i }
-        return Track.ladderOrder.last ?? 0
+        for i in layout.ladderOrder where divert[i] { return i }
+        return layout.ladderOrder.last ?? 0
     }
 
     /// Distance from the entry to platform `i`'s point, measured along the throat ladder —
     /// the same scale as a train's `dist`, since every route shares that ladder.
     private func junctionLadderDist(_ i: Int) -> CGFloat {
-        Track.entry.dist(Track.ladderBottom) + Track.ladderBottom.dist(Track.junction(i))
+        layout.entry.dist(layout.ladderBottom) + layout.ladderBottom.dist(layout.junction(i))
     }
 
     /// Where the points send a train right now, considering only the junctions it has not
@@ -173,10 +157,10 @@ final class Station: ObservableObject {
     /// thrown too late (for a junction already behind it) is not.
     private func liveTarget(_ t: ActiveTrain) -> Int {
         let margin = Track.carUnit * 0.3
-        for i in Track.ladderOrder where t.dist <= junctionLadderDist(i) - margin {
+        for i in layout.ladderOrder where t.dist <= junctionLadderDist(i) - margin {
             if divert[i] { return i }
         }
-        return Track.ladderOrder.last ?? 0
+        return layout.ladderOrder.last ?? 0
     }
 
     // MARK: Actions — the points ARE the controls
@@ -189,8 +173,7 @@ final class Station: ObservableObject {
     // MARK: Spawning
 
     private func spawn() {
-        if queue.isEmpty { queue = Station.freshQueue() }
-        let spec = queue.removeFirst()
+        let spec = makeTrain()
         let t = ActiveTrain(spec: spec, path: buildPath(spec, to: predicted), dist: 0)
         t.target = predicted
         trains.append(t)
@@ -198,9 +181,9 @@ final class Station: ObservableObject {
 
     private func buildPath(_ spec: Train, to i: Int) -> RoutePath {
         let headX = Track.platLeft + spec.carLength
-        return RoutePath([Track.entry, Track.ladderBottom, Track.junction(i),
-                          CGPoint(x: headX, y: Track.lineY[i]),
-                          CGPoint(x: Track.rightExit, y: Track.lineY[i])])
+        return RoutePath([layout.entry, layout.ladderBottom, layout.junction(i),
+                          CGPoint(x: headX, y: layout.lineY[i]),
+                          CGPoint(x: Track.rightExit, y: layout.lineY[i])])
     }
 
     // MARK: Simulation — trains keep moving unless the road ahead is blocked
@@ -213,9 +196,9 @@ final class Station: ObservableObject {
         spawnClock += dt
         if spawnClock >= nextSpawn {
             spawnClock = 0
-            let p = Int.random(in: 0..<4)
-            if passengers[p] < 14 { passengers[p] += 1 }
-            nextSpawn = Double.random(in: spawnRange)
+            let p = Int.random(in: 0..<def.platformCount)
+            if passengers[p] < platformCap { passengers[p] += 1 }
+            nextSpawn = Double.random(in: def.spawnRange)
         }
 
         // Iterate a stable snapshot; never add to or remove from `trains` inside the loop.
@@ -245,9 +228,8 @@ final class Station: ObservableObject {
                 let junctionDist = t.path.distanceTo(vertex: 2)
                 var ceiling = t.berthDist
 
-                // Hold *short* of the point until the platform is completely empty — far
-                // enough back that the train stays re-routable: change the points to a free
-                // platform and a waiting train will take it instead of waiting on the original.
+                // Hold short of the point until the platform is completely empty — far enough
+                // back that the train stays re-routable.
                 if !platformClear(t.target, except: t) {
                     ceiling = min(ceiling, junctionDist - Track.carUnit * 0.6)
                 }

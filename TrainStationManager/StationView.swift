@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct StationView: View {
-    @StateObject private var station = Station()
+    @StateObject private var station: Station
+    let onExit: () -> Void
+    init(def: StationDef, onExit: @escaping () -> Void) {
+        _station = StateObject(wrappedValue: Station(def))
+        self.onExit = onExit
+    }
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
     @GestureState private var pinch: CGFloat = 1
@@ -73,17 +78,18 @@ struct StationView: View {
     }
 
     private func drawRails(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
-        rail(ctx, Track.entry, Track.ladderBottom, scale: scale, S: S)      // approach
-        rail(ctx, Track.ladderBottom, Track.ladderTop, scale: scale, S: S)  // throat ladder
-        for i in 0..<4 {                                                    // running lines
-            rail(ctx, Track.junction(i), CGPoint(x: Track.rightExit, y: Track.lineY[i]),
+        let L = station.layout
+        rail(ctx, L.entry, L.ladderBottom, scale: scale, S: S)      // approach
+        rail(ctx, L.ladderBottom, L.ladderTop, scale: scale, S: S)  // throat ladder
+        for i in 0..<L.n {                                          // running lines
+            rail(ctx, L.junction(i), CGPoint(x: Track.rightExit, y: L.lineY[i]),
                  scale: scale, S: S)
         }
     }
 
     private func drawPlatforms(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
-        for i in 0..<4 {
-            let y = Track.lineY[i]
+        for i in 0..<station.layout.n {
+            let y = station.layout.lineY[i]
             let len = CGFloat(station.platCars[i]) * Track.carUnit
             // The platform: a wide, rounded numbered slab, set clearly off its running line.
             let rect = CGRect(x: S(CGPoint(x: Track.platLeft, y: y)).x,
@@ -257,9 +263,9 @@ struct StationView: View {
             ZStack(alignment: .topLeading) {
                 // No switch on the final platform — the ladder ends there, so there's no
                 // choice to make. Points only where a train can divert or carry on.
-                ForEach(1..<4, id: \.self) { i in
+                ForEach(Array(1..<station.layout.n), id: \.self) { i in
                     PointButton(thrown: station.divert[i])
-                        .position(project(Track.junction(i), scale: scale, z: z, in: geo.size))
+                        .position(project(station.layout.junction(i), scale: scale, z: z, in: geo.size))
                         .onTapGesture { station.toggle(i) }
                 }
                 header
@@ -269,6 +275,14 @@ struct StationView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
+            Button(action: onExit) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(white: 0.8))
+                    .frame(width: 34, height: 34)
+                    .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.12)))
+            }
             Text(station.name)
                 .font(.system(size: 20, weight: .heavy, design: .rounded))
                 .foregroundStyle(Color(white: 0.92))
@@ -312,4 +326,4 @@ struct PointButton: View {
     }
 }
 
-#Preview { StationView() }
+#Preview { StationView(def: allStations[8]) { } }

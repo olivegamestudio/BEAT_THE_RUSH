@@ -4,7 +4,7 @@ import SwiftUI
 struct TrainStationManagerApp: App {
     var body: some Scene {
         WindowGroup {
-            StationView()
+            RootView()
         }
     }
 }
