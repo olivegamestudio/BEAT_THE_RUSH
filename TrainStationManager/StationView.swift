@@ -179,50 +179,12 @@ struct StationView: View {
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: ActiveTrain,
                            scale: CGFloat, S: (CGPoint) -> CGPoint) {
-        let cw = Track.carUnit - 6      // longer gap → more distinct rectangular carriages
-        let ch = Track.carHeight
-        let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
         for c in 0..<t.spec.length {
             let d = t.dist - (CGFloat(c) + 0.5) * Track.carUnit
             guard d > -Track.carUnit else { continue }
             let s = t.path.sample(d)
-            ctx.drawLayer { l in
-                l.addFilter(.shadow(color: .black.opacity(0.45), radius: 4 * scale, x: 0, y: 4 * scale))
-                l.translateBy(x: S(s.p).x, y: S(s.p).y)
-                l.rotate(by: .radians(s.angle))
-                let r = CGRect(x: -cw / 2 * scale, y: -ch / 2 * scale, width: cw * scale, height: ch * scale)
-                let corner = ch * 0.22 * scale
-                let shape = Path(roundedRect: r, cornerRadius: corner)
-                // A side face carries the windows and doors — the roof is the lit top.
-                let depth = ch * 0.44 * scale
-                let sideShape = Path(roundedRect: r.offsetBy(dx: 0, dy: depth), cornerRadius: corner)
-                l.fill(sideShape, with: .color(t.spec.tint))
-                l.fill(sideShape, with: .color(.black.opacity(0.30)))
-                // windows and doors run along the SIDE face, below the roof line
-                let bandTop = r.maxY
-                let winW = cw * 0.15 * scale, winH = depth * 0.48
-                let winY = bandTop + depth * 0.44
-                for k in [-1.0, 0.0, 1.0] {
-                    let wx = CGFloat(k) * cw * 0.24 * scale
-                    l.fill(Path(roundedRect: CGRect(x: wx - winW / 2, y: winY - winH / 2,
-                                                    width: winW, height: winH), cornerRadius: 2 * scale),
-                           with: .color(glass))
-                }
-                let doorW = cw * 0.08 * scale, doorH = depth * 0.82
-                for dx in [-cw * 0.40, cw * 0.40] {
-                    l.fill(Path(roundedRect: CGRect(x: dx * scale - doorW / 2,
-                                                    y: bandTop + depth * 0.5 - doorH / 2,
-                                                    width: doorW, height: doorH), cornerRadius: 1.5 * scale),
-                           with: .color(.black.opacity(0.38)))
-                }
-                // roof (top face), lit from the top-left
-                l.fill(shape, with: .color(t.spec.tint))
-                l.fill(shape, with: .linearGradient(
-                    Gradient(colors: [.white.opacity(0.45), .clear, .black.opacity(0.16)]),
-                    startPoint: CGPoint(x: r.minX, y: r.minY),
-                    endPoint: CGPoint(x: r.maxX, y: r.maxY)))
-                l.stroke(shape, with: .color(.black.opacity(0.22)), style: .init(lineWidth: 1.2 * scale))
-            }
+            drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: t.spec.tint,
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: scale)
         }
         // dwell ring while berthed
         if t.phase == .berthed {

@@ -44,21 +44,117 @@ struct RootView: View {
 
 // MARK: - Main menu
 
+/// A tangle of carriages weaving along crossing lines behind the menu — a junction throat.
+final class MenuField: ObservableObject {
+    struct Rake { var path: Int; var dist: CGFloat; var speed: CGFloat; var length: Int; var tint: Color }
+    let W: CGFloat = 1000
+    let H: CGFloat = 520
+    let paths: [RoutePath]
+    var rakes: [Rake]
+
+    init() {
+        var ps: [RoutePath] = []
+        // Near-horizontal wavy lines at a few heights…
+        for (y, amp, ph): (CGFloat, CGFloat, CGFloat) in [(96, 34, 0), (206, 46, 1.4),
+                                                          (312, 30, 3.0), (420, 42, 4.6)] {
+            var pts: [CGPoint] = []
+            var x: CGFloat = -320
+            while x <= 1000 + 320 { pts.append(CGPoint(x: x, y: y + amp * sin(x * 0.011 + ph))); x += 34 }
+            ps.append(RoutePath(pts))
+        }
+        // …and diagonals that cross them.
+        ps.append(MenuField.curve(from: CGPoint(x: -280, y: -40), to: CGPoint(x: 1280, y: 560), bow: 90))
+        ps.append(MenuField.curve(from: CGPoint(x: -280, y: 560), to: CGPoint(x: 1280, y: -40), bow: -90))
+        ps.append(MenuField.curve(from: CGPoint(x: -280, y: 380), to: CGPoint(x: 1280, y: 120), bow: 70))
+        paths = ps
+
+        var rk: [Rake] = []
+        for (i, path) in ps.enumerated() {
+            for j in 0..<2 {
+                let len = 4 + (i * 3 + j * 2) % 5
+                let tint = trainPalette[(i * 2 + j) % trainPalette.count]
+                let speed = CGFloat(78 + (i * 17 + j * 41) % 74)
+                let dist = path.total * CGFloat(j) / 2 + CGFloat(i) * 44
+                rk.append(Rake(path: i, dist: dist, speed: speed, length: len, tint: tint))
+            }
+        }
+        rakes = rk
+    }
+
+    static func curve(from a: CGPoint, to b: CGPoint, bow: CGFloat) -> RoutePath {
+        let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + bow)
+        var pts: [CGPoint] = []
+        var t: CGFloat = 0
+        while t <= 1.0001 {
+            let u = 1 - t
+            pts.append(CGPoint(x: u * u * a.x + 2 * u * t * mid.x + t * t * b.x,
+                               y: u * u * a.y + 2 * u * t * mid.y + t * t * b.y))
+            t += 0.035
+        }
+        return RoutePath(pts)
+    }
+
+    func tick(_ dt: Double) {
+        for i in rakes.indices {
+            let total = paths[rakes[i].path].total
+            var d = rakes[i].dist + rakes[i].speed * CGFloat(dt)
+            if d > total { d -= total }        // wraps off-screen; rakes reappear from the far edge
+            rakes[i].dist = d
+        }
+        objectWillChange.send()
+    }
+}
+
 struct MenuView: View {
     let onPlay: () -> Void
+    @StateObject private var field = MenuField()
+    private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
+    private let carUnit: CGFloat = 30
+    private let carH: CGFloat = 19
 
     var body: some View {
         ZStack {
             bg.ignoresSafeArea()
+
+            Canvas { ctx, size in
+                let scale = size.width / field.W
+                func S(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x * scale, y: p.y * scale) }
+                // faint rails
+                for path in field.paths {
+                    var pp = Path()
+                    for (i, pt) in path.pts.enumerated() { i == 0 ? pp.move(to: S(pt)) : pp.addLine(to: S(pt)) }
+                    ctx.stroke(pp, with: .color(.white.opacity(0.055)),
+                               style: .init(lineWidth: 11 * scale, lineCap: .round))
+                }
+                // weaving carriages
+                for r in field.rakes {
+                    let path = field.paths[r.path]
+                    for c in 0..<r.length {
+                        let d = r.dist - CGFloat(c) * carUnit
+                        guard d > 0, d < path.total else { continue }
+                        let s = path.sample(d)
+                        drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: r.tint,
+                                     cw: carUnit - 4, ch: carH, scale: scale)
+                    }
+                }
+            }
+            .ignoresSafeArea()
+
+            // soft scrim so the title reads over the busy field
+            RadialGradient(colors: [.black.opacity(0.62), .black.opacity(0)],
+                           center: .center, startRadius: 8, endRadius: 400)
+                .ignoresSafeArea()
+
             VStack(spacing: 10) {
                 Text("BEAT THE RUSH")
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1).minimumScaleFactor(0.6)
-                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                    .shadow(color: .black.opacity(0.6), radius: 10, y: 4)
                 Text("Route the trains. Clear the platforms.")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(white: 0.6))
+                    .foregroundStyle(Color(white: 0.72))
+                    .shadow(color: .black.opacity(0.6), radius: 6)
                     .padding(.bottom, 26)
 
                 Button(action: onPlay) {
@@ -69,10 +165,11 @@ struct MenuView: View {
                         .background(Color(red: 0.20, green: 0.55, blue: 0.34),
                                     in: RoundedRectangle(cornerRadius: 16))
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.18)))
-                        .shadow(color: .black.opacity(0.4), radius: 8, y: 5)
+                        .shadow(color: .black.opacity(0.5), radius: 10, y: 5)
                 }
             }
         }
+        .onReceive(tick) { _ in field.tick(0.03) }
     }
 }
 
