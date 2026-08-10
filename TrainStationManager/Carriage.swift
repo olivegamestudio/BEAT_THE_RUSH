@@ -54,10 +54,14 @@ func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat
 func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
                   tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat) {
     let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
+    // Align to the track line but keep the carriage upright — never let it flip over when
+    // it's travelling to the left (a carriage looks the same either way along its length).
+    var a = angle
+    if cos(a) < 0 { a += .pi }
     ctx.drawLayer { l in
         l.addFilter(.shadow(color: .black.opacity(0.45), radius: 4 * scale, x: 0, y: 4 * scale))
         l.translateBy(x: p.x, y: p.y)
-        l.rotate(by: .radians(angle))
+        l.rotate(by: .radians(a))
         let r = CGRect(x: -cw / 2 * scale, y: -ch / 2 * scale, width: cw * scale, height: ch * scale)
         let corner = ch * 0.22 * scale
         let shape = Path(roundedRect: r, cornerRadius: corner)

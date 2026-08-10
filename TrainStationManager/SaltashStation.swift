@@ -37,17 +37,19 @@ final class SaltashStation: ObservableObject {
     var name: String { def.name }
 
     // Geometry (design space W=960, H=452)
-    let yTop: CGFloat = 190      // top running line (westbound, west of the bridge)
-    let yBot: CGFloat = 262      // bottom running line (eastbound)
+    let yTop: CGFloat = 196      // top running line (westbound, west of the bridge)
+    let yBot: CGFloat = 256      // bottom running line (eastbound)
     let yBridge: CGFloat = 226   // the single bridge line
-    let xMerge: CGFloat = 540    // where the two lines start converging
-    let xBridgeW: CGFloat = 612  // west end of the bridge (eastbound enters here)
-    let xBridgeE: CGFloat = 946  // east end of the bridge (westbound enters here)
-    let platL: CGFloat = 150
-    let platR: CGFloat = 402
+    let xMerge: CGFloat = 560    // where the two lines start converging
+    let xBridgeW: CGFloat = 608  // west end of the bridge (eastbound enters here)
+    let xBridgeE: CGFloat = 884  // east end of the bridge (westbound enters here)
+    let platL: CGFloat = 330     // platforms sit right by the bridge
+    let platR: CGFloat = 552
     let exitW: CGFloat = -90
-    let exitE: CGFloat = 1050
+    let exitE: CGFloat = 1060
     let entryE: CGFloat = 1120
+    let riverL: CGFloat = 636    // the Tamar — a vertical band the bridge crosses
+    let riverR: CGFloat = 856
 
     @Published var trains: [SaltTrain] = []
     @Published var bridgeDir: Dir = .east
@@ -55,7 +57,7 @@ final class SaltashStation: ObservableObject {
     @Published var pTop = 1.0    // passengers on the top (westbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (eastbound) platform
 
-    let speed: CGFloat = 74
+    let speed: CGFloat = 66
     let dwellTime = 2.6
     let perCar = 3.0
     let boardOffRate = 6.0
@@ -71,7 +73,7 @@ final class SaltashStation: ObservableObject {
     init(_ def: StationDef) {
         self.def = def
         // Eastbound: in from the left on the bottom line → bottom platform → merge → bridge → out east.
-        eastPath = RoutePath([CGPoint(x: -160, y: yBot), CGPoint(x: platR, y: yBot),
+        eastPath = RoutePath([CGPoint(x: exitW, y: yBot), CGPoint(x: platR, y: yBot),
                               CGPoint(x: xMerge, y: yBot), CGPoint(x: xBridgeW, y: yBridge),
                               CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: exitE, y: yBridge)])
         eBerth = eastPath.distanceTo(vertex: 1)
@@ -104,7 +106,7 @@ final class SaltashStation: ObservableObject {
 
     func tick(_ dt: Double) {
         let step = speed * CGFloat(dt)
-        let gap = Track.carUnit * 0.6
+        let gap = Track.carUnit * 1.15     // keep clear air between queued trains
 
         paxClock += dt
         if paxClock >= nextPax {

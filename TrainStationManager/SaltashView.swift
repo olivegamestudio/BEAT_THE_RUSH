@@ -14,20 +14,35 @@ struct SaltashView: View {
     private let railEdge = Color(red: 0.10, green: 0.11, blue: 0.15)
     private let inkLight = Color(white: 0.82)
 
+    // Saltash runs wider than a generic station: the single line reaches right out to the east
+    // portal past the bridge. Frame the whole run — west exit to east entry — so both sides of
+    // the bridge are on screen and you can see a westbound train coming before it's on you.
+    private let boxMinX: CGFloat = -140
+    private let boxMaxX: CGFloat = 1170
+    private var designW: CGFloat { boxMaxX - boxMinX }
+
+    /// Maps a design point into screen space: fit the wide run across the width, and centre the
+    /// (shorter) content band vertically so it isn't stuck to the top.
+    private func project(_ p: CGPoint, scale sc: CGFloat, size: CGSize) -> CGPoint {
+        let vOff = (size.height - Track.H * sc) / 2
+        return CGPoint(x: (p.x - boxMinX) * sc, y: p.y * sc + vOff)
+    }
+
     var body: some View {
         GeometryReader { geo in
-            let scale = geo.size.width / Track.W
+            let scale = geo.size.width / designW
             ZStack {
                 LinearGradient(colors: [Color(red: 0.12, green: 0.15, blue: 0.21),
                                         Color(red: 0.06, green: 0.08, blue: 0.12)],
                                startPoint: .top, endPoint: .bottom).ignoresSafeArea()
                 Canvas { ctx, size in
-                    let sc = size.width / Track.W
-                    func S(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x * sc, y: p.y * sc) }
+                    let sc = size.width / designW
+                    func S(_ p: CGPoint) -> CGPoint { project(p, scale: sc, size: size) }
+                    drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
                     drawBridge(ctx, sc, S)
-                    for t in station.trains { drawTrain(ctx, t, sc, S) }
                     drawPlatforms(ctx, sc, S)
+                    for t in station.trains { drawTrain(ctx, t, sc, S) }
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
@@ -56,31 +71,53 @@ struct SaltashView: View {
         rail(ctx, CGPoint(x: s.xBridgeW, y: s.yBridge), CGPoint(x: s.exitE, y: s.yBridge), sc, S) // the bridge
     }
 
-    // MARK: the Royal Albert Bridge — two lenticular trusses over the single line
+    // MARK: the River Tamar — a vertical band the bridge crosses
+
+    private func drawRiver(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        let rect = CGRect(x: S(CGPoint(x: s.riverL, y: 0)).x, y: 0,
+                          width: (s.riverR - s.riverL) * sc, height: size.height)
+        ctx.fill(Path(rect), with: .linearGradient(
+            Gradient(colors: [Color(red: 0.10, green: 0.26, blue: 0.42), Color(red: 0.07, green: 0.19, blue: 0.33)]),
+            startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0)))
+        // ripples
+        for k in 0..<9 {
+            let ry = (30 + CGFloat(k) * 60) * sc
+            var wave = Path(); wave.move(to: CGPoint(x: rect.minX + 10 * sc, y: ry))
+            wave.addLine(to: CGPoint(x: rect.maxX - 10 * sc, y: ry))
+            ctx.stroke(wave, with: .color(.white.opacity(0.05)), style: .init(lineWidth: 2 * sc, lineCap: .round))
+        }
+    }
+
+    // MARK: the Royal Albert Bridge — twin bowstring arches over the single line
 
     private func drawBridge(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let y = s.yBridge
         let mid = (s.xBridgeW + s.xBridgeE) / 2
-        let steel = Color(red: 0.62, green: 0.28, blue: 0.28)      // the bridge's oxide-red iron
-        let steelHi = Color(red: 0.80, green: 0.42, blue: 0.40)
+        let dark = Color(red: 0.34, green: 0.13, blue: 0.13)
+        let red = Color(red: 0.68, green: 0.26, blue: 0.24)
+        let redHi = Color(red: 0.88, green: 0.44, blue: 0.40)
+        // piers down toward the water
+        for px in [s.xBridgeW, mid, s.xBridgeE] {
+            var pier = Path(); pier.move(to: S(CGPoint(x: px, y: y + 4))); pier.addLine(to: S(CGPoint(x: px, y: y + 40)))
+            ctx.stroke(pier, with: .color(Color(white: 0.32)), style: .init(lineWidth: 6 * sc, lineCap: .round))
+        }
         for (x0, x1) in [(s.xBridgeW, mid), (mid, s.xBridgeE)] {
             let c = (x0 + x1) / 2
-            // hangers first (behind the tube)
-            for f in stride(from: 0.16, through: 0.84, by: 0.17) {
-                let hx = x0 + (x1 - x0) * CGFloat(f)
-                let arcY = y - 34 * (1 - pow((CGFloat(f) - 0.5) * 2, 2))   // parabolic top chord
-                var h = Path(); h.move(to: S(CGPoint(x: hx, y: arcY))); h.addLine(to: S(CGPoint(x: hx, y: y - 6)))
-                ctx.stroke(h, with: .color(steel.opacity(0.8)), style: .init(lineWidth: 2 * sc))
+            func archY(_ f: CGFloat) -> CGFloat { y - 4 - 152 * (1 - f) * f }   // peak ≈ y-42
+            // vertical hangers from the arch to the deck
+            for f in stride(from: 0.2, through: 0.8, by: 0.2) {
+                let hx = x0 + (x1 - x0) * f
+                var h = Path(); h.move(to: S(CGPoint(x: hx, y: archY(f)))); h.addLine(to: S(CGPoint(x: hx, y: y - 4)))
+                ctx.stroke(h, with: .color(red.opacity(0.85)), style: .init(lineWidth: 2.4 * sc, lineCap: .round))
             }
-            // the lenticular tube (top chord bowing up, tied to the deck)
-            var lens = Path()
-            lens.move(to: S(CGPoint(x: x0, y: y - 6)))
-            lens.addQuadCurve(to: S(CGPoint(x: x1, y: y - 6)), control: S(CGPoint(x: c, y: y - 56)))
-            lens.addQuadCurve(to: S(CGPoint(x: x0, y: y - 6)), control: S(CGPoint(x: c, y: y - 20)))
-            ctx.fill(lens, with: .linearGradient(Gradient(colors: [steelHi, steel]),
-                     startPoint: S(CGPoint(x: c, y: y - 56)), endPoint: S(CGPoint(x: c, y: y - 6))))
-            ctx.stroke(lens, with: .color(.black.opacity(0.35)), style: .init(lineWidth: 1.5 * sc))
+            // the top-chord tube (dark base + red + highlight, like a rail)
+            var arch = Path(); arch.move(to: S(CGPoint(x: x0, y: y - 4)))
+            arch.addQuadCurve(to: S(CGPoint(x: x1, y: y - 4)), control: S(CGPoint(x: c, y: y - 80)))
+            ctx.stroke(arch, with: .color(dark), style: .init(lineWidth: 9 * sc, lineCap: .round))
+            ctx.stroke(arch, with: .color(red), style: .init(lineWidth: 6 * sc, lineCap: .round))
+            ctx.stroke(arch, with: .color(redHi.opacity(0.7)), style: .init(lineWidth: 2 * sc, lineCap: .round))
         }
     }
 
@@ -157,29 +194,27 @@ struct SaltashView: View {
 
     // MARK: controls / HUD
 
-    private func project(_ p: CGPoint, scale: CGFloat, size: CGSize) -> CGPoint {
-        let base = CGSize(width: Track.W * scale, height: Track.H * scale)
-        return CGPoint(x: (size.width - base.width) / 2 + p.x * scale,
-                       y: (size.height - base.height) / 2 + p.y * scale)
-    }
-
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         ZStack {
-            // bridge control — tap to give the bridge to a direction
+            // The point before the bridge: throw it to connect the single line to the up
+            // line or the down line — the chevron points at whichever line is set.
             Button(action: station.toggleBridge) {
-                HStack(spacing: 6) {
-                    Image(systemName: station.bridgeDir == .east ? "arrow.right" : "arrow.left")
-                        .font(.system(size: 18, weight: .black))
-                    Text("Bridge").font(.system(size: 14, weight: .heavy, design: .rounded))
+                ZStack {
+                    Circle().fill(.white)
+                        .overlay(Circle().stroke(Color(red: 0.25, green: 0.6, blue: 1.0), lineWidth: 3))
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+                        .frame(width: 30, height: 30)
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(Color(red: 0.25, green: 0.6, blue: 1.0))
+                        .offset(y: -22)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14).padding(.vertical, 9)
-                .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.95), in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.18)))
-                .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+                .rotationEffect(.degrees(station.bridgeDir == .east ? 180 : 0))  // down = bottom line, up = top
+                .animation(.easeInOut(duration: 0.2), value: station.bridgeDir)
+                .frame(width: 70, height: 70)
+                .contentShape(Circle())
             }
-            .position(project(CGPoint(x: (station.xBridgeW + station.xBridgeE) / 2, y: station.yBridge - 76),
-                              scale: scale, size: size))
+            .position(project(CGPoint(x: station.xMerge + 26, y: station.yBridge), scale: scale, size: size))
 
             // back — top left
             Button(action: onExit) {
