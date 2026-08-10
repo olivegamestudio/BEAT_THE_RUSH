@@ -23,6 +23,7 @@ struct SaltashView: View {
     @GestureState private var dragX: CGFloat = 0
     @State private var confirmExit = false
     @State private var tutStep = UserDefaults.standard.bool(forKey: "btr.tutSaltash") ? -1 : 0
+    @State private var tutClock = 0.0
     private let tutSteps = [
         "Welcome to Saltash! One track crosses the river — trains take turns over the bridge.",
         "Tap a glowing signal to give that direction the bridge. Green means go.",
@@ -38,6 +39,12 @@ struct SaltashView: View {
     private func project(_ p: CGPoint, scale sc: CGFloat, size: CGSize) -> CGPoint {
         let vOff = (size.height - Track.H * sc) / 2
         return CGPoint(x: (p.x - origin(sc)) * sc, y: p.y * sc + vOff)
+    }
+
+    private func advanceTut(sound: Bool) {
+        if sound { Sound.shared.play(.ui) }
+        tutStep += 1; tutClock = 0
+        if tutStep >= tutSteps.count { UserDefaults.standard.set(true, forKey: "btr.tutSaltash") }
     }
 
     var body: some View {
@@ -58,6 +65,9 @@ struct SaltashView: View {
                     drawPlatforms(ctx, sc, S)                       // slabs sit behind the trains
                     for t in station.trains { drawTrain(ctx, t, sc, S) }
                     drawPlatformPax(ctx, sc, S)                     // waiting people stand in front
+                    for sp in station.sparkles {
+                        drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc)
+                    }
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
@@ -71,9 +81,7 @@ struct SaltashView: View {
 
                 if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
                     TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) {
-                        Sound.shared.play(.ui)
-                        tutStep += 1
-                        if tutStep >= tutSteps.count { UserDefaults.standard.set(true, forKey: "btr.tutSaltash") }
+                        advanceTut(sound: true)
                     }
                 }
 
@@ -92,7 +100,13 @@ struct SaltashView: View {
             }
         }
         .ignoresSafeArea()      // measure the full screen so the tap targets match the drawn board
-        .onReceive(tick) { _ in station.tick(0.03) }
+        .onReceive(tick) { _ in
+            station.tick(0.03)
+            if tutStep >= 0 && tutStep < tutSteps.count {   // the hints step through on their own
+                tutClock += 0.03
+                if tutClock > 5.5 { advanceTut(sound: false) }
+            }
+        }
         .statusBarHidden()
     }
 
@@ -246,8 +260,8 @@ struct SaltashView: View {
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         let n = min(Int(count), 12)
         for k in 0..<max(n, 0) {
-            // agitated people pace up and down the platform, each at their own phase
-            let pace = agitated ? CGFloat(sin(t * 2.3 + Double(k) * 1.7)) * 16 * sc : 0
+            // agitated people shuffle on the spot, each at their own phase
+            let pace = agitated ? CGFloat(sin(t * 2.0 + Double(k) * 1.7)) * 8 * sc : 0
             let px = x0 + CGFloat(k) * 15 * sc + pace
             let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
             let bw = 11 * sc, bh = 14 * sc, top = feetY - bh

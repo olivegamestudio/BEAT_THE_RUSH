@@ -149,6 +149,7 @@ final class SaltashStation: ObservableObject {
     @Published var carried = 0.0
     @Published var pTop = 1.0    // passengers on the top (eastbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
+    @Published var sparkles: [Sparkle] = []
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     private var overTop = 0.0, overBot = 0.0   // seconds each platform has sat full
@@ -157,7 +158,7 @@ final class SaltashStation: ObservableObject {
 
     var animT = 0.0                            // running clock, drives the agitation wiggle
     private var topWait = 0.0, botWait = 0.0   // seconds since a train last called at each platform
-    let agitateAfter = 6.0
+    let agitateAfter = 13.0                     // gentle first level — slow to grumble
     var topAgitated: Bool { pTop >= 1 && topWait > agitateAfter }
     var botAgitated: Bool { pBot >= 1 && botWait > agitateAfter }
     private func moodFor(_ wait: Double, _ p: Double) -> Mood {
@@ -235,7 +236,7 @@ final class SaltashStation: ObservableObject {
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
+        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pTop = 1; pBot = 1; overTop = 0; overBot = 0; topWait = 0; botWait = 0
         bridgeGreen = .east
         spawnClock = 0; nextSpawn = 1.5; paxClock = 0; nextPax = 1.4
@@ -301,6 +302,7 @@ final class SaltashStation: ObservableObject {
                     t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
                     if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
                     Sound.shared.play(.board)
+                    sparkles.append(Sparkle(x: (platL + platR) / 2, y: t.dir == .east ? yTop : yBot))
                 }
                 t.dwell -= dt
                 if t.toBoard > 0 {
@@ -326,6 +328,8 @@ final class SaltashStation: ObservableObject {
             }
         }
         trains.removeAll { $0.finished }
+        for i in sparkles.indices { sparkles[i].age += dt }
+        sparkles.removeAll { $0.age > sparkleLife }
 
         // Win at the goal; lose if either platform sits full too long.
         overTop = pTop >= platformCap ? overTop + dt : 0

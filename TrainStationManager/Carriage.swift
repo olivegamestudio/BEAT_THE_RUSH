@@ -55,6 +55,26 @@ func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat
              with: .color(.white.opacity(0.75)))
 }
 
+/// A gold sparkle burst at screen point `p`, expanding and fading over its life (`age`/`life`).
+func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: Double, scale: CGFloat) {
+    let prog = min(age / life, 1)
+    let alpha = 1 - prog
+    let gold = Color(red: 1.0, green: 0.9, blue: 0.5)
+    let flash = (5 - prog * 4) * scale
+    ctx.fill(Path(ellipseIn: CGRect(x: p.x - flash, y: p.y - flash, width: flash * 2, height: flash * 2)),
+             with: .color(.white.opacity(alpha * 0.8)))
+    for k in 0..<7 {
+        let a = Double(k) / 7 * 2 * .pi + age * 3
+        let r = (6 + prog * 26) * scale
+        let sp = CGPoint(x: p.x + CGFloat(cos(a)) * r, y: p.y + CGFloat(sin(a)) * r)
+        let sz = (2.6 - prog * 2) * scale
+        if sz > 0 {
+            ctx.fill(Path(ellipseIn: CGRect(x: sp.x - sz, y: sp.y - sz, width: sz * 2, height: sz * 2)),
+                     with: .color(gold.opacity(alpha)))
+        }
+    }
+}
+
 /// A little speech bubble with `emoji`, its tail pointing down at the crowd at screen point `p`.
 func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGFloat) {
     let w = 32 * scale, h = 27 * scale

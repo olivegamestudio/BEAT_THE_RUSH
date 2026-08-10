@@ -57,6 +57,10 @@ struct Train: Identifiable {
     var carLength: CGFloat { CGFloat(length) * Track.carUnit }
 }
 
+/// A short-lived sparkle burst, spawned where a train collects its passengers.
+struct Sparkle { var x: CGFloat; var y: CGFloat; var age: Double = 0 }
+let sparkleLife = 0.7
+
 final class ActiveTrain: Identifiable {
     let id = UUID()
     var spec: Train
@@ -112,6 +116,7 @@ final class Station: ObservableObject {
     @Published var platformHeld: [Bool]
     /// Passengers gathered on each platform, growing until a train collects them.
     @Published var passengers: [Double]
+    @Published var sparkles: [Sparkle] = []
 
     let perCar = 3.0             // passengers a single carriage can carry away
     let boardOffRate = 6.0       // passengers boarding a berthed train, per second
@@ -139,6 +144,7 @@ final class Station: ObservableObject {
         platformHeld = Array(repeating: false, count: def.platformCount)
         overflowClock = Array(repeating: 0, count: def.platformCount)
         waitClock = Array(repeating: 0, count: def.platformCount)
+        sparkles = []
         entranceOpen = true; animT = 0
         spawnClock = 0; nextSpawn = 1.5
         spawn()
@@ -301,6 +307,7 @@ final class Station: ObservableObject {
                     t.blocked = false; t.blockedTime = 0
                     waitClock[t.target] = 0        // a train's here — the queue calms down
                     Sound.shared.play(.board)
+                    sparkles.append(Sparkle(x: Track.platLeft + 60, y: layout.lineY[t.target]))
                     t.dwell = dwellTime
                     // Capacity scales with length: a longer train carries more away.
                     t.toBoard = min(passengers[t.target], Double(t.spec.length) * perCar)
@@ -325,6 +332,8 @@ final class Station: ObservableObject {
         // Apply the deferred structural changes now that iteration is done.
         if roster.contains(where: { $0.finished }) { trains.removeAll { $0.finished } }
         for _ in 0..<spawnCount { spawn() }
+        for i in sparkles.indices { sparkles[i].age += dt }
+        sparkles.removeAll { $0.age > sparkleLife }
 
         // Win when the goal is carried; lose if a platform sits full too long (people give up).
         for i in passengers.indices {

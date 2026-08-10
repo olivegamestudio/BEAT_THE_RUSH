@@ -84,6 +84,9 @@ struct StationView: View {
             for t in station.trains { drawTrain(ctx, t, scale: scale, S: S) }
             // Platforms sit in front of the carriages — trains berth behind the platform edge.
             drawPlatforms(ctx, scale: scale, S: S)
+            for sp in station.sparkles {
+                drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: scale)
+            }
             drawSignals(ctx, scale: scale, S: S)
         }
         .frame(width: Track.W * scale, height: Track.H * scale)
@@ -181,8 +184,8 @@ struct StationView: View {
             Color(red: 0.62, green: 0.46, blue: 0.78)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         for k in 0..<n {
-            // agitated people pace up and down the platform, each at their own phase
-            let pace = agitated ? CGFloat(sin(t * 2.3 + Double(k) * 1.7)) * 16 * scale : 0
+            // agitated people shuffle on the spot, each at their own phase
+            let pace = agitated ? CGFloat(sin(t * 2.0 + Double(k) * 1.7)) * 8 * scale : 0
             let px = rect.minX + (42 + CGFloat(k) * 17) * scale + pace
             let feet = rect.minY + 10 * scale        // stand them on the platform, not lying on it
             let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
