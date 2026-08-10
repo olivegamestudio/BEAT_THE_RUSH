@@ -53,6 +53,7 @@ struct StationView: View {
                             }
                     )
 
+                Vignette(strength: 0.5)
                 controls(scale: scale, zoom: z)
 
                 if station.outcome != .playing {
@@ -252,7 +253,7 @@ struct StationView: View {
 
     /// A tap target over a drawn signal — the light shows red/green; a faint ring hints it's a control.
     private func signalTap(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) { SignalHalo() }.buttonStyle(PressStyle())
+        Button(action: { action(); Sound.shared.play(.tap) }) { SignalHalo() }.buttonStyle(PressStyle())
     }
 
     private func project(_ p: CGPoint, scale: CGFloat, z: CGFloat, in size: CGSize) -> CGPoint {
@@ -281,7 +282,7 @@ struct StationView: View {
                 }
 
                 // back — top left
-                Button(action: onExit) {
+                Button(action: { Sound.shared.play(.ui); onExit() }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color(white: 0.85))
@@ -289,8 +290,14 @@ struct StationView: View {
                         .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
                         .overlay(Circle().stroke(.white.opacity(0.14)))
                 }
+                .buttonStyle(PressStyle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(16)
+
+                // mute — top right
+                MuteButton()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(16)
 
                 // score — bottom left, big
                 HStack(alignment: .firstTextBaseline, spacing: 7) {

@@ -292,6 +292,7 @@ final class SaltashStation: ObservableObject {
                     t.dwell = dwellTime
                     t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
                     if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
+                    Sound.shared.play(.board)
                 }
                 t.dwell -= dt
                 if t.toBoard > 0 {
@@ -305,12 +306,16 @@ final class SaltashStation: ObservableObject {
             if !t.hasBridge && occupant == nil && portalGreen(t.dir)
                 && t.dist >= t.bridgeEnter - gap - 1 && (t.dir == .west || t.boarded) {
                 t.hasBridge = true; occupant = t
+                Sound.shared.play(.ding)        // the level-crossing bell as a train takes the bridge
             }
             // free the bridge once our tail is clear of it
             if t.hasBridge && (t.dist - t.carLen) > t.bridgeExit {
                 t.hasBridge = false; if occupant === t { occupant = nil }
             }
-            if t.dist >= t.path.total { t.finished = true; if occupant === t { occupant = nil } }
+            if t.dist >= t.path.total {
+                t.finished = true; if occupant === t { occupant = nil }
+                Sound.shared.play(.depart)
+            }
         }
         trains.removeAll { $0.finished }
 
@@ -323,8 +328,10 @@ final class SaltashStation: ObservableObject {
             stars = starsFor(peakFill: peakFill)
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
+            Sound.shared.play(.win)
         } else if overTop > overflowGrace || overBot > overflowGrace {
             outcome = .lost
+            Sound.shared.play(.lose)
         }
         objectWillChange.send()
     }

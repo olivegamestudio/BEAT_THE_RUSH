@@ -59,6 +59,7 @@ struct SaltashView: View {
                         .updating($dragX) { v, s, _ in s = v.translation.width }
                         .onEnded { v in originX = clampOrigin(originX - v.translation.width / scale) }
                 )
+                Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
 
                 if station.outcome != .playing {
@@ -271,7 +272,7 @@ struct SaltashView: View {
     /// that it's the control. `foot` is the signal's foot on the track in design space.
     private func signalButton(_ dir: SaltashStation.Dir, foot: CGPoint,
                               scale: CGFloat, size: CGSize) -> some View {
-        Button(action: { station.clear(dir) }) { SignalHalo() }
+        Button(action: { station.clear(dir); Sound.shared.play(.tap) }) { SignalHalo() }
             .buttonStyle(PressStyle())
             .position(project(CGPoint(x: foot.x, y: foot.y - 42), scale: scale, size: size))
     }
@@ -286,14 +287,19 @@ struct SaltashView: View {
                          scale: scale, size: size)
 
             // back — top left
-            Button(action: onExit) {
+            Button(action: { Sound.shared.play(.ui); onExit() }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.85))
                     .frame(width: 36, height: 36)
                     .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
                     .overlay(Circle().stroke(.white.opacity(0.14)))
             }
+            .buttonStyle(PressStyle())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(16)
+
+            // mute — top right
+            MuteButton()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(16)
 
             // score bottom-left
             HStack(alignment: .firstTextBaseline, spacing: 7) {

@@ -294,6 +294,7 @@ final class Station: ObservableObject {
                     t.phase = .berthed
                     t.blocked = false; t.blockedTime = 0
                     waitClock[t.target] = 0        // a train's here — the queue calms down
+                    Sound.shared.play(.board)
                     t.dwell = dwellTime
                     // Capacity scales with length: a longer train carries more away.
                     t.toBoard = min(passengers[t.target], Double(t.spec.length) * perCar)
@@ -311,7 +312,7 @@ final class Station: ObservableObject {
                 if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing }
             case .departing:
                 t.dist += step
-                if t.dist >= t.path.total { t.finished = true; dispatched += 1 }
+                if t.dist >= t.path.total { t.finished = true; dispatched += 1; Sound.shared.play(.depart) }
             }
         }
 
@@ -329,8 +330,10 @@ final class Station: ObservableObject {
             stars = starsFor(peakFill: peakFill)
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
+            Sound.shared.play(.win)
         } else if overflowClock.contains(where: { $0 > overflowGrace }) {
             outcome = .lost
+            Sound.shared.play(.lose)
         }
         objectWillChange.send()
     }

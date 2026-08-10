@@ -29,6 +29,40 @@ struct SignalHalo: View {
     }
 }
 
+/// A soft darkening toward the edges to draw the eye into the middle of the board.
+struct Vignette: View {
+    var strength: Double = 0.5
+    var body: some View {
+        GeometryReader { g in
+            RadialGradient(colors: [.clear, .clear, .black.opacity(strength)],
+                           center: .center,
+                           startRadius: min(g.size.width, g.size.height) * 0.18,
+                           endRadius: hypot(g.size.width, g.size.height) * 0.62)
+        }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
+    }
+}
+
+/// A round speaker toggle for muting the synthesised sound.
+struct MuteButton: View {
+    @State private var muted = Sound.shared.muted
+    var body: some View {
+        Button {
+            Sound.shared.toggleMute(); muted = Sound.shared.muted
+            if !muted { Sound.shared.play(.ui) }
+        } label: {
+            Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color(white: 0.82))
+                .frame(width: 36, height: 36)
+                .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.14)))
+        }
+        .buttonStyle(PressStyle())
+    }
+}
+
 enum GameOutcome { case playing, won, lost }
 
 /// Which stations the player has unlocked, persisted across launches. Station 1 is always open;
@@ -318,7 +352,7 @@ struct MenuView: View {
                     .shadow(color: .black.opacity(0.6), radius: 6)
                     .padding(.bottom, 26)
 
-                Button(action: onPlay) {
+                Button(action: { Sound.shared.play(.ui); onPlay() }) {
                     Text("Play")
                         .font(.system(size: 25, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
@@ -338,6 +372,7 @@ struct MenuView: View {
                 .animation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true), value: pulse)
             }
         }
+        .overlay(alignment: .topTrailing) { MuteButton().padding(16) }
         .onReceive(tick) { _ in field.tick(0.03) }
         .onAppear { pulse = true }
     }
