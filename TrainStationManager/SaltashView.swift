@@ -302,7 +302,7 @@ struct SaltashView: View {
             let d = t.dist - (CGFloat(c) + 0.5) * Track.carUnit
             guard d >= 0 else { continue }        // don't draw carriages that haven't entered yet
             let s = t.path.sample(d)
-            drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: t.spec.tint,
+            drawCarriage(ctx, at: S(s.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
                          cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc)
         }
     }

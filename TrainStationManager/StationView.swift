@@ -224,7 +224,7 @@ struct StationView: View {
             let d = t.dist - (CGFloat(c) + 0.5) * Track.carUnit
             guard d > -Track.carUnit else { continue }
             let s = t.path.sample(d)
-            drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: t.spec.tint,
+            drawCarriage(ctx, at: S(s.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
                          cw: Track.carUnit - 6, ch: Track.carHeight, scale: scale)
         }
         // A train stuck too long raises a flag — a pulsing warning over its head.

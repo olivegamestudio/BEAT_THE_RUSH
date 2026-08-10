@@ -24,21 +24,16 @@ final class Sound {
 
         buffers[.tap] = render(0.06) { t in env(t, 0.06, a: 0.002, r: 0.055) * 0.5 * sin(2 * .pi * 760 * t) }
         buffers[.ui]  = render(0.05) { t in env(t, 0.05, a: 0.002, r: 0.045) * 0.4 * sin(2 * .pi * 600 * t) }
-        buffers[.board] = render(0.13) { t in
-            env(t, 0.13, a: 0.005, r: 0.12) * 0.3 * (sin(2 * .pi * 780 * t) + 0.35 * sin(2 * .pi * 1170 * t))
-        }
+        buffers[.board] = render(0.11) { t in env(t, 0.11, a: 0.004, r: 0.1) * 0.28 * sin(2 * .pi * 840 * t) }
         buffers[.star] = render(0.16) { t in
             env(t, 0.16, a: 0.002, r: 0.14) * 0.28 * (sin(2 * .pi * 1500 * t) + 0.4 * sin(2 * .pi * 2300 * t))
         }
-        // the level-crossing bell: one short, bright ding
-        buffers[.ding] = render(0.22) { t in
-            let e = exp(-t * 15)
-            return e * 0.26 * (sin(2 * .pi * 720 * t) + 0.35 * sin(2 * .pi * 1440 * t))
-        }
-        // a soft descending toot as a train leaves — no harsh noise
-        buffers[.depart] = render(0.22) { t in
-            let f = 300 - 90 * (t / 0.22)
-            return env(t, 0.22, a: 0.01, r: 0.2) * 0.2 * (sin(2 * .pi * f * t) + 0.3 * sin(2 * .pi * f * 2 * t))
+        // a short soft crossing "ding" — fast decay so it never rings on
+        buffers[.ding] = render(0.14) { t in exp(-t * 26) * 0.22 * sin(2 * .pi * 780 * t) }
+        // a brief descending toot as a train leaves
+        buffers[.depart] = render(0.16) { t in
+            let f = 300 - 90 * (t / 0.16)
+            return env(t, 0.16, a: 0.008, r: 0.15) * 0.2 * sin(2 * .pi * f * t)
         }
         buffers[.win]  = arpeggio([523.25, 659.25, 783.99, 1046.5], step: 0.10)
         buffers[.lose] = arpeggio([392.0, 330.0, 262.0], step: 0.13)

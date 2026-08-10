@@ -158,7 +158,7 @@ final class SaltashStation: ObservableObject {
 
     var animT = 0.0                            // running clock, drives the agitation wiggle
     private var topWait = 0.0, botWait = 0.0   // seconds since a train last called at each platform
-    let agitateAfter = 13.0                     // gentle first level — slow to grumble
+    let agitateAfter = 26.0                     // gentle first level — very slow to grumble
     var topAgitated: Bool { pTop >= 1 && topWait > agitateAfter }
     var botAgitated: Bool { pBot >= 1 && botWait > agitateAfter }
     private func moodFor(_ wait: Double, _ p: Double) -> Mood {
@@ -302,12 +302,18 @@ final class SaltashStation: ObservableObject {
                     t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
                     if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
                     Sound.shared.play(.board)
-                    sparkles.append(Sparkle(x: (platL + platR) / 2, y: t.dir == .east ? yTop : yBot))
                 }
                 t.dwell -= dt
                 if t.toBoard > 0 {
                     let take = min(boardOffRate * dt, t.toBoard)
+                    let before = t.dir == .east ? pTop : pBot
                     if t.dir == .east { pTop = max(0, pTop - take) } else { pBot = max(0, pBot - take) }
+                    let after = t.dir == .east ? pTop : pBot
+                    if Int(before) != Int(after) {        // a whole person boarded — sparkle where they stood
+                        let k = Int(after)
+                        sparkles.append(Sparkle(x: platL + 16 + CGFloat(k) * 15,
+                                                y: t.dir == .east ? yTop - 28 : yBot + 38))
+                    }
                     t.toBoard -= take; carried += take
                 }
                 if t.dwell <= 0 { t.boarded = true }

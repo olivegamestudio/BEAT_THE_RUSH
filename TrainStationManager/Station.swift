@@ -23,6 +23,15 @@ struct RoutePath {
 
     func distanceTo(vertex i: Int) -> CGFloat { cum[min(i, cum.count - 1)] }
 
+    /// Direction at `d`, averaged over a small window either side so a carriage eases smoothly
+    /// through a junction instead of snapping to the next segment's angle.
+    func smoothAngle(_ d: CGFloat, _ w: CGFloat = 30) -> CGFloat {
+        let a = sample(max(0, d - w)).p
+        let b = sample(min(total, d + w)).p
+        let dx = b.x - a.x, dy = b.y - a.y
+        return (dx == 0 && dy == 0) ? sample(d).angle : atan2(dy, dx)
+    }
+
     func sample(_ d: CGFloat) -> (p: CGPoint, angle: CGFloat) {
         guard pts.count > 1 else { return (pts.first ?? .zero, 0) }
         let dd = min(max(d, 0), total)
@@ -307,7 +316,6 @@ final class Station: ObservableObject {
                     t.blocked = false; t.blockedTime = 0
                     waitClock[t.target] = 0        // a train's here — the queue calms down
                     Sound.shared.play(.board)
-                    sparkles.append(Sparkle(x: Track.platLeft + 60, y: layout.lineY[t.target]))
                     t.dwell = dwellTime
                     // Capacity scales with length: a longer train carries more away.
                     t.toBoard = min(passengers[t.target], Double(t.spec.length) * perCar)
@@ -317,9 +325,15 @@ final class Station: ObservableObject {
                 // Board up to the train's capacity; anyone left over keeps waiting.
                 if t.toBoard > 0 {
                     let take = min(boardOffRate * dt, t.toBoard)
+                    let before = passengers[t.target]
                     passengers[t.target] = max(0, passengers[t.target] - take)
                     t.toBoard -= take
                     carried += take
+                    if Int(before) != Int(passengers[t.target]) {   // sparkle each person as they board
+                        let k = Int(passengers[t.target])
+                        sparkles.append(Sparkle(x: Track.platLeft + 42 + CGFloat(k) * 17,
+                                                y: layout.lineY[t.target] + 28))
+                    }
                 }
                 // Boarded, and the platform's starter is clear — the train takes itself away.
                 if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing }
