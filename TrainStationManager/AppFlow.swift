@@ -274,10 +274,10 @@ struct RootView: View {
             case .select:
                 StationSelectView(onPick: { screen = .play($0) }, onBack: { screen = .menu })
             case .play(let def):
-                if def.kind == .saltash {
-                    SaltashView(def: def, onExit: { screen = .select }).id(def.id)
-                } else {
-                    StationView(def: def, onExit: { screen = .select }).id(def.id)
+                switch def.kind {
+                case .saltash: SaltashView(def: def, onExit: { screen = .select }).id(def.id)
+                case .dawlish: DawlishView(def: def, onExit: { screen = .select }).id(def.id)
+                case .ladder:  StationView(def: def, onExit: { screen = .select }).id(def.id)
                 }
             }
         }

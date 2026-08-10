@@ -43,7 +43,7 @@ struct Layout {
 
 // MARK: - Station definition — one row of numbers per station
 
-enum StationKind { case ladder, saltash }   // ladder = generic throat; saltash = bespoke single-line bridge
+enum StationKind { case ladder, saltash, dawlish }   // ladder = generic throat; others are bespoke
 
 struct StationDef: Identifiable {
     let id: Int
@@ -87,7 +87,7 @@ private func def(_ id: Int, _ name: String, _ county: String, platforms n: Int,
 let allStations: [StationDef] = [
     // Tier 1 · 2 platforms · gentle
     def(1,  "Saltash",               "Cornwall",         platforms: 2, spawn: 2.8...4.8, speed: 64, trains: [2, 3],       goal: 24, kind: .saltash),
-    def(2,  "Dawlish",               "Devon",            platforms: 2, spawn: 2.2...4.2, speed: 70, trains: [2, 3],       goal: 45, express: 0.30),
+    def(2,  "Dawlish",               "Devon",            platforms: 2, spawn: 2.6...4.6, speed: 66, trains: [2, 3],       goal: 30, kind: .dawlish),
     def(3,  "Windermere",            "Cumbria",          platforms: 2, spawn: 2.2...4.0, speed: 68, trains: [2, 3, 4],    goal: 50),
     def(4,  "Whitby",                "North Yorkshire",  platforms: 2, spawn: 2.0...3.8, speed: 70, trains: [2, 3, 4],    goal: 55),
     // Tier 2 · 3 platforms

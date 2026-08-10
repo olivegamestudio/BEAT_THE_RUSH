@@ -22,7 +22,7 @@ struct SaltashView: View {
     @State private var originX: CGFloat = 150     // design x shown at the screen's left edge
     @GestureState private var dragX: CGFloat = 0
     @State private var confirmExit = false
-    @State private var tutStep = UserDefaults.standard.bool(forKey: "btr.tutSaltash") ? -1 : 0
+    @State private var tutStep = 0        // the tutorial runs every time you play the level
     @State private var tutClock = 0.0
     private let tutSteps = [
         "Welcome to Saltash! One track crosses the river — trains take turns over the bridge.",
@@ -44,7 +44,6 @@ struct SaltashView: View {
     private func advanceTut(sound: Bool) {
         if sound { Sound.shared.play(.ui) }
         tutStep += 1; tutClock = 0
-        if tutStep >= tutSteps.count { UserDefaults.standard.set(true, forKey: "btr.tutSaltash") }
     }
 
     var body: some View {
