@@ -17,8 +17,8 @@ struct SaltashView: View {
     // Saltash runs wider than a generic station: the single line reaches right out to the east
     // portal past the bridge. Frame the whole run — west exit to east entry — so both sides of
     // the bridge are on screen and you can see a westbound train coming before it's on you.
-    private let boxMinX: CGFloat = -140
-    private let boxMaxX: CGFloat = 1170
+    private let boxMinX: CGFloat = -150
+    private let boxMaxX: CGFloat = 1230
     private var designW: CGFloat { boxMaxX - boxMinX }
 
     /// Maps a design point into screen space: fit the wide run across the width, and centre the
@@ -64,11 +64,18 @@ struct SaltashView: View {
 
     private func drawRails(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
+        // west side — the two platform lines and the throat converging to the bridge
         rail(ctx, CGPoint(x: s.exitW, y: s.yBot), CGPoint(x: s.xMerge, y: s.yBot), sc, S)   // eastbound line
-        rail(ctx, CGPoint(x: s.xMerge, y: s.yTop), CGPoint(x: s.exitW, y: s.yTop), sc, S)    // westbound line
-        rail(ctx, CGPoint(x: s.xMerge, y: s.yBot), CGPoint(x: s.xBridgeW, y: s.yBridge), sc, S) // converge
+        rail(ctx, CGPoint(x: s.exitW, y: s.yTop), CGPoint(x: s.xMerge, y: s.yTop), sc, S)    // westbound line
+        rail(ctx, CGPoint(x: s.xMerge, y: s.yBot), CGPoint(x: s.xBridgeW, y: s.yBridge), sc, S)
         rail(ctx, CGPoint(x: s.xMerge, y: s.yTop), CGPoint(x: s.xBridgeW, y: s.yBridge), sc, S)
-        rail(ctx, CGPoint(x: s.xBridgeW, y: s.yBridge), CGPoint(x: s.exitE, y: s.yBridge), sc, S) // the bridge
+        // the bridge — a single line
+        rail(ctx, CGPoint(x: s.xBridgeW, y: s.yBridge), CGPoint(x: s.xBridgeE, y: s.yBridge), sc, S)
+        // east side — the bridge splits back to two lines through the east throat
+        rail(ctx, CGPoint(x: s.xBridgeE, y: s.yBridge), CGPoint(x: s.xMergeE, y: s.yBot), sc, S)
+        rail(ctx, CGPoint(x: s.xBridgeE, y: s.yBridge), CGPoint(x: s.xMergeE, y: s.yTop), sc, S)
+        rail(ctx, CGPoint(x: s.xMergeE, y: s.yBot), CGPoint(x: s.exitE, y: s.yBot), sc, S)    // eastbound out
+        rail(ctx, CGPoint(x: s.xMergeE, y: s.yTop), CGPoint(x: s.entryE, y: s.yTop), sc, S)   // westbound in
     }
 
     // MARK: the River Tamar — a vertical band the bridge crosses
@@ -94,16 +101,19 @@ struct SaltashView: View {
     private func drawBridge(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let y = s.yBridge
-        let mid = (s.xBridgeW + s.xBridgeE) / 2
+        let arches = 3
+        let span = s.xBridgeE - s.xBridgeW
+        let bounds = (0...arches).map { s.xBridgeW + span * CGFloat($0) / CGFloat(arches) }
         let dark = Color(red: 0.34, green: 0.13, blue: 0.13)
         let red = Color(red: 0.68, green: 0.26, blue: 0.24)
         let redHi = Color(red: 0.88, green: 0.44, blue: 0.40)
-        // piers down toward the water
-        for px in [s.xBridgeW, mid, s.xBridgeE] {
+        // piers down toward the water, one at each arch join
+        for px in bounds {
             var pier = Path(); pier.move(to: S(CGPoint(x: px, y: y + 4))); pier.addLine(to: S(CGPoint(x: px, y: y + 40)))
             ctx.stroke(pier, with: .color(Color(white: 0.32)), style: .init(lineWidth: 6 * sc, lineCap: .round))
         }
-        for (x0, x1) in [(s.xBridgeW, mid), (mid, s.xBridgeE)] {
+        for i in 0..<arches {
+            let x0 = bounds[i], x1 = bounds[i + 1]
             let c = (x0 + x1) / 2
             func archY(_ f: CGFloat) -> CGFloat { y - 4 - 152 * (1 - f) * f }   // peak ≈ y-42
             // vertical hangers from the arch to the deck
@@ -134,7 +144,11 @@ struct SaltashView: View {
                               sc: CGFloat, S: (CGPoint) -> CGPoint) {
         let s = station
         let h: CGFloat = 24, depth: CGFloat = 11
-        let slabY = top ? y - 14 - h : y + 14
+        // Hold the slab clear of the carriage that berths on the line. The carriage's isometric
+        // side face hangs below its roof, so the bottom platform (which meets that face) needs
+        // more room than the top one (which only meets the roof).
+        let clear: CGFloat = top ? 22 : 38
+        let slabY = top ? y - clear - h : y + clear
         let rect = CGRect(x: S(CGPoint(x: s.platL, y: 0)).x, y: S(CGPoint(x: 0, y: slabY)).y,
                           width: (s.platR - s.platL) * sc, height: h * sc)
         let rr = Path(roundedRect: rect, cornerRadius: 14 * sc)
@@ -178,8 +192,9 @@ struct SaltashView: View {
 
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        drawSignal(ctx, at: S(CGPoint(x: s.xBridgeW - 10, y: s.yBridge)), red: !s.portalGreen(.east), scale: sc)
-        drawSignal(ctx, at: S(CGPoint(x: s.xBridgeE + 10, y: s.yBridge)), red: !s.portalGreen(.west), scale: sc)
+        // each direction stacks behind its own signal, on its own line at the throat
+        drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yBot)), red: !s.portalGreen(.east), scale: sc)
+        drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yTop)), red: !s.portalGreen(.west), scale: sc)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -194,27 +209,35 @@ struct SaltashView: View {
 
     // MARK: controls / HUD
 
+    /// One throat point: a white hub with a chevron that swings to the connected line.
+    private func pointButton() -> some View {
+        Button(action: station.toggleBridge) {
+            ZStack {
+                Circle().fill(.white)
+                    .overlay(Circle().stroke(Color(red: 0.25, green: 0.6, blue: 1.0), lineWidth: 3))
+                    .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+                    .frame(width: 30, height: 30)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(Color(red: 0.25, green: 0.6, blue: 1.0))
+                    .offset(y: -22)
+            }
+            .rotationEffect(.degrees(station.bridgeDir == .east ? 180 : 0))  // down = bottom line, up = top
+            .animation(.easeInOut(duration: 0.2), value: station.bridgeDir)
+            .frame(width: 70, height: 70)
+            .contentShape(Circle())
+        }
+    }
+
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         ZStack {
-            // The point before the bridge: throw it to connect the single line to the up
-            // line or the down line — the chevron points at whichever line is set.
-            Button(action: station.toggleBridge) {
-                ZStack {
-                    Circle().fill(.white)
-                        .overlay(Circle().stroke(Color(red: 0.25, green: 0.6, blue: 1.0), lineWidth: 3))
-                        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-                        .frame(width: 30, height: 30)
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 17, weight: .black))
-                        .foregroundStyle(Color(red: 0.25, green: 0.6, blue: 1.0))
-                        .offset(y: -22)
-                }
-                .rotationEffect(.degrees(station.bridgeDir == .east ? 180 : 0))  // down = bottom line, up = top
-                .animation(.easeInOut(duration: 0.2), value: station.bridgeDir)
-                .frame(width: 70, height: 70)
-                .contentShape(Circle())
-            }
-            .position(project(CGPoint(x: station.xMerge + 26, y: station.yBridge), scale: scale, size: size))
+            // A point at each end of the single line: throw either to give the bridge to the up
+            // line or the down line. Both swing together — a bridge route needs both ends set —
+            // and each chevron points at whichever line is connected.
+            pointButton().position(project(CGPoint(x: station.xMerge + 26, y: station.yBridge),
+                                            scale: scale, size: size))
+            pointButton().position(project(CGPoint(x: station.xMergeE - 26, y: station.yBridge),
+                                            scale: scale, size: size))
 
             // back — top left
             Button(action: onExit) {

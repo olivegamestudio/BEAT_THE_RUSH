@@ -40,16 +40,17 @@ final class SaltashStation: ObservableObject {
     let yTop: CGFloat = 196      // top running line (westbound, west of the bridge)
     let yBot: CGFloat = 256      // bottom running line (eastbound)
     let yBridge: CGFloat = 226   // the single bridge line
-    let xMerge: CGFloat = 560    // where the two lines start converging
-    let xBridgeW: CGFloat = 608  // west end of the bridge (eastbound enters here)
-    let xBridgeE: CGFloat = 884  // east end of the bridge (westbound enters here)
-    let platL: CGFloat = 330     // platforms sit right by the bridge
-    let platR: CGFloat = 552
+    let xMerge: CGFloat = 542    // west throat: the two platform lines converge to the bridge
+    let xBridgeW: CGFloat = 590  // west end of the bridge
+    let xBridgeE: CGFloat = 950  // east end of the bridge (three arches long)
+    let xMergeE: CGFloat = 998   // east throat: the bridge splits back to two lines
+    let platL: CGFloat = 314     // platforms sit right by the bridge
+    let platR: CGFloat = 534
     let exitW: CGFloat = -90
-    let exitE: CGFloat = 1060
-    let entryE: CGFloat = 1120
-    let riverL: CGFloat = 636    // the Tamar — a vertical band the bridge crosses
-    let riverR: CGFloat = 856
+    let exitE: CGFloat = 1120    // eastbound leaves east on the bottom line
+    let entryE: CGFloat = 1180   // westbound arrives from the east on the top line
+    let riverL: CGFloat = 628    // the Tamar — a vertical band the bridge crosses
+    let riverR: CGFloat = 912
 
     @Published var trains: [SaltTrain] = []
     @Published var bridgeDir: Dir = .east
@@ -72,20 +73,24 @@ final class SaltashStation: ObservableObject {
 
     init(_ def: StationDef) {
         self.def = def
-        // Eastbound: in from the left on the bottom line → bottom platform → merge → bridge → out east.
+        // Eastbound: in from the west on the bottom line → bottom platform → west throat →
+        // bridge → east throat back to the bottom line → out east.
         eastPath = RoutePath([CGPoint(x: exitW, y: yBot), CGPoint(x: platR, y: yBot),
                               CGPoint(x: xMerge, y: yBot), CGPoint(x: xBridgeW, y: yBridge),
-                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: exitE, y: yBridge)])
+                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xMergeE, y: yBot),
+                              CGPoint(x: exitE, y: yBot)])
         eBerth = eastPath.distanceTo(vertex: 1)
         eEnter = eastPath.distanceTo(vertex: 3)
         eExit  = eastPath.distanceTo(vertex: 4)
-        // Westbound: in from the east over the bridge → merge → top platform → out west.
-        westPath = RoutePath([CGPoint(x: entryE, y: yBridge), CGPoint(x: xBridgeE, y: yBridge),
-                              CGPoint(x: xBridgeW, y: yBridge), CGPoint(x: xMerge, y: yTop),
-                              CGPoint(x: platL, y: yTop), CGPoint(x: exitW, y: yTop)])
-        wEnter = westPath.distanceTo(vertex: 1)
-        wExit  = westPath.distanceTo(vertex: 2)
-        wBerth = westPath.distanceTo(vertex: 4)
+        // Westbound: in from the east on the top line → east throat → bridge → west throat →
+        // top platform → out west. Its own track each side, so it never shares with eastbound.
+        westPath = RoutePath([CGPoint(x: entryE, y: yTop), CGPoint(x: xMergeE, y: yTop),
+                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xBridgeW, y: yBridge),
+                              CGPoint(x: xMerge, y: yTop), CGPoint(x: platL, y: yTop),
+                              CGPoint(x: exitW, y: yTop)])
+        wEnter = westPath.distanceTo(vertex: 2)
+        wExit  = westPath.distanceTo(vertex: 3)
+        wBerth = westPath.distanceTo(vertex: 5)
         spawn(.east)
     }
 
