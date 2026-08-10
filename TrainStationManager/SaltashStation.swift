@@ -51,26 +51,70 @@ final class SaltashStation: ObservableObject {
     let riverL: CGFloat = 628    // the Tamar — a vertical band the bridge crosses
     let riverR: CGFloat = 912
 
-    // MARK: terrain — Saltash climbs steeply out of the Tamar valley, drawn as contour lines
+    // MARK: terrain — Saltash climbs steeply out of the Tamar, drawn as a coloured relief map
 
-    /// Land height at a point: lowest along the river, rising with distance from it — much steeper
-    /// on the Cornwall (west) side, with gentle rolls so the contours curve like a real map.
+    static let reliefRect = CGRect(x: -120, y: -140, width: 1460, height: 760)
+
+    /// Land height at a point. The Tamar is a low channel (negative = water); either side the land
+    /// climbs, steeply right at the water's edge — that's the sharp rise up to Saltash's platforms
+    /// on the Cornwall (west) bank — then eases as it reaches the town above.
     private static func elev(_ x: CGFloat, _ y: CGFloat) -> CGFloat {
-        let riverC: CGFloat = 770
-        let d = abs(x - riverC)
-        let slope: CGFloat = x < riverC ? 0.95 : 0.60     // west bank is the steep one
-        var h = d * slope
-        h += 55 * sin(x / 150 + 0.6) * cos(y / 130 - 0.3)
-        h += 36 * sin(y / 95 + 1.0)
+        let rL: CGFloat = 628, rR: CGFloat = 912
+        if x >= rL && x <= rR { return -26 - 6 * sin(y / 44) }        // the river
+        let d = x < rL ? (rL - x) : (x - rR)                          // distance onto the bank
+        let steep: CGFloat = x < rL ? 1.0 : 0.72                      // west bank is the steep one
+        var h = steep * 13 * pow(d, 0.62)                            // steep at the water, easing up
+        h += 16 * sin(x / 160 + 0.5) * cos(y / 120)
+        h += 10 * sin(y / 70)
         return h
     }
 
-    /// Contour lines over the whole board, in design space, built once via marching squares.
+    /// Height → colour: deep/shallow water, then a crisp shoreline into green, olive, tan and high
+    /// ground — muted to sit under the gameplay.
+    private static func reliefColor(_ h: CGFloat) -> (UInt8, UInt8, UInt8) {
+        // muted and dark so the tracks and trains stay dominant
+        let stops: [(CGFloat, (CGFloat, CGFloat, CGFloat))] = [
+            (-140, (9, 20, 34)), (-2, (14, 34, 54)),
+            (2, (22, 40, 28)), (70, (30, 50, 32)),
+            (170, (56, 58, 36)), (300, (76, 66, 46)), (500, (92, 82, 66)),
+        ]
+        if h <= stops[0].0 { let c = stops[0].1; return (UInt8(c.0), UInt8(c.1), UInt8(c.2)) }
+        if h >= stops.last!.0 { let c = stops.last!.1; return (UInt8(c.0), UInt8(c.1), UInt8(c.2)) }
+        var lo = stops[0], hi = stops[1]
+        for i in 0..<stops.count - 1 where h >= stops[i].0 && h <= stops[i + 1].0 {
+            lo = stops[i]; hi = stops[i + 1]; break
+        }
+        let t = (h - lo.0) / (hi.0 - lo.0)
+        return (UInt8(lo.1.0 + (hi.1.0 - lo.1.0) * t),
+                UInt8(lo.1.1 + (hi.1.1 - lo.1.1) * t),
+                UInt8(lo.1.2 + (hi.1.2 - lo.1.2) * t))
+    }
+
+    /// The coloured relief, rasterised once at low resolution (scaled up smooth when drawn).
+    static let relief: CGImage = {
+        let W = 292, H = 152
+        var buf = [UInt8](repeating: 0, count: W * H * 4)
+        for py in 0..<H {
+            for px in 0..<W {
+                let dx = reliefRect.minX + reliefRect.width * (CGFloat(px) + 0.5) / CGFloat(W)
+                let dy = reliefRect.minY + reliefRect.height * (CGFloat(py) + 0.5) / CGFloat(H)
+                let (r, g, b) = reliefColor(elev(dx, dy))
+                let i = (py * W + px) * 4
+                buf[i] = r; buf[i + 1] = g; buf[i + 2] = b; buf[i + 3] = 255
+            }
+        }
+        let ctx = CGContext(data: &buf, width: W, height: H, bitsPerComponent: 8, bytesPerRow: W * 4,
+                            space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        return ctx.makeImage()!
+    }()
+
+    /// Contour lines over the land, in design space, built once via marching squares.
     static let contour: Path = {
         var lines = Path()
-        let step: CGFloat = 28, level: CGFloat = 56
+        let step: CGFloat = 26, level: CGFloat = 48
         var gx: CGFloat = -80
-        while gx < 1280 {
+        while gx < 1300 {
             var gy: CGFloat = -120
             while gy < 580 {
                 let tl = elev(gx, gy), tr = elev(gx + step, gy)
@@ -110,6 +154,12 @@ final class SaltashStation: ObservableObject {
     private var overTop = 0.0, overBot = 0.0   // seconds each platform has sat full
     private var peakFill = 0.0
     let overflowGrace = 18.0     // very forgiving on the first level
+
+    var animT = 0.0                            // running clock, drives the agitation wiggle
+    private var topWait = 0.0, botWait = 0.0   // seconds since a train last called at each platform
+    let agitateAfter = 6.0
+    var topAgitated: Bool { pTop >= 1 && topWait > agitateAfter }
+    var botAgitated: Bool { pBot >= 1 && botWait > agitateAfter }
 
     let speed: CGFloat = 66
     let dwellTime = 2.6
@@ -178,7 +228,7 @@ final class SaltashStation: ObservableObject {
 
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
-        pTop = 1; pBot = 1; overTop = 0; overBot = 0
+        pTop = 1; pBot = 1; overTop = 0; overBot = 0; topWait = 0; botWait = 0
         bridgeGreen = .east
         spawnClock = 0; nextSpawn = 1.5; paxClock = 0; nextPax = 1.4
         spawn(.east)
@@ -189,6 +239,10 @@ final class SaltashStation: ObservableObject {
         guard outcome == .playing else { return }
         let step = speed * CGFloat(dt)
         let gap = Track.carUnit * 1.15     // keep clear air between queued trains
+
+        animT += dt
+        topWait = pTop >= 1 ? topWait + dt : 0
+        botWait = pBot >= 1 ? botWait + dt : 0
 
         paxClock += dt
         if paxClock >= nextPax {
@@ -237,6 +291,7 @@ final class SaltashStation: ObservableObject {
                     t.started = true
                     t.dwell = dwellTime
                     t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
+                    if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
                 }
                 t.dwell -= dt
                 if t.toBoard > 0 {

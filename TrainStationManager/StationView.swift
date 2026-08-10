@@ -95,10 +95,10 @@ struct StationView: View {
     /// a starter at each platform's exit end (hold or release its train). Green shows what you set.
     private func drawSignals(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
         let L = station.layout
-        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.7)
+        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.9)
         for i in 0..<L.n {
             drawSignal(ctx, at: S(CGPoint(x: station.exitX(i), y: L.lineY[i])),
-                       red: station.platformHeld[i], scale: scale * 1.7)
+                       red: station.platformHeld[i], scale: scale * 1.9)
         }
     }
 
@@ -152,13 +152,14 @@ struct StationView: View {
                 .foregroundStyle(inkLight)
             ctx.draw(n, at: CGPoint(x: rect.minX + 18 * scale, y: rect.midY))
 
-            drawPeople(ctx, count: station.passengers[i], in: rect, len: len, scale: scale)
+            drawPeople(ctx, count: station.passengers[i], in: rect, len: len, scale: scale,
+                       agitated: station.agitated(i), t: station.animT)
         }
     }
 
     /// Little figures gathering along the platform edge — they grow until a train collects them.
     private func drawPeople(_ ctx: GraphicsContext, count: Double, in rect: CGRect,
-                            len: CGFloat, scale: CGFloat) {
+                            len: CGFloat, scale: CGFloat, agitated: Bool, t: Double) {
         let maxN = max(0, Int((len - 52) / 17))
         let n = min(Int(count), maxN)
         guard n > 0 else { return }
@@ -168,9 +169,10 @@ struct StationView: View {
             Color(red: 0.62, green: 0.46, blue: 0.78)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         for k in 0..<n {
-            let px = rect.minX + (42 + CGFloat(k) * 17) * scale
+            let jitter = agitated ? CGFloat(sin(t * 12 + Double(k) * 1.5)) * 2.4 * scale : 0
+            let px = rect.minX + (42 + CGFloat(k) * 17) * scale + jitter
             let feet = rect.minY + 10 * scale        // stand them on the platform, not lying on it
-            let coat = clothes[k % clothes.count]
+            let coat = agitated ? Color(red: 0.94, green: 0.34, blue: 0.30) : clothes[k % clothes.count]
             // torso: wider at the shoulders, tapering down — reads as a body
             let bw = 12 * scale, bh = 15 * scale
             let top = feet - bh

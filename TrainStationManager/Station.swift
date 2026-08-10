@@ -95,6 +95,11 @@ final class Station: ObservableObject {
     @Published var stars = 0            // star rating earned on the winning tick
     private var overflowClock: [Double] // per platform, seconds it's sat full — overflow loses
     private var peakFill = 0.0          // fullest any platform got (0…1) — drives the star rating
+
+    var animT = 0.0                     // running clock, drives the agitation wiggle
+    private var waitClock: [Double]     // per platform, seconds since a train last called
+    let agitateAfter = 6.0
+    func agitated(_ i: Int) -> Bool { passengers[i] > 0 && waitClock[i] > agitateAfter }
     /// The home signal at the throat: `true` = green, arrivals may enter; `false` = held outside.
     @Published var entranceOpen = true
     /// Each platform's starter signal: `true` = held red, a berthed train waits; `false` = clear away.
@@ -117,6 +122,7 @@ final class Station: ObservableObject {
         self.platformHeld = Array(repeating: false, count: def.platformCount)
         self.passengers = Array(repeating: 0, count: def.platformCount)
         self.overflowClock = Array(repeating: 0, count: def.platformCount)
+        self.waitClock = Array(repeating: 0, count: def.platformCount)
         spawn()
     }
 
@@ -126,7 +132,8 @@ final class Station: ObservableObject {
         passengers = Array(repeating: 0, count: def.platformCount)
         platformHeld = Array(repeating: false, count: def.platformCount)
         overflowClock = Array(repeating: 0, count: def.platformCount)
-        entranceOpen = true
+        waitClock = Array(repeating: 0, count: def.platformCount)
+        entranceOpen = true; animT = 0
         spawnClock = 0; nextSpawn = 1.5
         spawn()
         objectWillChange.send()
@@ -213,6 +220,9 @@ final class Station: ObservableObject {
         let step = speed * CGFloat(dt)
         let gap = Track.carUnit * 0.55
 
+        animT += dt
+        for i in passengers.indices { waitClock[i] = passengers[i] > 0 ? waitClock[i] + dt : 0 }
+
         // Passengers arrive one at a time, popping onto a random platform now and then.
         spawnClock += dt
         if spawnClock >= nextSpawn {
@@ -283,6 +293,7 @@ final class Station: ObservableObject {
                     t.dist = t.berthDist
                     t.phase = .berthed
                     t.blocked = false; t.blockedTime = 0
+                    waitClock[t.target] = 0        // a train's here — the queue calms down
                     t.dwell = dwellTime
                     // Capacity scales with length: a longer train carries more away.
                     t.toBoard = min(passengers[t.target], Double(t.spec.length) * perCar)

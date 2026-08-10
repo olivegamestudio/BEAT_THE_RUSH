@@ -42,10 +42,17 @@ func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat
     let grnCol = red ? Color(red: 0.06, green: 0.22, blue: 0.10) : Color(red: 0.30, green: 0.95, blue: 0.44)
     let lit = red ? redC : grnC
     let litCol = red ? redCol : grnCol
-    ctx.fill(Path(ellipseIn: CGRect(x: lit.x - r * 2, y: lit.y - r * 2, width: r * 4, height: r * 4)),
-             with: .color(litCol.opacity(0.35)))                        // glow
+    // a soft, blurred halo around the lit lamp so it reads as glowing
+    ctx.drawLayer { g in
+        g.addFilter(.blur(radius: r * 1.6))
+        g.fill(Path(ellipseIn: CGRect(x: lit.x - r * 2.6, y: lit.y - r * 2.6, width: r * 5.2, height: r * 5.2)),
+               with: .color(litCol.opacity(0.85)))
+    }
     ctx.fill(Path(ellipseIn: CGRect(x: redC.x - r, y: redC.y - r, width: r * 2, height: r * 2)), with: .color(redCol))
     ctx.fill(Path(ellipseIn: CGRect(x: grnC.x - r, y: grnC.y - r, width: r * 2, height: r * 2)), with: .color(grnCol))
+    // a bright core on the lit lamp
+    ctx.fill(Path(ellipseIn: CGRect(x: lit.x - r * 0.45, y: lit.y - r * 0.45, width: r * 0.9, height: r * 0.9)),
+             with: .color(.white.opacity(0.75)))
 }
 
 /// Draws one carriage centred at screen point `p`, rotated to `angle`, in `tint`.

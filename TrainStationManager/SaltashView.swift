@@ -38,6 +38,7 @@ struct SaltashView: View {
                 Canvas { ctx, size in
                     let sc = size.width / designW
                     func S(_ p: CGPoint) -> CGPoint { project(p, scale: sc, size: size) }
+                    drawRelief(ctx, sc, size)
                     drawContours(ctx, sc, size)
                     drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
@@ -71,8 +72,16 @@ struct SaltashView: View {
         ctx.stroke(p, with: .color(railSheen.opacity(0.5)), style: .init(lineWidth: 3 * sc, lineCap: .round))
     }
 
-    /// Topographic contour lines behind the board — the valley the station sits in. Built once in
-    /// design space, then scaled/offset to the current frame.
+    /// The coloured relief map — the valley the station sits in, drawn behind everything.
+    private func drawRelief(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
+        let vOff = (size.height - Track.H * sc) / 2
+        let r = SaltashStation.reliefRect
+        let screen = CGRect(x: (r.minX - boxMinX) * sc, y: r.minY * sc + vOff,
+                            width: r.width * sc, height: r.height * sc)
+        ctx.draw(Image(decorative: SaltashStation.relief, scale: 1), in: screen)
+    }
+
+    /// Topographic contour lines over the relief. Built once in design space, then scaled to frame.
     private func drawContours(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
         let vOff = (size.height - Track.H * sc) / 2
         let t = CGAffineTransform(a: sc, b: 0, c: 0, d: sc, tx: -boxMinX * sc, ty: vOff)
@@ -98,19 +107,15 @@ struct SaltashView: View {
 
     // MARK: the River Tamar — a vertical band the bridge crosses
 
+    /// Ripples on the river — the water colour itself now comes from the relief.
     private func drawRiver(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        let rect = CGRect(x: S(CGPoint(x: s.riverL, y: 0)).x, y: 0,
-                          width: (s.riverR - s.riverL) * sc, height: size.height)
-        ctx.fill(Path(rect), with: .linearGradient(
-            Gradient(colors: [Color(red: 0.10, green: 0.26, blue: 0.42), Color(red: 0.07, green: 0.19, blue: 0.33)]),
-            startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0)))
-        // ripples
+        let x0 = S(CGPoint(x: s.riverL, y: 0)).x, x1 = S(CGPoint(x: s.riverR, y: 0)).x
         for k in 0..<9 {
             let ry = (30 + CGFloat(k) * 60) * sc
-            var wave = Path(); wave.move(to: CGPoint(x: rect.minX + 10 * sc, y: ry))
-            wave.addLine(to: CGPoint(x: rect.maxX - 10 * sc, y: ry))
-            ctx.stroke(wave, with: .color(.white.opacity(0.05)), style: .init(lineWidth: 2 * sc, lineCap: .round))
+            var wave = Path(); wave.move(to: CGPoint(x: x0 + 12 * sc, y: ry))
+            wave.addLine(to: CGPoint(x: x1 - 12 * sc, y: ry))
+            ctx.stroke(wave, with: .color(.white.opacity(0.06)), style: .init(lineWidth: 2 * sc, lineCap: .round))
         }
     }
 
@@ -186,22 +191,25 @@ struct SaltashView: View {
     /// Waiting passengers, drawn after the trains so a berthed carriage never hides the queue.
     private func drawPlatformPax(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for (top, y, pax) in [(true, s.yTop, s.pTop), (false, s.yBot, s.pBot)] {
-            let rect = platformRect(top: top, y: y, sc: sc, S: S)
-            let feetY = top ? rect.maxY - 4 * sc : rect.minY + 4 * sc
-            drawPax(ctx, count: pax, x0: rect.minX + 16 * sc, feetY: feetY, sc: sc)
-        }
+        let topRect = platformRect(top: true, y: s.yTop, sc: sc, S: S)
+        drawPax(ctx, count: s.pTop, x0: topRect.minX + 16 * sc, feetY: topRect.maxY - 4 * sc,
+                sc: sc, agitated: s.topAgitated, t: s.animT)
+        let botRect = platformRect(top: false, y: s.yBot, sc: sc, S: S)
+        drawPax(ctx, count: s.pBot, x0: botRect.minX + 16 * sc, feetY: botRect.minY + 4 * sc,
+                sc: sc, agitated: s.botAgitated, t: s.animT)
     }
 
-    private func drawPax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat, sc: CGFloat) {
+    private func drawPax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat,
+                         sc: CGFloat, agitated: Bool, t: Double) {
         let clothes: [Color] = [Color(red: 0.30, green: 0.55, blue: 0.85), Color(red: 0.86, green: 0.45, blue: 0.38),
                                 Color(red: 0.40, green: 0.70, blue: 0.52), Color(red: 0.78, green: 0.62, blue: 0.30),
                                 Color(red: 0.62, green: 0.46, blue: 0.78)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         let n = min(Int(count), 12)
         for k in 0..<max(n, 0) {
-            let px = x0 + CGFloat(k) * 15 * sc
-            let coat = clothes[k % clothes.count]
+            let jitter = agitated ? CGFloat(sin(t * 12 + Double(k) * 1.5)) * 2.4 * sc : 0
+            let px = x0 + CGFloat(k) * 15 * sc + jitter
+            let coat = agitated ? Color(red: 0.94, green: 0.34, blue: 0.30) : clothes[k % clothes.count]
             let bw = 11 * sc, bh = 14 * sc, top = feetY - bh
             var torso = Path()
             torso.move(to: CGPoint(x: px - bw * 0.32, y: top + bw * 0.28))
@@ -225,7 +233,7 @@ struct SaltashView: View {
         // on the top line at the west throat, westbound on the bottom line at the east throat.
         // The light shows what the player set — green for the cleared direction — so a crossing
         // train is never under its own red. (Bridge-occupied is an internal check, not shown.)
-        let sig = sc * 1.9
+        let sig = sc * 2.1
         drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: s.bridgeGreen != .east, scale: sig)
         drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: s.bridgeGreen != .west, scale: sig)
         // Automatic platform signals — red while a train stands on the platform, so the next one
