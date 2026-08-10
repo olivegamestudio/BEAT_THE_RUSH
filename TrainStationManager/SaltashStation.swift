@@ -37,8 +37,8 @@ final class SaltashStation: ObservableObject {
     var name: String { def.name }
 
     // Geometry (design space W=960, H=452)
-    let yTop: CGFloat = 196      // top running line (westbound, west of the bridge)
-    let yBot: CGFloat = 256      // bottom running line (eastbound)
+    let yTop: CGFloat = 196      // top running line — eastbound (trains drive on the left)
+    let yBot: CGFloat = 256      // bottom running line — westbound
     let yBridge: CGFloat = 226   // the single bridge line
     let xMerge: CGFloat = 542    // west throat: the two platform lines converge to the bridge
     let xBridgeW: CGFloat = 590  // west end of the bridge
@@ -55,8 +55,8 @@ final class SaltashStation: ObservableObject {
     @Published var trains: [SaltTrain] = []
     @Published var bridgeDir: Dir = .east
     @Published var carried = 0.0
-    @Published var pTop = 1.0    // passengers on the top (westbound) platform
-    @Published var pBot = 1.0    // passengers on the bottom (eastbound) platform
+    @Published var pTop = 1.0    // passengers on the top (eastbound) platform
+    @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
 
     let speed: CGFloat = 66
     let dwellTime = 2.6
@@ -73,21 +73,21 @@ final class SaltashStation: ObservableObject {
 
     init(_ def: StationDef) {
         self.def = def
-        // Eastbound: in from the west on the bottom line → bottom platform → west throat →
-        // bridge → east throat back to the bottom line → out east.
-        eastPath = RoutePath([CGPoint(x: exitW, y: yBot), CGPoint(x: platR, y: yBot),
-                              CGPoint(x: xMerge, y: yBot), CGPoint(x: xBridgeW, y: yBridge),
-                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xMergeE, y: yBot),
-                              CGPoint(x: exitE, y: yBot)])
+        // Eastbound runs on the top line (left-hand running): in from the west → top platform →
+        // west throat → bridge → east throat back to the top line → out east.
+        eastPath = RoutePath([CGPoint(x: exitW, y: yTop), CGPoint(x: platR, y: yTop),
+                              CGPoint(x: xMerge, y: yTop), CGPoint(x: xBridgeW, y: yBridge),
+                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xMergeE, y: yTop),
+                              CGPoint(x: exitE, y: yTop)])
         eBerth = eastPath.distanceTo(vertex: 1)
         eEnter = eastPath.distanceTo(vertex: 3)
         eExit  = eastPath.distanceTo(vertex: 4)
-        // Westbound: in from the east on the top line → east throat → bridge → west throat →
-        // top platform → out west. Its own track each side, so it never shares with eastbound.
-        westPath = RoutePath([CGPoint(x: entryE, y: yTop), CGPoint(x: xMergeE, y: yTop),
+        // Westbound runs on the bottom line: in from the east → east throat → bridge → west
+        // throat → bottom platform → out west. Its own track each side, never shared.
+        westPath = RoutePath([CGPoint(x: entryE, y: yBot), CGPoint(x: xMergeE, y: yBot),
                               CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xBridgeW, y: yBridge),
-                              CGPoint(x: xMerge, y: yTop), CGPoint(x: platL, y: yTop),
-                              CGPoint(x: exitW, y: yTop)])
+                              CGPoint(x: xMerge, y: yBot), CGPoint(x: platL, y: yBot),
+                              CGPoint(x: exitW, y: yBot)])
         wEnter = westPath.distanceTo(vertex: 2)
         wExit  = westPath.distanceTo(vertex: 3)
         wBerth = westPath.distanceTo(vertex: 5)
@@ -154,12 +154,12 @@ final class SaltashStation: ObservableObject {
                 if !t.started {
                     t.started = true
                     t.dwell = dwellTime
-                    t.toBoard = min(t.dir == .east ? pBot : pTop, Double(t.spec.length) * perCar)
+                    t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
                 }
                 t.dwell -= dt
                 if t.toBoard > 0 {
                     let take = min(boardOffRate * dt, t.toBoard)
-                    if t.dir == .east { pBot = max(0, pBot - take) } else { pTop = max(0, pTop - take) }
+                    if t.dir == .east { pTop = max(0, pTop - take) } else { pBot = max(0, pBot - take) }
                     t.toBoard -= take; carried += take
                 }
                 if t.dwell <= 0 { t.boarded = true }

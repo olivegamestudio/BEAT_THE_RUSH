@@ -41,8 +41,9 @@ struct SaltashView: View {
                     drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
                     drawBridge(ctx, sc, S)
-                    drawPlatforms(ctx, sc, S)
+                    drawPlatforms(ctx, sc, S)                       // slabs sit behind the trains
                     for t in station.trains { drawTrain(ctx, t, sc, S) }
+                    drawPlatformPax(ctx, sc, S)                     // waiting people stand in front
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
@@ -133,24 +134,28 @@ struct SaltashView: View {
 
     // MARK: platforms + passengers
 
-    private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+    /// The platform slab rectangle. The slab is held clear of the carriage that berths on the
+    /// line — the carriage's isometric side face hangs below its roof, so the bottom platform
+    /// (which meets that face) needs more room than the top one (which only meets the roof).
+    private func platformRect(top: Bool, y: CGFloat, sc: CGFloat, S: (CGPoint) -> CGPoint) -> CGRect {
         let s = station
-        // top platform (above the westbound line), bottom platform (below the eastbound line)
-        drawPlatform(ctx, top: true, y: s.yTop, pax: s.pTop, sc: sc, S: S)
-        drawPlatform(ctx, top: false, y: s.yBot, pax: s.pBot, sc: sc, S: S)
-    }
-
-    private func drawPlatform(_ ctx: GraphicsContext, top: Bool, y: CGFloat, pax: Double,
-                              sc: CGFloat, S: (CGPoint) -> CGPoint) {
-        let s = station
-        let h: CGFloat = 24, depth: CGFloat = 11
-        // Hold the slab clear of the carriage that berths on the line. The carriage's isometric
-        // side face hangs below its roof, so the bottom platform (which meets that face) needs
-        // more room than the top one (which only meets the roof).
+        let h: CGFloat = 24
         let clear: CGFloat = top ? 22 : 38
         let slabY = top ? y - clear - h : y + clear
-        let rect = CGRect(x: S(CGPoint(x: s.platL, y: 0)).x, y: S(CGPoint(x: 0, y: slabY)).y,
-                          width: (s.platR - s.platL) * sc, height: h * sc)
+        return CGRect(x: S(CGPoint(x: s.platL, y: 0)).x, y: S(CGPoint(x: 0, y: slabY)).y,
+                      width: (s.platR - s.platL) * sc, height: h * sc)
+    }
+
+    private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        drawPlatform(ctx, top: true, y: s.yTop, sc: sc, S: S)
+        drawPlatform(ctx, top: false, y: s.yBot, sc: sc, S: S)
+    }
+
+    private func drawPlatform(_ ctx: GraphicsContext, top: Bool, y: CGFloat,
+                              sc: CGFloat, S: (CGPoint) -> CGPoint) {
+        let depth: CGFloat = 11
+        let rect = platformRect(top: top, y: y, sc: sc, S: S)
         let rr = Path(roundedRect: rect, cornerRadius: 14 * sc)
         let side = Path(roundedRect: rect.offsetBy(dx: 0, dy: depth * sc), cornerRadius: 14 * sc)
         ctx.drawLayer { l in
@@ -159,9 +164,16 @@ struct SaltashView: View {
         }
         ctx.fill(rr, with: .color(Color(red: 0.34, green: 0.39, blue: 0.47)))
         ctx.stroke(rr, with: .color(.white.opacity(0.22)), style: .init(lineWidth: 2 * sc))
-        // passengers stand on the track-facing edge
-        let feetY = top ? rect.maxY - 4 * sc : rect.minY + 4 * sc
-        drawPax(ctx, count: pax, x0: rect.minX + 16 * sc, feetY: feetY, sc: sc)
+    }
+
+    /// Waiting passengers, drawn after the trains so a berthed carriage never hides the queue.
+    private func drawPlatformPax(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        for (top, y, pax) in [(true, s.yTop, s.pTop), (false, s.yBot, s.pBot)] {
+            let rect = platformRect(top: top, y: y, sc: sc, S: S)
+            let feetY = top ? rect.maxY - 4 * sc : rect.minY + 4 * sc
+            drawPax(ctx, count: pax, x0: rect.minX + 16 * sc, feetY: feetY, sc: sc)
+        }
     }
 
     private func drawPax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat, sc: CGFloat) {
@@ -192,9 +204,11 @@ struct SaltashView: View {
 
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        // each direction stacks behind its own signal, on its own line at the throat
-        drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yBot)), red: !s.portalGreen(.east), scale: sc)
-        drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yTop)), red: !s.portalGreen(.west), scale: sc)
+        // Each direction stacks behind its own signal, on its own line at the throat: eastbound
+        // on the top line at the west throat, westbound on the bottom line at the east throat.
+        let sig = sc * 1.6
+        drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: !s.portalGreen(.east), scale: sig)
+        drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: !s.portalGreen(.west), scale: sig)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -222,7 +236,7 @@ struct SaltashView: View {
                     .foregroundStyle(Color(red: 0.25, green: 0.6, blue: 1.0))
                     .offset(y: -22)
             }
-            .rotationEffect(.degrees(station.bridgeDir == .east ? 180 : 0))  // down = bottom line, up = top
+            .rotationEffect(.degrees(station.bridgeDir == .east ? 0 : 180))  // up = top (east), down = bottom (west)
             .animation(.easeInOut(duration: 0.2), value: station.bridgeDir)
             .frame(width: 70, height: 70)
             .contentShape(Circle())
@@ -234,9 +248,9 @@ struct SaltashView: View {
             // A point at each end of the single line: throw either to give the bridge to the up
             // line or the down line. Both swing together — a bridge route needs both ends set —
             // and each chevron points at whichever line is connected.
-            pointButton().position(project(CGPoint(x: station.xMerge + 26, y: station.yBridge),
+            pointButton().position(project(CGPoint(x: station.xMerge + 30, y: station.yTop - 32),
                                             scale: scale, size: size))
-            pointButton().position(project(CGPoint(x: station.xMergeE - 26, y: station.yBridge),
+            pointButton().position(project(CGPoint(x: station.xMergeE - 30, y: station.yTop - 32),
                                             scale: scale, size: size))
 
             // back — top left
