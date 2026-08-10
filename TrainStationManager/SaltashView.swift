@@ -81,8 +81,8 @@ struct SaltashView: View {
         // east side — the bridge splits back to two lines through the east throat
         rail(ctx, CGPoint(x: s.xBridgeE, y: s.yBridge), CGPoint(x: s.xMergeE, y: s.yBot), sc, S)
         rail(ctx, CGPoint(x: s.xBridgeE, y: s.yBridge), CGPoint(x: s.xMergeE, y: s.yTop), sc, S)
-        rail(ctx, CGPoint(x: s.xMergeE, y: s.yBot), CGPoint(x: s.exitE, y: s.yBot), sc, S)    // eastbound out
-        rail(ctx, CGPoint(x: s.xMergeE, y: s.yTop), CGPoint(x: s.entryE, y: s.yTop), sc, S)   // westbound in
+        rail(ctx, CGPoint(x: s.xMergeE, y: s.yTop), CGPoint(x: s.exitE, y: s.yTop), sc, S)    // eastbound out (top)
+        rail(ctx, CGPoint(x: s.xMergeE, y: s.yBot), CGPoint(x: s.entryE, y: s.yBot), sc, S)   // westbound in (bottom)
     }
 
     // MARK: the River Tamar — a vertical band the bridge crosses
@@ -214,7 +214,7 @@ struct SaltashView: View {
         // on the top line at the west throat, westbound on the bottom line at the east throat.
         // The light shows what the player set — green for the cleared direction — so a crossing
         // train is never under its own red. (Bridge-occupied is an internal check, not shown.)
-        let sig = sc * 1.6
+        let sig = sc * 1.9
         drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: s.bridgeGreen != .east, scale: sig)
         drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: s.bridgeGreen != .west, scale: sig)
     }
@@ -235,12 +235,9 @@ struct SaltashView: View {
     /// that it's the control. `foot` is the signal's foot on the track in design space.
     private func signalButton(_ dir: SaltashStation.Dir, foot: CGPoint,
                               scale: CGFloat, size: CGSize) -> some View {
-        Button(action: { station.clear(dir) }) {
-            Circle().stroke(.white.opacity(0.16), lineWidth: 2)
-                .frame(width: 52, height: 52)
-                .contentShape(Circle())
-        }
-        .position(project(CGPoint(x: foot.x, y: foot.y - 18), scale: scale, size: size))
+        Button(action: { station.clear(dir) }) { SignalHalo() }
+            .buttonStyle(PressStyle())
+            .position(project(CGPoint(x: foot.x, y: foot.y - 34), scale: scale, size: size))
     }
 
     private func controls(scale: CGFloat, size: CGSize) -> some View {

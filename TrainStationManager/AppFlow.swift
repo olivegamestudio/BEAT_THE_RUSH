@@ -18,6 +18,17 @@ struct PressStyle: ButtonStyle {
     }
 }
 
+/// The tap affordance drawn over a signal — a soft disc and a bright ring, big enough to hit and
+/// clearly a control. The red/green signal itself is painted on the board underneath.
+struct SignalHalo: View {
+    var body: some View {
+        Circle().fill(.white.opacity(0.07))
+            .overlay(Circle().stroke(.white.opacity(0.42), lineWidth: 2.5))
+            .frame(width: 66, height: 66)
+            .contentShape(Circle())
+    }
+}
+
 enum GameOutcome { case playing, won, lost }
 
 /// Which stations the player has unlocked, persisted across launches. Station 1 is always open;
@@ -77,7 +88,7 @@ struct OutcomeOverlay: View {
                     .foregroundStyle(Color(white: 0.8))
                 HStack(spacing: 12) {
                     if !won {
-                        Button(action: onRetry) { label("Retry", filled: false) }.buttonStyle(PressStyle())
+                        Button(action: onRetry) { label("Try Again", filled: false) }.buttonStyle(PressStyle())
                     }
                     Button(action: onExit) { label(won ? "Continue" : "Stations", filled: won) }
                         .buttonStyle(PressStyle())

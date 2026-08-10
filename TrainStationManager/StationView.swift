@@ -94,10 +94,10 @@ struct StationView: View {
     /// a starter at each platform's exit end (hold or release its train). Green shows what you set.
     private func drawSignals(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
         let L = station.layout
-        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.3)
+        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.7)
         for i in 0..<L.n {
             drawSignal(ctx, at: S(CGPoint(x: station.exitX(i), y: L.lineY[i])),
-                       red: station.platformHeld[i], scale: scale * 1.3)
+                       red: station.platformHeld[i], scale: scale * 1.7)
         }
     }
 
@@ -248,10 +248,7 @@ struct StationView: View {
 
     /// A tap target over a drawn signal — the light shows red/green; a faint ring hints it's a control.
     private func signalTap(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Circle().stroke(.white.opacity(0.16), lineWidth: 2)
-                .frame(width: 48, height: 48).contentShape(Circle())
-        }
+        Button(action: action) { SignalHalo() }.buttonStyle(PressStyle())
     }
 
     private func project(_ p: CGPoint, scale: CGFloat, z: CGFloat, in size: CGSize) -> CGPoint {
@@ -270,12 +267,12 @@ struct StationView: View {
                 // Home signal at the throat — tap to hold or release the incoming flow.
                 signalTap { station.toggleEntrance() }
                     .position(project(CGPoint(x: station.layout.ladderBottom.x,
-                                              y: station.layout.ladderBottom.y - 14),
+                                              y: station.layout.ladderBottom.y - 26),
                                       scale: scale, z: z, in: geo.size))
                 // A starter at each platform's exit — tap to hold a train or send it on its way.
                 ForEach(0..<station.layout.n, id: \.self) { i in
                     signalTap { station.toggleStarter(i) }
-                        .position(project(CGPoint(x: station.exitX(i), y: station.layout.lineY[i] - 14),
+                        .position(project(CGPoint(x: station.exitX(i), y: station.layout.lineY[i] - 26),
                                           scale: scale, z: z, in: geo.size))
                 }
 
