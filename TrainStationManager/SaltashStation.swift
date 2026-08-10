@@ -57,7 +57,9 @@ final class SaltashStation: ObservableObject {
     @Published var pTop = 1.0    // passengers on the top (eastbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
     @Published var outcome: GameOutcome = .playing
+    @Published var stars = 0
     private var overTop = 0.0, overBot = 0.0   // seconds each platform has sat full
+    private var peakFill = 0.0
     let overflowGrace = 8.0
 
     let speed: CGFloat = 66
@@ -103,6 +105,18 @@ final class SaltashStation: ObservableObject {
     /// Green portal (a direction may enter the bridge): it's cleared and the bridge is empty.
     func portalGreen(_ dir: Dir) -> Bool { bridgeGreen == dir && occupant == nil }
 
+    /// The near end of a train's platform — trains wait here rather than piling onto the platform.
+    private func platEntryDist(_ t: SaltTrain) -> CGFloat { t.berthDist - (platR - platL) }
+    /// Is a same-direction train standing on that direction's platform right now?
+    private func platformBusy(_ dir: Dir, except t: SaltTrain? = nil) -> Bool {
+        trains.contains { o in
+            o !== t && o.dir == dir && !o.finished
+                && o.dist >= platEntryDist(o) - 1 && o.dist < o.berthDist + Track.carUnit
+        }
+    }
+    var topBusy: Bool { platformBusy(.east) }   // eastbound platform (top) occupied
+    var botBusy: Bool { platformBusy(.west) }   // westbound platform (bottom) occupied
+
     private func spawn(_ dir: Dir) {
         let spec = Train(length: def.trainLengths.randomElement() ?? 3,
                          tint: trainPalette.randomElement() ?? .blue, name: "")
@@ -114,7 +128,7 @@ final class SaltashStation: ObservableObject {
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing
+        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
         pTop = 1; pBot = 1; overTop = 0; overBot = 0
         bridgeGreen = .east
         spawnClock = 0; nextSpawn = 1.5; paxClock = 0; nextPax = 1.4
@@ -145,6 +159,11 @@ final class SaltashStation: ObservableObject {
             var ceiling = t.path.total
             // wait at the platform until boarding is done
             if !t.boarded { ceiling = min(ceiling, t.berthDist) }
+            // hold at the platform's near end while a same-direction train still stands on it,
+            // so trains never queue onto the platform itself
+            if t.dist < platEntryDist(t) && platformBusy(t.dir, except: t) {
+                ceiling = min(ceiling, platEntryDist(t) - gap)
+            }
             // wait short of the bridge unless it's granted to us
             if !t.hasBridge && t.dist < t.bridgeEnter {
                 let readyToCross = t.dir == .west || t.boarded    // eastbound must board first
@@ -194,8 +213,11 @@ final class SaltashStation: ObservableObject {
         // Win at the goal; lose if either platform sits full too long.
         overTop = pTop >= platformCap ? overTop + dt : 0
         overBot = pBot >= platformCap ? overBot + dt : 0
+        peakFill = max(peakFill, max(pTop, pBot) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
+            stars = starsFor(peakFill: peakFill)
+            Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
         } else if overTop > overflowGrace || overBot > overflowGrace {
             outcome = .lost

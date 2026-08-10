@@ -17,8 +17,8 @@ struct SaltashView: View {
     // Saltash runs wider than a generic station: the single line reaches right out to the east
     // portal past the bridge. Frame the whole run — west exit to east entry — so both sides of
     // the bridge are on screen and you can see a westbound train coming before it's on you.
-    private let boxMinX: CGFloat = -150
-    private let boxMaxX: CGFloat = 1230
+    private let boxMinX: CGFloat = 30
+    private let boxMaxX: CGFloat = 1200
     private var designW: CGFloat { boxMaxX - boxMinX }
 
     /// Maps a design point into screen space: fit the wide run across the width, and centre the
@@ -52,6 +52,7 @@ struct SaltashView: View {
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
                                    carried: Int(station.carried), goal: station.def.goal,
+                                   stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
             }
@@ -217,6 +218,11 @@ struct SaltashView: View {
         let sig = sc * 1.9
         drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: s.bridgeGreen != .east, scale: sig)
         drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: s.bridgeGreen != .west, scale: sig)
+        // Automatic platform signals — red while a train stands on the platform, so the next one
+        // waits at the platform end rather than queuing onto it. (Eastbound enters the top platform
+        // from the west, westbound enters the bottom platform from the east.)
+        drawSignal(ctx, at: S(CGPoint(x: s.platL - 10, y: s.yTop)), red: s.topBusy, scale: sc * 1.4)
+        drawSignal(ctx, at: S(CGPoint(x: s.platR + 10, y: s.yBot)), red: s.botBusy, scale: sc * 1.4)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {

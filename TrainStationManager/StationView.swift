@@ -58,6 +58,7 @@ struct StationView: View {
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
                                    carried: Int(station.carried), goal: station.def.goal,
+                                   stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
             }

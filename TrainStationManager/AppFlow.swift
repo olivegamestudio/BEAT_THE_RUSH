@@ -41,7 +41,17 @@ enum Progress {
     }
     static func isUnlocked(_ id: Int) -> Bool { id <= unlockedThrough }
     static func clear(_ id: Int) { if id + 1 > unlockedThrough { unlockedThrough = id + 1 } }
+
+    /// Best star rating (0–3) earned at each station, kept as a personal best.
+    static func stars(_ id: Int) -> Int { UserDefaults.standard.integer(forKey: "btr.stars.\(id)") }
+    static func record(stars s: Int, at id: Int) {
+        if s > stars(id) { UserDefaults.standard.set(s, forKey: "btr.stars.\(id)") }
+    }
 }
+
+/// Stars earned from how comfortably a station was cleared — the closer a platform came to
+/// overflowing at its worst, the fewer stars. 3 = kept it flowing, 1 = a white-knuckle finish.
+func starsFor(peakFill f: Double) -> Int { f < 0.6 ? 3 : (f < 0.9 ? 2 : 1) }
 
 func tierColour(_ t: Int) -> Color {
     switch t {
@@ -60,6 +70,7 @@ struct OutcomeOverlay: View {
     let won: Bool
     let carried: Int
     let goal: Int
+    var stars: Int = 0
     let onRetry: () -> Void
     let onExit: () -> Void
     @State private var pop = false
@@ -75,9 +86,8 @@ struct OutcomeOverlay: View {
             }
             VStack(spacing: 14) {
                 if won {
-                    HStack(spacing: 10) { star(46); star(66); star(46) }
-                        .foregroundStyle(Color(red: 1.0, green: 0.82, blue: 0.28))
-                        .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.6), radius: 10)
+                    HStack(spacing: 10) { star(48, stars >= 1); star(68, stars >= 2); star(48, stars >= 3) }
+                        .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.5), radius: 10)
                 }
                 Text(won ? "Station cleared!" : "Too busy!")
                     .font(.system(size: 34, weight: .black, design: .rounded))
@@ -102,9 +112,10 @@ struct OutcomeOverlay: View {
         .onAppear { pop = true }
     }
 
-    /// A star that springs up to size when the card appears.
-    private func star(_ size: CGFloat) -> some View {
-        Image(systemName: "star.fill").font(.system(size: size))
+    /// A rating star that springs up when the card appears — gold if earned, dim if not.
+    private func star(_ size: CGFloat, _ earned: Bool) -> some View {
+        Image(systemName: earned ? "star.fill" : "star").font(.system(size: size))
+            .foregroundStyle(earned ? Color(red: 1.0, green: 0.82, blue: 0.28) : Color(white: 0.38))
             .scaleEffect(pop ? 1 : 0)
             .animation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.05), value: pop)
     }
@@ -407,15 +418,21 @@ struct StationCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 2)
             HStack(spacing: 4) {
-                ForEach(0..<def.platformCount, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(colour.opacity(0.85))
-                        .frame(width: 14, height: 5)
+                if !locked {
+                    HStack(spacing: 3) {
+                        ForEach(0..<3, id: \.self) { i in
+                            let earned = Progress.stars(def.id) > i
+                            Image(systemName: earned ? "star.fill" : "star")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(earned ? Color(red: 1.0, green: 0.82, blue: 0.28)
+                                                        : Color(white: 0.32))
+                        }
+                    }
                 }
+                Spacer()
                 Text("\(def.platformCount) platforms")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Color(white: 0.55))
-                    .padding(.leading, 4)
             }
         }
         .padding(14)

@@ -92,7 +92,9 @@ final class Station: ObservableObject {
     @Published var dispatched = 0
     @Published var carried = 0.0        // total passengers carried away — the score
     @Published var outcome: GameOutcome = .playing
+    @Published var stars = 0            // star rating earned on the winning tick
     private var overflowClock: [Double] // per platform, seconds it's sat full — overflow loses
+    private var peakFill = 0.0          // fullest any platform got (0…1) — drives the star rating
     /// The home signal at the throat: `true` = green, arrivals may enter; `false` = held outside.
     @Published var entranceOpen = true
     /// Each platform's starter signal: `true` = held red, a berthed train waits; `false` = clear away.
@@ -120,7 +122,7 @@ final class Station: ObservableObject {
 
     /// Restart the station from scratch — used by the "Retry" button after an overwhelm.
     func reset() {
-        trains = []; carried = 0; dispatched = 0; outcome = .playing
+        trains = []; carried = 0; dispatched = 0; outcome = .playing; stars = 0; peakFill = 0
         passengers = Array(repeating: 0, count: def.platformCount)
         platformHeld = Array(repeating: false, count: def.platformCount)
         overflowClock = Array(repeating: 0, count: def.platformCount)
@@ -310,8 +312,11 @@ final class Station: ObservableObject {
         for i in passengers.indices {
             overflowClock[i] = passengers[i] >= platformCap ? overflowClock[i] + dt : 0
         }
+        peakFill = max(peakFill, (passengers.max() ?? 0) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
+            stars = starsFor(peakFill: peakFill)
+            Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
         } else if overflowClock.contains(where: { $0 > overflowGrace }) {
             outcome = .lost
