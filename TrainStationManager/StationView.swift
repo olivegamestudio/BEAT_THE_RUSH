@@ -54,6 +54,12 @@ struct StationView: View {
                     )
 
                 controls(scale: scale, zoom: z)
+
+                if station.outcome != .playing {
+                    OutcomeOverlay(won: station.outcome == .won,
+                                   carried: Int(station.carried), goal: station.def.goal,
+                                   onRetry: { station.reset() }, onExit: onExit)
+                }
             }
         }
         .onReceive(tick) { _ in station.tick(0.03) }

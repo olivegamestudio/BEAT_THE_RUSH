@@ -6,6 +6,20 @@ private let bg = LinearGradient(colors: [Color(red: 0.12, green: 0.15, blue: 0.2
                                          Color(red: 0.06, green: 0.08, blue: 0.12)],
                                 startPoint: .top, endPoint: .bottom)
 
+enum GameOutcome { case playing, won, lost }
+
+/// Which stations the player has unlocked, persisted across launches. Station 1 is always open;
+/// clearing station N unlocks N+1.
+enum Progress {
+    private static let key = "btr.unlockedThrough"
+    static var unlockedThrough: Int {
+        get { max(1, UserDefaults.standard.integer(forKey: key)) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+    static func isUnlocked(_ id: Int) -> Bool { id <= unlockedThrough }
+    static func clear(_ id: Int) { if id + 1 > unlockedThrough { unlockedThrough = id + 1 } }
+}
+
 func tierColour(_ t: Int) -> Color {
     switch t {
     case 1: return Color(red: 0.32, green: 0.78, blue: 0.48)
@@ -13,6 +27,48 @@ func tierColour(_ t: Int) -> Color {
     case 3: return Color(red: 0.88, green: 0.74, blue: 0.30)
     case 4: return Color(red: 0.92, green: 0.56, blue: 0.28)
     default: return Color(red: 0.92, green: 0.36, blue: 0.40)
+    }
+}
+
+// MARK: - Win / lose overlay
+
+/// Shown over a station when it's cleared or overwhelmed. Both station types use it.
+struct OutcomeOverlay: View {
+    let won: Bool
+    let carried: Int
+    let goal: Int
+    let onRetry: () -> Void
+    let onExit: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.64).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text(won ? "Station cleared" : "Overwhelmed")
+                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .foregroundStyle(won ? Color(red: 0.42, green: 0.9, blue: 0.6)
+                                         : Color(red: 0.97, green: 0.5, blue: 0.5))
+                Text("\(carried) carried · goal \(goal)")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(white: 0.8))
+                HStack(spacing: 12) {
+                    if !won { Button(action: onRetry) { label("Retry", filled: false) } }
+                    Button(action: onExit) { label(won ? "Continue" : "Stations", filled: won) }
+                }
+                .padding(.top, 6)
+            }
+            .padding(32)
+            .background(Color(red: 0.13, green: 0.16, blue: 0.22), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.1)))
+        }
+    }
+
+    private func label(_ t: String, filled: Bool) -> some View {
+        Text(t).font(.system(size: 18, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white).frame(width: 150, height: 52)
+            .background(filled ? Color(red: 0.20, green: 0.55, blue: 0.34)
+                               : Color(red: 0.24, green: 0.27, blue: 0.34),
+                        in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -230,9 +286,10 @@ struct StationSelectView: View {
                 ScrollView {
                     LazyVGrid(columns: cols, spacing: 14) {
                         ForEach(allStations) { def in
-                            StationCard(def: def)
+                            let unlocked = Progress.isUnlocked(def.id)
+                            StationCard(def: def, locked: !unlocked)
                                 .contentShape(RoundedRectangle(cornerRadius: 14))
-                                .onTapGesture { onPick(def) }
+                                .onTapGesture { if unlocked { onPick(def) } }
                         }
                     }
                     .padding(20)
@@ -244,6 +301,7 @@ struct StationSelectView: View {
 
 struct StationCard: View {
     let def: StationDef
+    var locked: Bool = false
     private var colour: Color { tierColour(def.tier) }
 
     var body: some View {
@@ -253,11 +311,17 @@ struct StationCard: View {
                     .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(colour)
                 Spacer()
-                Text("Tier \(def.tier)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.black.opacity(0.7))
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(colour, in: Capsule())
+                if locked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(white: 0.55))
+                } else {
+                    Text("Tier \(def.tier)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.black.opacity(0.7))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(colour, in: Capsule())
+                }
             }
             Text(def.name)
                 .font(.system(size: 17, weight: .heavy, design: .rounded))
@@ -280,6 +344,8 @@ struct StationCard: View {
         .padding(14)
         .frame(height: 118, alignment: .topLeading)
         .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(colour.opacity(0.4), lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .stroke((locked ? Color.white.opacity(0.12) : colour.opacity(0.4)), lineWidth: 1.5))
+        .opacity(locked ? 0.5 : 1)
     }
 }

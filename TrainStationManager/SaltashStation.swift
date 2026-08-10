@@ -56,6 +56,9 @@ final class SaltashStation: ObservableObject {
     @Published var carried = 0.0
     @Published var pTop = 1.0    // passengers on the top (eastbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
+    @Published var outcome: GameOutcome = .playing
+    private var overTop = 0.0, overBot = 0.0   // seconds each platform has sat full
+    let overflowGrace = 8.0
 
     let speed: CGFloat = 66
     let dwellTime = 2.6
@@ -110,7 +113,17 @@ final class SaltashStation: ObservableObject {
         }
     }
 
+    func reset() {
+        trains = []; carried = 0; outcome = .playing
+        pTop = 1; pBot = 1; overTop = 0; overBot = 0
+        bridgeGreen = .east
+        spawnClock = 0; nextSpawn = 1.5; paxClock = 0; nextPax = 1.4
+        spawn(.east)
+        objectWillChange.send()
+    }
+
     func tick(_ dt: Double) {
+        guard outcome == .playing else { return }
         let step = speed * CGFloat(dt)
         let gap = Track.carUnit * 1.15     // keep clear air between queued trains
 
@@ -177,6 +190,16 @@ final class SaltashStation: ObservableObject {
             if t.dist >= t.path.total { t.finished = true; if occupant === t { occupant = nil } }
         }
         trains.removeAll { $0.finished }
+
+        // Win at the goal; lose if either platform sits full too long.
+        overTop = pTop >= platformCap ? overTop + dt : 0
+        overBot = pBot >= platformCap ? overBot + dt : 0
+        if carried >= Double(def.goal) {
+            outcome = .won
+            Progress.clear(def.id)
+        } else if overTop > overflowGrace || overBot > overflowGrace {
+            outcome = .lost
+        }
         objectWillChange.send()
     }
 }

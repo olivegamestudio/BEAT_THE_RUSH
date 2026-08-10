@@ -91,6 +91,8 @@ final class Station: ObservableObject {
     @Published var trains: [ActiveTrain] = []
     @Published var dispatched = 0
     @Published var carried = 0.0        // total passengers carried away — the score
+    @Published var outcome: GameOutcome = .playing
+    private var overflowClock: [Double] // per platform, seconds it's sat full — overflow loses
     /// The home signal at the throat: `true` = green, arrivals may enter; `false` = held outside.
     @Published var entranceOpen = true
     /// Each platform's starter signal: `true` = held red, a berthed train waits; `false` = clear away.
@@ -102,6 +104,7 @@ final class Station: ObservableObject {
     let boardOffRate = 6.0       // passengers boarding a berthed train, per second
     let platformCap = 14.0       // most a platform holds before it's full
     let jamAfter = 4.0           // seconds a train may sit blocked before it's flagged as jammed
+    let overflowGrace = 8.0      // seconds a platform may sit full before the station is overwhelmed
 
     private var spawnClock = 0.0
     private var nextSpawn = 1.5
@@ -111,7 +114,20 @@ final class Station: ObservableObject {
         self.layout = Layout(platformCount: def.platformCount)
         self.platformHeld = Array(repeating: false, count: def.platformCount)
         self.passengers = Array(repeating: 0, count: def.platformCount)
+        self.overflowClock = Array(repeating: 0, count: def.platformCount)
         spawn()
+    }
+
+    /// Restart the station from scratch — used by the "Retry" button after an overwhelm.
+    func reset() {
+        trains = []; carried = 0; dispatched = 0; outcome = .playing
+        passengers = Array(repeating: 0, count: def.platformCount)
+        platformHeld = Array(repeating: false, count: def.platformCount)
+        overflowClock = Array(repeating: 0, count: def.platformCount)
+        entranceOpen = true
+        spawnClock = 0; nextSpawn = 1.5
+        spawn()
+        objectWillChange.send()
     }
 
     private func makeTrain() -> Train {
@@ -191,6 +207,7 @@ final class Station: ObservableObject {
     // MARK: Simulation — trains keep moving unless the road ahead is blocked
 
     func tick(_ dt: Double) {
+        guard outcome == .playing else { return }        // frozen once cleared or overwhelmed
         let step = speed * CGFloat(dt)
         let gap = Track.carUnit * 0.55
 
@@ -288,6 +305,17 @@ final class Station: ObservableObject {
         // Apply the deferred structural changes now that iteration is done.
         if roster.contains(where: { $0.finished }) { trains.removeAll { $0.finished } }
         for _ in 0..<spawnCount { spawn() }
+
+        // Win when the goal is carried; lose if a platform sits full too long (people give up).
+        for i in passengers.indices {
+            overflowClock[i] = passengers[i] >= platformCap ? overflowClock[i] + dt : 0
+        }
+        if carried >= Double(def.goal) {
+            outcome = .won
+            Progress.clear(def.id)
+        } else if overflowClock.contains(where: { $0 > overflowGrace }) {
+            outcome = .lost
+        }
         objectWillChange.send()
     }
 }
