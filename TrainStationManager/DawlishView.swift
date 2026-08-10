@@ -35,7 +35,7 @@ struct DawlishView: View {
                     for sp in station.sparkles {
                         drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc)
                     }
-                    drawHeadlands(ctx, sc, size, S)     // red cliffs + tunnels, over the tunnel ends
+                    drawDunes(ctx, sc, size, S)         // sandy dunes at the ends, hiding off-view trains
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
@@ -48,7 +48,7 @@ struct DawlishView: View {
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
                 if confirmExit {
-                    ConfirmDialog(title: "Leave Dawlish?", message: "You'll lose this go.",
+                    ConfirmDialog(title: "Leave \(station.name)?", message: "You'll lose this go.",
                                   confirmTitle: "Leave", onConfirm: onExit, onCancel: { confirmExit = false })
                 }
             }
@@ -72,49 +72,60 @@ struct DawlishView: View {
         let w = size.width
         let vOff = (size.height - Track.H * sc) / 2
         func y(_ d: CGFloat) -> CGFloat { d * sc + vOff }
-        // sky (up to the screen top), sea (down to the screen bottom)
-        band(ctx, 0, w, 0, y(112), Color(red: 0.52, green: 0.70, blue: 0.88), Color(red: 0.66, green: 0.80, blue: 0.92))
-        band(ctx, 0, w, y(96), y(118), Color(red: 0.30, green: 0.52, blue: 0.26), Color(red: 0.22, green: 0.42, blue: 0.20)) // grass top
-        band(ctx, 0, w, y(118), y(184), Color(red: 0.72, green: 0.34, blue: 0.24), Color(red: 0.55, green: 0.25, blue: 0.18)) // red cliff
-        band(ctx, 0, w, y(184), y(346), Color(red: 0.60, green: 0.62, blue: 0.66), Color(red: 0.50, green: 0.52, blue: 0.57)) // sea wall / promenade
-        band(ctx, 0, w, y(346), y(360), Color(red: 0.40, green: 0.41, blue: 0.45), Color(red: 0.34, green: 0.35, blue: 0.39)) // wall face
-        band(ctx, 0, w, y(360), y(398), Color(red: 0.86, green: 0.78, blue: 0.58), Color(red: 0.78, green: 0.70, blue: 0.50)) // beach
-        band(ctx, 0, w, y(398), size.height, Color(red: 0.16, green: 0.42, blue: 0.58), Color(red: 0.10, green: 0.30, blue: 0.46)) // sea
-        // waves
-        for k in 0..<4 {
-            let wy = y(408 + CGFloat(k) * 12)
+        // A sandy spit at the mouth of the Exe: estuary behind, beach and sea in front.
+        band(ctx, 0, w, 0, y(102), Color(red: 0.55, green: 0.72, blue: 0.90), Color(red: 0.72, green: 0.83, blue: 0.93))     // sky
+        band(ctx, 0, w, y(90), y(108), Color(red: 0.40, green: 0.50, blue: 0.44), Color(red: 0.34, green: 0.44, blue: 0.40)) // far shore (Exmouth)
+        band(ctx, 0, w, y(102), y(140), Color(red: 0.38, green: 0.56, blue: 0.62), Color(red: 0.32, green: 0.50, blue: 0.56)) // Exe estuary
+        band(ctx, 0, w, y(140), y(196), Color(red: 0.84, green: 0.74, blue: 0.52), Color(red: 0.74, green: 0.63, blue: 0.42)) // sand dunes
+        band(ctx, 0, w, y(196), y(348), Color(red: 0.82, green: 0.75, blue: 0.58), Color(red: 0.76, green: 0.68, blue: 0.52)) // sandy ground
+        band(ctx, 0, w, y(348), y(394), Color(red: 0.90, green: 0.82, blue: 0.62), Color(red: 0.82, green: 0.73, blue: 0.53)) // beach
+        band(ctx, 0, w, y(394), size.height, Color(red: 0.16, green: 0.44, blue: 0.60), Color(red: 0.10, green: 0.30, blue: 0.48)) // sea
+        marram(ctx, y0: y(150), x0: 0, x1: w, sc: sc)          // grass on the dunes
+        for k in 0..<4 {                                        // waves + estuary ripples
+            let wy = y(406 + CGFloat(k) * 12)
             var wave = Path(); wave.move(to: CGPoint(x: 20, y: wy)); wave.addLine(to: CGPoint(x: w - 20, y: wy))
             ctx.stroke(wave, with: .color(.white.opacity(0.10)), style: .init(lineWidth: 2 * sc, lineCap: .round))
         }
+        var rip = Path(); rip.move(to: CGPoint(x: 20, y: y(122))); rip.addLine(to: CGPoint(x: w - 20, y: y(122)))
+        ctx.stroke(rip, with: .color(.white.opacity(0.08)), style: .init(lineWidth: 2 * sc, lineCap: .round))
     }
 
-    /// Red-sandstone headlands at each end, with a dark tunnel mouth the lines run into.
-    private func drawHeadlands(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
+    /// A row of little marram-grass tufts along the dune top.
+    private func marram(_ ctx: GraphicsContext, y0: CGFloat, x0: CGFloat, x1: CGFloat, sc: CGFloat) {
+        let g = Color(red: 0.42, green: 0.52, blue: 0.28)
+        var x = x0 + 12 * sc
+        var seed = 3
+        while x < x1 {
+            seed = (seed * 7 + 13) % 1000        // bounded pseudo-random, never overflows
+            let h = (10 + CGFloat(seed % 5) * 2) * sc
+            var tuft = Path()
+            for b in -2...2 {
+                tuft.move(to: CGPoint(x: x, y: y0))
+                tuft.addLine(to: CGPoint(x: x + CGFloat(b) * 2.4 * sc, y: y0 - h))
+            }
+            ctx.stroke(tuft, with: .color(g.opacity(0.8)), style: .init(lineWidth: 1.4 * sc, lineCap: .round))
+            x += (18 + CGFloat(seed % 4) * 6) * sc
+        }
+    }
+
+    /// Sandy dune mounds at each end that the line runs behind, hiding trains not yet in view.
+    private func drawDunes(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for (edge, mouth) in [(CGFloat(0), s.tunL), (size.width / sc, s.tunR)] {
-            let left = min(edge, mouth), right = max(edge, mouth)
-            // the red rock, full height, hiding trains still in the tunnel
-            let r = CGRect(x: left * sc, y: 0, width: (right - left) * sc, height: size.height)
-            ctx.fill(Path(r), with: .linearGradient(
-                Gradient(colors: [Color(red: 0.70, green: 0.33, blue: 0.23), Color(red: 0.48, green: 0.22, blue: 0.16)]),
-                startPoint: CGPoint(x: r.midX, y: 0), endPoint: CGPoint(x: r.midX, y: r.maxY)))
-            // grassy cap
-            ctx.fill(Path(CGRect(x: r.minX, y: S(CGPoint(x: 0, y: 96)).y, width: r.width, height: 20 * sc)),
-                     with: .color(Color(red: 0.28, green: 0.50, blue: 0.25)))
-            // the tunnel mouth arch at the track level
-            let a = S(CGPoint(x: mouth, y: 208)), b = S(CGPoint(x: mouth, y: 340))
-            let aw = 30 * sc
-            var arch = Path()
-            arch.move(to: CGPoint(x: a.x - (edge == 0 ? -aw : aw), y: b.y))
-            arch.addLine(to: CGPoint(x: a.x - (edge == 0 ? -aw : aw), y: a.y + 30 * sc))
-            arch.addQuadCurve(to: CGPoint(x: a.x, y: a.y - 14 * sc), control: CGPoint(x: a.x - (edge == 0 ? -aw : aw), y: a.y - 6 * sc))
-            arch.closeSubpath()
-            ctx.fill(arch, with: .color(Color(red: 0.05, green: 0.05, blue: 0.08)))
-            ctx.fill(Path(ellipseIn: CGRect(x: a.x - aw, y: a.y - 10 * sc, width: aw * 2, height: (b.y - a.y) + 20 * sc)),
-                     with: .color(Color(red: 0.05, green: 0.05, blue: 0.08)))
-            // stone rim
-            ctx.stroke(Path(ellipseIn: CGRect(x: a.x - aw, y: a.y - 10 * sc, width: aw * 2, height: (b.y - a.y) + 20 * sc)),
-                       with: .color(Color(red: 0.36, green: 0.20, blue: 0.15)), style: .init(lineWidth: 5 * sc))
+        for mouth in [s.tunL, s.tunR] {
+            let toRight = mouth < designW / 2          // left dune slopes down to the right
+            let base = S(CGPoint(x: mouth, y: 352))
+            let crest = S(CGPoint(x: toRight ? 0 : designW, y: 150))
+            var dune = Path()
+            dune.move(to: CGPoint(x: crest.x, y: base.y))
+            dune.addLine(to: CGPoint(x: crest.x, y: crest.y))
+            dune.addQuadCurve(to: CGPoint(x: base.x, y: base.y),
+                              control: CGPoint(x: (crest.x + base.x) / 2, y: crest.y + (base.y - crest.y) * 0.15))
+            dune.closeSubpath()
+            ctx.fill(dune, with: .linearGradient(
+                Gradient(colors: [Color(red: 0.86, green: 0.76, blue: 0.54), Color(red: 0.72, green: 0.62, blue: 0.42)]),
+                startPoint: CGPoint(x: crest.x, y: crest.y), endPoint: CGPoint(x: base.x, y: base.y)))
+            marram(ctx, y0: S(CGPoint(x: 0, y: 160)).y,
+                   x0: toRight ? 0 : mouth * sc, x1: toRight ? mouth * sc : size.width, sc: sc)
         }
     }
 
