@@ -206,9 +206,11 @@ struct SaltashView: View {
         let s = station
         // Each direction stacks behind its own signal, on its own line at the throat: eastbound
         // on the top line at the west throat, westbound on the bottom line at the east throat.
+        // The light shows what the player set — green for the cleared direction — so a crossing
+        // train is never under its own red. (Bridge-occupied is an internal check, not shown.)
         let sig = sc * 1.6
-        drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: !s.portalGreen(.east), scale: sig)
-        drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: !s.portalGreen(.west), scale: sig)
+        drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: s.bridgeGreen != .east, scale: sig)
+        drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: s.bridgeGreen != .west, scale: sig)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -223,35 +225,26 @@ struct SaltashView: View {
 
     // MARK: controls / HUD
 
-    /// One throat point: a white hub with a chevron that swings to the connected line.
-    private func pointButton() -> some View {
-        Button(action: station.toggleBridge) {
-            ZStack {
-                Circle().fill(.white)
-                    .overlay(Circle().stroke(Color(red: 0.25, green: 0.6, blue: 1.0), lineWidth: 3))
-                    .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-                    .frame(width: 30, height: 30)
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(Color(red: 0.25, green: 0.6, blue: 1.0))
-                    .offset(y: -22)
-            }
-            .rotationEffect(.degrees(station.bridgeDir == .east ? 0 : 180))  // up = top (east), down = bottom (west)
-            .animation(.easeInOut(duration: 0.2), value: station.bridgeDir)
-            .frame(width: 70, height: 70)
-            .contentShape(Circle())
+    /// A tap target over a drawn signal — the light itself shows red/green; a faint ring hints
+    /// that it's the control. `foot` is the signal's foot on the track in design space.
+    private func signalButton(_ dir: SaltashStation.Dir, foot: CGPoint,
+                              scale: CGFloat, size: CGSize) -> some View {
+        Button(action: { station.clear(dir) }) {
+            Circle().stroke(.white.opacity(0.16), lineWidth: 2)
+                .frame(width: 52, height: 52)
+                .contentShape(Circle())
         }
+        .position(project(CGPoint(x: foot.x, y: foot.y - 18), scale: scale, size: size))
     }
 
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         ZStack {
-            // A point at each end of the single line: throw either to give the bridge to the up
-            // line or the down line. Both swing together — a bridge route needs both ends set —
-            // and each chevron points at whichever line is connected.
-            pointButton().position(project(CGPoint(x: station.xMerge + 30, y: station.yTop - 32),
-                                            scale: scale, size: size))
-            pointButton().position(project(CGPoint(x: station.xMergeE - 30, y: station.yTop - 32),
-                                            scale: scale, size: size))
+            // The signals are the control: tap the eastbound one (west throat, top line) or the
+            // westbound one (east throat, bottom line) to clear that direction onto the bridge.
+            signalButton(.east, foot: CGPoint(x: station.xMerge + 6, y: station.yTop),
+                         scale: scale, size: size)
+            signalButton(.west, foot: CGPoint(x: station.xMergeE - 6, y: station.yBot),
+                         scale: scale, size: size)
 
             // back — top left
             Button(action: onExit) {

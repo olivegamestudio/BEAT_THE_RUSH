@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// Saltash: two platforms with two running lines between them, feeding a single-track
-/// bridge (the Royal Albert Bridge) off the east end. Eastbound trains call at the
-/// bottom platform then cross the bridge; westbound trains cross the bridge then call at
-/// the top platform. Only one train may be on the bridge at a time, so the two directions
-/// take turns — the player gives the bridge to a direction by tapping it.
+/// bridge (the Royal Albert Bridge) off the east end. Trains find their own way to a platform
+/// and out; only one may be on the bridge at a time, so the two directions take turns. The
+/// player's only control is the signals — tap a red one to clear that direction onto the bridge.
 final class SaltTrain: Identifiable {
     let id = UUID()
     var spec: Train
@@ -53,7 +52,7 @@ final class SaltashStation: ObservableObject {
     let riverR: CGFloat = 912
 
     @Published var trains: [SaltTrain] = []
-    @Published var bridgeDir: Dir = .east
+    @Published var bridgeGreen: Dir? = .east   // direction currently cleared onto the bridge; nil = both held
     @Published var carried = 0.0
     @Published var pTop = 1.0    // passengers on the top (eastbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
@@ -94,10 +93,12 @@ final class SaltashStation: ObservableObject {
         spawn(.east)
     }
 
-    func toggleBridge() { bridgeDir = bridgeDir == .east ? .west : .east; objectWillChange.send() }
+    /// Tap a signal: clear that direction (green), or hold both (red) if it was already cleared.
+    /// Only one direction is ever cleared — the single line makes the two take turns.
+    func clear(_ dir: Dir) { bridgeGreen = (bridgeGreen == dir) ? nil : dir; objectWillChange.send() }
 
-    /// Green portal (a direction may enter the bridge): its turn and the bridge is clear.
-    func portalGreen(_ dir: Dir) -> Bool { bridgeDir == dir && occupant == nil }
+    /// Green portal (a direction may enter the bridge): it's cleared and the bridge is empty.
+    func portalGreen(_ dir: Dir) -> Bool { bridgeGreen == dir && occupant == nil }
 
     private func spawn(_ dir: Dir) {
         let spec = Train(length: def.trainLengths.randomElement() ?? 3,
