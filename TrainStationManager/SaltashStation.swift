@@ -46,8 +46,8 @@ final class SaltashStation: ObservableObject {
     let platL: CGFloat = 314     // platforms sit right by the bridge
     let platR: CGFloat = 534
     let exitW: CGFloat = -90
-    let exitE: CGFloat = 1120    // eastbound leaves east on the bottom line
-    let entryE: CGFloat = 1180   // westbound arrives from the east on the top line
+    let exitE: CGFloat = 1440    // eastbound leaves east — well off-screen, past the pannable area
+    let entryE: CGFloat = 1440   // westbound arrives from the east — spawns off-screen, forms first
     let riverL: CGFloat = 628    // the Tamar — a vertical band the bridge crosses
     let riverR: CGFloat = 912
 
@@ -72,11 +72,11 @@ final class SaltashStation: ObservableObject {
     /// Height → colour: deep/shallow water, then a crisp shoreline into green, olive, tan and high
     /// ground — muted to sit under the gameplay.
     private static func reliefColor(_ h: CGFloat) -> (UInt8, UInt8, UInt8) {
-        // muted and dark so the tracks and trains stay dominant
+        // dark and muted so the tracks and trains clearly dominate
         let stops: [(CGFloat, (CGFloat, CGFloat, CGFloat))] = [
-            (-140, (9, 20, 34)), (-2, (14, 34, 54)),
-            (2, (22, 40, 28)), (70, (30, 50, 32)),
-            (170, (56, 58, 36)), (300, (76, 66, 46)), (500, (92, 82, 66)),
+            (-140, (7, 13, 23)), (-2, (10, 24, 38)),
+            (2, (15, 27, 20)), (70, (20, 33, 22)),
+            (170, (34, 36, 24)), (300, (44, 40, 29)), (500, (54, 49, 40)),
         ]
         if h <= stops[0].0 { let c = stops[0].1; return (UInt8(c.0), UInt8(c.1), UInt8(c.2)) }
         if h >= stops.last!.0 { let c = stops.last!.1; return (UInt8(c.0), UInt8(c.1), UInt8(c.2)) }

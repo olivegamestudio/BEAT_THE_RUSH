@@ -14,18 +14,23 @@ struct SaltashView: View {
     private let railEdge = Color(red: 0.10, green: 0.11, blue: 0.15)
     private let inkLight = Color(white: 0.82)
 
-    // Saltash runs wider than a generic station: the single line reaches right out to the east
-    // portal past the bridge. Frame the whole run — west exit to east entry — so both sides of
-    // the bridge are on screen and you can see a westbound train coming before it's on you.
-    private let boxMinX: CGFloat = 30
-    private let boxMaxX: CGFloat = 1200
-    private var designW: CGFloat { boxMaxX - boxMinX }
+    // The run is wider than the screen, so we frame a zoomed window on the middle — bridge and
+    // platforms — and let the player pan a little to see the east and west ends.
+    private let contentMinX: CGFloat = -100
+    private let contentMaxX: CGFloat = 1240
+    private let designW: CGFloat = 980
+    @State private var originX: CGFloat = 150     // design x shown at the screen's left edge
+    @GestureState private var dragX: CGFloat = 0
 
-    /// Maps a design point into screen space: fit the wide run across the width, and centre the
-    /// (shorter) content band vertically so it isn't stuck to the top.
+    /// The design x at the left edge right now, including any in-progress drag.
+    private func origin(_ sc: CGFloat) -> CGFloat { originX - dragX / sc }
+    private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - designW) }
+
+    /// Maps a design point into screen space: the panned window across the width, and the (shorter)
+    /// content band centred vertically so it isn't stuck to the top.
     private func project(_ p: CGPoint, scale sc: CGFloat, size: CGSize) -> CGPoint {
         let vOff = (size.height - Track.H * sc) / 2
-        return CGPoint(x: (p.x - boxMinX) * sc, y: p.y * sc + vOff)
+        return CGPoint(x: (p.x - origin(sc)) * sc, y: p.y * sc + vOff)
     }
 
     var body: some View {
@@ -49,6 +54,11 @@ struct SaltashView: View {
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
+                .gesture(
+                    DragGesture()
+                        .updating($dragX) { v, s, _ in s = v.translation.width }
+                        .onEnded { v in originX = clampOrigin(originX - v.translation.width / scale) }
+                )
                 controls(scale: scale, size: geo.size)
 
                 if station.outcome != .playing {
@@ -59,6 +69,7 @@ struct SaltashView: View {
                 }
             }
         }
+        .ignoresSafeArea()      // measure the full screen so the tap targets match the drawn board
         .onReceive(tick) { _ in station.tick(0.03) }
         .statusBarHidden()
     }
@@ -76,7 +87,7 @@ struct SaltashView: View {
     private func drawRelief(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
         let vOff = (size.height - Track.H * sc) / 2
         let r = SaltashStation.reliefRect
-        let screen = CGRect(x: (r.minX - boxMinX) * sc, y: r.minY * sc + vOff,
+        let screen = CGRect(x: (r.minX - origin(sc)) * sc, y: r.minY * sc + vOff,
                             width: r.width * sc, height: r.height * sc)
         ctx.draw(Image(decorative: SaltashStation.relief, scale: 1), in: screen)
     }
@@ -84,9 +95,9 @@ struct SaltashView: View {
     /// Topographic contour lines over the relief. Built once in design space, then scaled to frame.
     private func drawContours(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
         let vOff = (size.height - Track.H * sc) / 2
-        let t = CGAffineTransform(a: sc, b: 0, c: 0, d: sc, tx: -boxMinX * sc, ty: vOff)
+        let t = CGAffineTransform(a: sc, b: 0, c: 0, d: sc, tx: -origin(sc) * sc, ty: vOff)
         ctx.stroke(SaltashStation.contour.applying(t),
-                   with: .color(.white.opacity(0.07)), style: .init(lineWidth: 1.3 * sc, lineCap: .round))
+                   with: .color(.white.opacity(0.06)), style: .init(lineWidth: 1.3 * sc, lineCap: .round))
     }
 
     private func drawRails(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -207,9 +218,9 @@ struct SaltashView: View {
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         let n = min(Int(count), 12)
         for k in 0..<max(n, 0) {
-            let jitter = agitated ? CGFloat(sin(t * 12 + Double(k) * 1.5)) * 2.4 * sc : 0
+            let jitter = agitated ? CGFloat(sin(t * 6 + Double(k) * 2.1)) * 0.9 * sc : 0
             let px = x0 + CGFloat(k) * 15 * sc + jitter
-            let coat = agitated ? Color(red: 0.94, green: 0.34, blue: 0.30) : clothes[k % clothes.count]
+            let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
             let bw = 11 * sc, bh = 14 * sc, top = feetY - bh
             var torso = Path()
             torso.move(to: CGPoint(x: px - bw * 0.32, y: top + bw * 0.28))
@@ -233,20 +244,20 @@ struct SaltashView: View {
         // on the top line at the west throat, westbound on the bottom line at the east throat.
         // The light shows what the player set — green for the cleared direction — so a crossing
         // train is never under its own red. (Bridge-occupied is an internal check, not shown.)
-        let sig = sc * 2.1
+        let sig = sc * 2.5
         drawSignal(ctx, at: S(CGPoint(x: s.xMerge + 6, y: s.yTop)), red: s.bridgeGreen != .east, scale: sig)
         drawSignal(ctx, at: S(CGPoint(x: s.xMergeE - 6, y: s.yBot)), red: s.bridgeGreen != .west, scale: sig)
         // Automatic platform signals — red while a train stands on the platform, so the next one
         // waits at the platform end rather than queuing onto it. (Eastbound enters the top platform
         // from the west, westbound enters the bottom platform from the east.)
-        drawSignal(ctx, at: S(CGPoint(x: s.platL - 10, y: s.yTop)), red: s.topBusy, scale: sc * 1.4)
-        drawSignal(ctx, at: S(CGPoint(x: s.platR + 10, y: s.yBot)), red: s.botBusy, scale: sc * 1.4)
+        drawSignal(ctx, at: S(CGPoint(x: s.platL - 10, y: s.yTop)), red: s.topBusy, scale: sc * 1.7)
+        drawSignal(ctx, at: S(CGPoint(x: s.platR + 10, y: s.yBot)), red: s.botBusy, scale: sc * 1.7)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         for c in 0..<t.spec.length {
             let d = t.dist - (CGFloat(c) + 0.5) * Track.carUnit
-            guard d > -Track.carUnit else { continue }
+            guard d >= 0 else { continue }        // don't draw carriages that haven't entered yet
             let s = t.path.sample(d)
             drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: t.spec.tint,
                          cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc)
@@ -261,7 +272,7 @@ struct SaltashView: View {
                               scale: CGFloat, size: CGSize) -> some View {
         Button(action: { station.clear(dir) }) { SignalHalo() }
             .buttonStyle(PressStyle())
-            .position(project(CGPoint(x: foot.x, y: foot.y - 34), scale: scale, size: size))
+            .position(project(CGPoint(x: foot.x, y: foot.y - 42), scale: scale, size: size))
     }
 
     private func controls(scale: CGFloat, size: CGSize) -> some View {

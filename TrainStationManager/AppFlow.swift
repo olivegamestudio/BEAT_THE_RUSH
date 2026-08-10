@@ -24,7 +24,7 @@ struct SignalHalo: View {
     var body: some View {
         Circle().fill(.white.opacity(0.07))
             .overlay(Circle().stroke(.white.opacity(0.42), lineWidth: 2.5))
-            .frame(width: 66, height: 66)
+            .frame(width: 76, height: 76)
             .contentShape(Circle())
     }
 }
@@ -394,21 +394,11 @@ struct StationSelectView: View {
     }
 }
 
-/// A quick left–right wobble, driven by bumping `animatableData` by 1.
-struct ShakeEffect: GeometryEffect {
-    var travel: CGFloat = 8
-    var shakes: CGFloat = 3
-    var animatableData: CGFloat
-    func effectValue(size: CGSize) -> ProjectionTransform {
-        ProjectionTransform(CGAffineTransform(translationX: travel * sin(animatableData * .pi * 2 * shakes), y: 0))
-    }
-}
-
 struct StationCard: View {
     let def: StationDef
     var locked: Bool = false
     let onPick: () -> Void
-    @State private var shake: CGFloat = 0
+    @State private var swing = 0.0
     private var colour: Color { tierColour(def.tier) }
 
     var body: some View {
@@ -445,12 +435,13 @@ struct StationCard: View {
 
             if locked {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 30, weight: .black))
-                    .foregroundStyle(Color(white: 0.92))
-                    .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
-                    .rotationEffect(.degrees(-16))
-                    .offset(x: 8, y: -6)
-                    .modifier(ShakeEffect(animatableData: shake))
+                    .font(.system(size: 23, weight: .bold))
+                    .foregroundStyle(LinearGradient(
+                        colors: [Color(red: 1.0, green: 0.85, blue: 0.42), Color(red: 0.82, green: 0.58, blue: 0.16)],
+                        startPoint: .top, endPoint: .bottom))
+                    .shadow(color: .black.opacity(0.45), radius: 3, y: 2)
+                    .rotationEffect(.degrees(swing), anchor: .top)   // swings from its shackle
+                    .offset(x: 11, y: -11)                           // sits on the corner edge
             }
         }
         .padding(14)
@@ -460,8 +451,10 @@ struct StationCard: View {
             .stroke((locked ? Color.white.opacity(0.14) : colour.opacity(0.45)), lineWidth: 1.5))
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
-            if locked { withAnimation(.linear(duration: 0.5)) { shake += 1 } }
-            else { onPick() }
+            if locked {
+                swing = 18
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.26)) { swing = 0 }
+            } else { onPick() }
         }
     }
 }

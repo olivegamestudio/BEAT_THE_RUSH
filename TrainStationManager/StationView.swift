@@ -95,10 +95,10 @@ struct StationView: View {
     /// a starter at each platform's exit end (hold or release its train). Green shows what you set.
     private func drawSignals(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
         let L = station.layout
-        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.9)
+        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 2.2)
         for i in 0..<L.n {
             drawSignal(ctx, at: S(CGPoint(x: station.exitX(i), y: L.lineY[i])),
-                       red: station.platformHeld[i], scale: scale * 1.9)
+                       red: station.platformHeld[i], scale: scale * 2.2)
         }
     }
 
@@ -169,10 +169,10 @@ struct StationView: View {
             Color(red: 0.62, green: 0.46, blue: 0.78)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         for k in 0..<n {
-            let jitter = agitated ? CGFloat(sin(t * 12 + Double(k) * 1.5)) * 2.4 * scale : 0
+            let jitter = agitated ? CGFloat(sin(t * 6 + Double(k) * 2.1)) * 0.9 * scale : 0
             let px = rect.minX + (42 + CGFloat(k) * 17) * scale + jitter
             let feet = rect.minY + 10 * scale        // stand them on the platform, not lying on it
-            let coat = agitated ? Color(red: 0.94, green: 0.34, blue: 0.30) : clothes[k % clothes.count]
+            let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
             // torso: wider at the shoulders, tapering down — reads as a body
             let bw = 12 * scale, bh = 15 * scale
             let top = feet - bh
@@ -270,12 +270,12 @@ struct StationView: View {
                 // Home signal at the throat — tap to hold or release the incoming flow.
                 signalTap { station.toggleEntrance() }
                     .position(project(CGPoint(x: station.layout.ladderBottom.x,
-                                              y: station.layout.ladderBottom.y - 26),
+                                              y: station.layout.ladderBottom.y - 32),
                                       scale: scale, z: z, in: geo.size))
                 // A starter at each platform's exit — tap to hold a train or send it on its way.
                 ForEach(0..<station.layout.n, id: \.self) { i in
                     signalTap { station.toggleStarter(i) }
-                        .position(project(CGPoint(x: station.exitX(i), y: station.layout.lineY[i] - 26),
+                        .position(project(CGPoint(x: station.exitX(i), y: station.layout.lineY[i] - 32),
                                           scale: scale, z: z, in: geo.size))
                 }
 
