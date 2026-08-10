@@ -1,4 +1,5 @@
 import AVFoundation
+import QuartzCore
 
 /// A tiny synthesised sound layer. Every effect is generated in code at launch — no audio files —
 /// and played through a small pool of nodes so effects can overlap. Respects a persisted mute.
@@ -10,6 +11,7 @@ final class Sound {
     private var players: [AVAudioPlayerNode] = []
     private var next = 0
     private var buffers: [FX: AVAudioPCMBuffer] = [:]
+    private var lastPlay: [FX: Double] = [:]
     private let sr = 44100.0
     private(set) var muted = UserDefaults.standard.bool(forKey: "btr.muted")
 
@@ -47,9 +49,12 @@ final class Sound {
 
     func play(_ fx: FX) {
         guard !muted, let buf = buffers[fx] else { return }
+        let now = CACurrentMediaTime()
+        if let last = lastPlay[fx], now - last < 0.09 { return }   // debounce — never let one ring on
+        lastPlay[fx] = now
         if !engine.isRunning { try? engine.start() }
         let p = players[next]; next = (next + 1) % players.count
-        p.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        p.scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
     }
 
     func toggleMute() { muted.toggle(); UserDefaults.standard.set(muted, forKey: "btr.muted") }
