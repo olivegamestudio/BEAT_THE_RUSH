@@ -35,7 +35,6 @@ struct DawlishView: View {
                     for sp in station.sparkles {
                         drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc)
                     }
-                    drawDunes(ctx, sc, size, S)         // sandy dunes at the ends, hiding off-view trains
                     drawSignals(ctx, sc, S)
                 }
                 .ignoresSafeArea()
@@ -73,18 +72,18 @@ struct DawlishView: View {
         let vOff = (size.height - Track.H * sc) / 2
         func y(_ d: CGFloat) -> CGFloat { d * sc + vOff }
         // A sandy spit at the mouth of the Exe: estuary behind, beach and sea in front.
-        band(ctx, 0, w, 0, y(102), Color(red: 0.55, green: 0.72, blue: 0.90), Color(red: 0.72, green: 0.83, blue: 0.93))     // sky
-        band(ctx, 0, w, y(90), y(108), Color(red: 0.40, green: 0.50, blue: 0.44), Color(red: 0.34, green: 0.44, blue: 0.40)) // far shore (Exmouth)
-        band(ctx, 0, w, y(102), y(138), Color(red: 0.38, green: 0.56, blue: 0.62), Color(red: 0.32, green: 0.50, blue: 0.56)) // Exe estuary
-        band(ctx, 0, w, y(138), y(184), Color(red: 0.84, green: 0.74, blue: 0.52), Color(red: 0.74, green: 0.63, blue: 0.42)) // sand dunes
-        band(ctx, 0, w, y(184), y(374), Color(red: 0.82, green: 0.75, blue: 0.58), Color(red: 0.76, green: 0.68, blue: 0.52)) // sandy ground
-        band(ctx, 0, w, y(374), y(414), Color(red: 0.90, green: 0.82, blue: 0.62), Color(red: 0.82, green: 0.73, blue: 0.53)) // beach
-        band(ctx, 0, w, y(414), size.height, Color(red: 0.16, green: 0.44, blue: 0.60), Color(red: 0.10, green: 0.30, blue: 0.48)) // sea
-        marram(ctx, y0: y(148), x0: 0, x1: w, sc: sc)          // grass on the dunes
+        band(ctx, 0, w, 0, y(100), Color(red: 0.42, green: 0.58, blue: 0.76), Color(red: 0.54, green: 0.68, blue: 0.82))     // sky
+        band(ctx, 0, w, y(88), y(106), Color(red: 0.30, green: 0.39, blue: 0.34), Color(red: 0.25, green: 0.34, blue: 0.31)) // far shore
+        band(ctx, 0, w, y(100), y(136), Color(red: 0.24, green: 0.40, blue: 0.46), Color(red: 0.19, green: 0.34, blue: 0.40)) // Exe estuary
+        band(ctx, 0, w, y(136), y(182), Color(red: 0.64, green: 0.55, blue: 0.38), Color(red: 0.54, green: 0.46, blue: 0.31)) // sand dunes
+        band(ctx, 0, w, y(182), y(386), Color(red: 0.60, green: 0.54, blue: 0.41), Color(red: 0.54, green: 0.48, blue: 0.37)) // sandy ground
+        band(ctx, 0, w, y(386), y(420), Color(red: 0.66, green: 0.58, blue: 0.42), Color(red: 0.58, green: 0.51, blue: 0.37)) // beach
+        band(ctx, 0, w, y(420), size.height, Color(red: 0.10, green: 0.29, blue: 0.40), Color(red: 0.06, green: 0.19, blue: 0.30)) // sea
+        marram(ctx, y0: y(146), x0: 0, x1: w, sc: sc)          // grass on the dunes
         for k in 0..<3 {                                        // waves
-            let wy = y(424 + CGFloat(k) * 10)
+            let wy = y(430 + CGFloat(k) * 9)
             var wave = Path(); wave.move(to: CGPoint(x: 20, y: wy)); wave.addLine(to: CGPoint(x: w - 20, y: wy))
-            ctx.stroke(wave, with: .color(.white.opacity(0.10)), style: .init(lineWidth: 2 * sc, lineCap: .round))
+            ctx.stroke(wave, with: .color(.white.opacity(0.09)), style: .init(lineWidth: 2 * sc, lineCap: .round))
         }
         var rip = Path(); rip.move(to: CGPoint(x: 20, y: y(122))); rip.addLine(to: CGPoint(x: w - 20, y: y(122)))
         ctx.stroke(rip, with: .color(.white.opacity(0.08)), style: .init(lineWidth: 2 * sc, lineCap: .round))
@@ -108,31 +107,10 @@ struct DawlishView: View {
         }
     }
 
-    /// Sandy dune mounds at each end that the line runs behind, hiding trains not yet in view.
-    private func drawDunes(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
-        let s = station
-        for mouth in [s.tunL, s.tunR] {
-            let toRight = mouth < designW / 2          // left dune slopes down to the right
-            let base = S(CGPoint(x: mouth, y: 362))
-            let crest = S(CGPoint(x: toRight ? 0 : designW, y: 145))
-            var dune = Path()
-            dune.move(to: CGPoint(x: crest.x, y: base.y))
-            dune.addLine(to: CGPoint(x: crest.x, y: crest.y))
-            dune.addQuadCurve(to: CGPoint(x: base.x, y: base.y),
-                              control: CGPoint(x: (crest.x + base.x) / 2, y: crest.y + (base.y - crest.y) * 0.15))
-            dune.closeSubpath()
-            ctx.fill(dune, with: .linearGradient(
-                Gradient(colors: [Color(red: 0.86, green: 0.76, blue: 0.54), Color(red: 0.72, green: 0.62, blue: 0.42)]),
-                startPoint: CGPoint(x: crest.x, y: crest.y), endPoint: CGPoint(x: base.x, y: base.y)))
-            marram(ctx, y0: S(CGPoint(x: 0, y: 160)).y,
-                   x0: toRight ? 0 : mouth * sc, x1: toRight ? mouth * sc : size.width, sc: sc)
-        }
-    }
-
     private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        drawPlatform(ctx, y: 190, occupied: s.pUp > 0, sc: sc, S: S)     // up platform (top, outside the loop)
-        drawPlatform(ctx, y: 352, occupied: s.pDown > 0, sc: sc, S: S)   // down platform (bottom)
+        drawPlatform(ctx, y: 194, occupied: s.pUp > 0, sc: sc, S: S)     // up platform, outside the up loop
+        drawPlatform(ctx, y: 366, occupied: s.pDown > 0, sc: sc, S: S)   // down platform, outside the down loop
     }
 
     private func drawPlatform(_ ctx: GraphicsContext, y: CGFloat, occupied: Bool, sc: CGFloat, S: (CGPoint) -> CGPoint) {
@@ -144,14 +122,25 @@ struct DawlishView: View {
         ctx.stroke(rr, with: .color(.white.opacity(0.25)), style: .init(lineWidth: 1.5 * sc))
     }
 
+    private func railLine(_ ctx: GraphicsContext, _ pts: [CGPoint], _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        var p = Path()
+        for (i, pt) in pts.enumerated() { i == 0 ? p.move(to: S(pt)) : p.addLine(to: S(pt)) }
+        ctx.stroke(p, with: .color(railEdge), style: .init(lineWidth: 15 * sc, lineCap: .round, lineJoin: .round))
+        ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 9 * sc, lineCap: .round, lineJoin: .round))
+        ctx.stroke(p, with: .color(railSheen.opacity(0.5)), style: .init(lineWidth: 2.5 * sc, lineCap: .round, lineJoin: .round))
+    }
+
     private func drawRails(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for ly in [s.upPlatY, s.upFastY, s.downFastY, s.downPlatY] {
-            var p = Path(); p.move(to: S(CGPoint(x: 0, y: ly))); p.addLine(to: S(CGPoint(x: designW, y: ly)))
-            ctx.stroke(p, with: .color(railEdge), style: .init(lineWidth: 15 * sc, lineCap: .round))
-            ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 9 * sc, lineCap: .round))
-            ctx.stroke(p, with: .color(railSheen.opacity(0.5)), style: .init(lineWidth: 2.5 * sc, lineCap: .round))
-        }
+        let d: CGFloat = 60
+        // two through mains
+        railLine(ctx, [CGPoint(x: 0, y: s.upMainY), CGPoint(x: designW, y: s.upMainY)], sc, S)
+        railLine(ctx, [CGPoint(x: 0, y: s.downMainY), CGPoint(x: designW, y: s.downMainY)], sc, S)
+        // platform loops — points off the main and back
+        railLine(ctx, [CGPoint(x: s.xW, y: s.upMainY), CGPoint(x: s.xW + d, y: s.upLoopY),
+                       CGPoint(x: s.xE - d, y: s.upLoopY), CGPoint(x: s.xE, y: s.upMainY)], sc, S)
+        railLine(ctx, [CGPoint(x: s.xW, y: s.downMainY), CGPoint(x: s.xW + d, y: s.downLoopY),
+                       CGPoint(x: s.xE - d, y: s.downLoopY), CGPoint(x: s.xE, y: s.downMainY)], sc, S)
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: DawTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -166,10 +155,10 @@ struct DawlishView: View {
 
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        pax(ctx, count: s.pUp, x0: s.platL - 6, feetY: 208, sc: sc, agitated: s.upAgitated, t: s.animT, S: S)
-        pax(ctx, count: s.pDown, x0: s.platL - 6, feetY: 356, sc: sc, agitated: s.downAgitated, t: s.animT, S: S)
-        if s.upMood.shows { drawMood(ctx, s.upMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 178)), scale: sc) }
-        if s.downMood.shows { drawMood(ctx, s.downMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 340)), scale: sc) }
+        pax(ctx, count: s.pUp, x0: s.platL - 6, feetY: 214, sc: sc, agitated: s.upAgitated, t: s.animT, S: S)
+        pax(ctx, count: s.pDown, x0: s.platL - 6, feetY: 370, sc: sc, agitated: s.downAgitated, t: s.animT, S: S)
+        if s.upMood.shows { drawMood(ctx, s.upMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 182)), scale: sc) }
+        if s.downMood.shows { drawMood(ctx, s.downMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 356)), scale: sc) }
     }
 
     private func pax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat, sc: CGFloat,
@@ -199,8 +188,8 @@ struct DawlishView: View {
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let sig = sc * 1.9
-        drawSignal(ctx, at: S(CGPoint(x: s.platR + 30, y: s.upPlatY)), red: s.upHeld, scale: sig)    // up starter (east)
-        drawSignal(ctx, at: S(CGPoint(x: s.platL - 30, y: s.downPlatY)), red: s.downHeld, scale: sig) // down starter (west)
+        drawSignal(ctx, at: S(CGPoint(x: s.platR + 30, y: s.upLoopY)), red: s.upHeld, scale: sig)    // up starter (east)
+        drawSignal(ctx, at: S(CGPoint(x: s.platL - 30, y: s.downLoopY)), red: s.downHeld, scale: sig) // down starter (west)
     }
 
     // MARK: controls / HUD
@@ -209,10 +198,10 @@ struct DawlishView: View {
         ZStack {
             Button(action: { station.toggle(.east); Sound.shared.play(.tap) }) { SignalHalo() }
                 .buttonStyle(PressStyle())
-                .position(project(CGPoint(x: station.platR + 30, y: station.upPlatY - 22), scale, size))
+                .position(project(CGPoint(x: station.platR + 30, y: station.upLoopY - 22), scale, size))
             Button(action: { station.toggle(.west); Sound.shared.play(.tap) }) { SignalHalo() }
                 .buttonStyle(PressStyle())
-                .position(project(CGPoint(x: station.platL - 30, y: station.downPlatY - 22), scale, size))
+                .position(project(CGPoint(x: station.platL - 30, y: station.downLoopY - 22), scale, size))
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))

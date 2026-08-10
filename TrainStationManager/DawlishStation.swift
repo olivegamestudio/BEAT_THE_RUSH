@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// Dawlish Warren: the sandy spit at the mouth of the Exe. Four lines run between the two
-/// platforms — an outer platform loop each side where stopping trains call, and two fast lines
-/// down the middle where expresses race straight through without stopping.
+/// Dawlish Warren on the sandy Exe spit. Two through tracks run across; at each end a pair of
+/// points can turn a stopping train off into a platform loop and back onto the main. Expresses
+/// keep to the main and race straight through.
 final class DawTrain: Identifiable {
     let id = UUID()
     var spec: Train
     let dir: DawlishStation.Dir
     let express: Bool
     let path: RoutePath
-    let berthDist: CGFloat        // where a stopping train halts (ignored for expresses)
+    let berthDist: CGFloat
     let speed: CGFloat
     var dist: CGFloat = 0
     var boarded = false
@@ -30,16 +30,17 @@ final class DawlishStation: ObservableObject {
     let def: StationDef
     var name: String { def.name }
 
-    // Geometry (design space W = 1200, H = 452) — four lines between the platforms.
-    let upPlatY: CGFloat = 230     // eastbound platform loop (top)
-    let upFastY: CGFloat = 264     // eastbound fast line
-    let downFastY: CGFloat = 296   // westbound fast line
-    let downPlatY: CGFloat = 330   // westbound platform loop (bottom)
-    let tunL: CGFloat = 96
-    let tunR: CGFloat = 1104
-    let platL: CGFloat = 430
-    let platR: CGFloat = 770
-    let pad: CGFloat = 340
+    // Geometry (design space W = 1200, H = 452)
+    let upMainY: CGFloat = 262     // eastbound main (through)
+    let downMainY: CGFloat = 304   // westbound main (through)
+    let upLoopY: CGFloat = 218     // eastbound platform loop (above)
+    let downLoopY: CGFloat = 348   // westbound platform loop (below)
+    let xW: CGFloat = 322          // west points
+    let xE: CGFloat = 878          // east points
+    let platL: CGFloat = 424
+    let platR: CGFloat = 776
+    let spawnL: CGFloat = -260
+    let spawnR: CGFloat = 1460
 
     @Published var trains: [DawTrain] = []
     @Published var carried = 0.0
@@ -65,15 +66,16 @@ final class DawlishStation: ObservableObject {
     var upMood: Mood { moodFor(upWait, pUp) }
     var downMood: Mood { moodFor(downWait, pDown) }
 
-    let baseSpeed: CGFloat = 72
+    let baseSpeed: CGFloat = 74
     let dwellTime = 2.4
     let perCar = 3.0
     let boardOffRate = 6.0
     let platformCap = 16.0
     let overflowGrace = 18.0
 
-    private let eastPlat, eastFast, westPlat, westFast: RoutePath
-    private let ePlatBerth, wPlatBerth: CGFloat
+    // Prebuilt routes and their berth distances.
+    private let eMain, eStop, wMain, wStop: RoutePath
+    private let eBerth, wBerth: CGFloat
     private var spawnClock = 0.0, nextSpawn = 1.0
     private var paxClock = 0.0, nextPax = 1.2
     private var overUp = 0.0, overDown = 0.0
@@ -81,14 +83,19 @@ final class DawlishStation: ObservableObject {
 
     init(_ def: StationDef) {
         self.def = def
-        eastPlat = RoutePath([CGPoint(x: tunL - pad, y: upPlatY), CGPoint(x: platR, y: upPlatY),
-                              CGPoint(x: tunR + pad, y: upPlatY)])
-        ePlatBerth = eastPlat.distanceTo(vertex: 1)
-        eastFast = RoutePath([CGPoint(x: tunL - pad, y: upFastY), CGPoint(x: tunR + pad, y: upFastY)])
-        westPlat = RoutePath([CGPoint(x: tunR + pad, y: downPlatY), CGPoint(x: platL, y: downPlatY),
-                              CGPoint(x: tunL - pad, y: downPlatY)])
-        wPlatBerth = westPlat.distanceTo(vertex: 1)
-        westFast = RoutePath([CGPoint(x: tunR + pad, y: downFastY), CGPoint(x: tunL - pad, y: downFastY)])
+        let d: CGFloat = 60      // how far past the points the loop has fully diverged
+        eMain = RoutePath([CGPoint(x: spawnL, y: upMainY), CGPoint(x: spawnR, y: upMainY)])
+        eStop = RoutePath([CGPoint(x: spawnL, y: upMainY), CGPoint(x: xW, y: upMainY),
+                           CGPoint(x: xW + d, y: upLoopY), CGPoint(x: platR, y: upLoopY),
+                           CGPoint(x: xE - d, y: upLoopY), CGPoint(x: xE, y: upMainY),
+                           CGPoint(x: spawnR, y: upMainY)])
+        eBerth = eStop.distanceTo(vertex: 3)
+        wMain = RoutePath([CGPoint(x: spawnR, y: downMainY), CGPoint(x: spawnL, y: downMainY)])
+        wStop = RoutePath([CGPoint(x: spawnR, y: downMainY), CGPoint(x: xE, y: downMainY),
+                           CGPoint(x: xE - d, y: downLoopY), CGPoint(x: platL, y: downLoopY),
+                           CGPoint(x: xW + d, y: downLoopY), CGPoint(x: xW, y: downMainY),
+                           CGPoint(x: spawnL, y: downMainY)])
+        wBerth = wStop.distanceTo(vertex: 3)
         spawn()
     }
 
@@ -111,17 +118,10 @@ final class DawlishStation: ObservableObject {
                          tint: trainPalette.randomElement() ?? .blue, name: "")
         let east = Bool.random()
         let express = Double.random(in: 0...1) < def.expressChance
-        if east {
-            let path = express ? eastFast : eastPlat
-            trains.append(DawTrain(spec, .east, express: express, path,
-                                   berth: express ? path.total + 1 : ePlatBerth,
-                                   speed: express ? baseSpeed * 1.7 : baseSpeed))
-        } else {
-            let path = express ? westFast : westPlat
-            trains.append(DawTrain(spec, .west, express: express, path,
-                                   berth: express ? path.total + 1 : wPlatBerth,
-                                   speed: express ? baseSpeed * 1.7 : baseSpeed))
-        }
+        let path = east ? (express ? eMain : eStop) : (express ? wMain : wStop)
+        let berth = express ? path.total + 1 : (east ? eBerth : wBerth)
+        trains.append(DawTrain(spec, east ? .east : .west, express: express, path,
+                               berth: berth, speed: express ? baseSpeed * 1.7 : baseSpeed))
     }
 
     func tick(_ dt: Double) {
@@ -150,8 +150,7 @@ final class DawlishStation: ObservableObject {
             let held = !t.express && (t.dir == .east ? upHeld : downHeld)
             var ceiling = t.path.total
             if !t.express && (!t.boarded || held) { ceiling = min(ceiling, t.berthDist) }
-            // don't run into the train ahead on the same line (share a line only same dir+kind)
-            var aheadTail = CGFloat.infinity
+            var aheadTail = CGFloat.infinity   // share a route only with same dir + same kind (main vs loop)
             for o in roster where o !== t && !o.finished && o.dir == t.dir && o.express == t.express && o.dist > t.dist {
                 aheadTail = min(aheadTail, o.dist - o.carLen)
             }
@@ -175,7 +174,7 @@ final class DawlishStation: ObservableObject {
                     if Int(before) != Int(after) {
                         let k = Int(after)
                         sparkles.append(Sparkle(x: platL + 20 + CGFloat(k) * 15,
-                                                y: t.dir == .east ? upPlatY - 26 : downPlatY + 30))
+                                                y: t.dir == .east ? upLoopY - 26 : downLoopY + 30))
                     }
                     t.toBoard -= take; carried += take
                 }

@@ -513,7 +513,8 @@ struct StationCard: View {
                 Text(def.name)
                     .font(.system(size: 18, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
-                    .lineLimit(1).minimumScaleFactor(0.65)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .padding(.trailing, locked ? 30 : 0)     // keep clear of the corner padlock
                 Text("\(def.county) \(def.flag)")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.6))

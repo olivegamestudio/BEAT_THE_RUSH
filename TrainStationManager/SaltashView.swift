@@ -20,7 +20,7 @@ struct SaltashView: View {
     private let contentMaxX: CGFloat = 1240
     private let designW: CGFloat = 980
     @State private var originX: CGFloat = 150     // design x shown at the screen's left edge
-    @GestureState private var dragX: CGFloat = 0
+    @State private var dragStart: CGFloat? = nil
     @State private var confirmExit = false
     @State private var tutStep = 0        // the tutorial runs every time you play the level
     @State private var tutClock = 0.0
@@ -30,8 +30,8 @@ struct SaltashView: View {
         "Keep both sides moving and carry 24 people to clear the station."
     ]
 
-    /// The design x at the left edge right now, including any in-progress drag.
-    private func origin(_ sc: CGFloat) -> CGFloat { originX - dragX / sc }
+    /// The design x at the left edge right now (updated live as you drag).
+    private func origin(_ sc: CGFloat) -> CGFloat { originX }
     private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - designW) }
 
     /// Maps a design point into screen space: the panned window across the width, and the (shorter)
@@ -72,8 +72,12 @@ struct SaltashView: View {
                 .ignoresSafeArea()
                 .gesture(
                     DragGesture()
-                        .updating($dragX) { v, s, _ in s = v.translation.width }
-                        .onEnded { v in originX = clampOrigin(originX - v.translation.width / scale) }
+                        .onChanged { v in
+                            let base = dragStart ?? originX
+                            if dragStart == nil { dragStart = base }
+                            originX = clampOrigin(base - v.translation.width / scale)
+                        }
+                        .onEnded { _ in dragStart = nil }
                 )
                 Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
