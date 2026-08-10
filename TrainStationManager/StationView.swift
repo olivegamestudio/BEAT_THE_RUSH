@@ -169,8 +169,9 @@ struct StationView: View {
             Color(red: 0.62, green: 0.46, blue: 0.78)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         for k in 0..<n {
-            let jitter = agitated ? CGFloat(sin(t * 6 + Double(k) * 2.1)) * 0.9 * scale : 0
-            let px = rect.minX + (42 + CGFloat(k) * 17) * scale + jitter
+            // agitated people pace up and down the platform, each at their own phase
+            let pace = agitated ? CGFloat(sin(t * 2.3 + Double(k) * 1.7)) * 16 * scale : 0
+            let px = rect.minX + (42 + CGFloat(k) * 17) * scale + pace
             let feet = rect.minY + 10 * scale        // stand them on the platform, not lying on it
             let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
             // torso: wider at the shoulders, tapering down — reads as a body

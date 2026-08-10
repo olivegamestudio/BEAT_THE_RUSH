@@ -218,8 +218,9 @@ struct SaltashView: View {
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
         let n = min(Int(count), 12)
         for k in 0..<max(n, 0) {
-            let jitter = agitated ? CGFloat(sin(t * 6 + Double(k) * 2.1)) * 0.9 * sc : 0
-            let px = x0 + CGFloat(k) * 15 * sc + jitter
+            // agitated people pace up and down the platform, each at their own phase
+            let pace = agitated ? CGFloat(sin(t * 2.3 + Double(k) * 1.7)) * 16 * sc : 0
+            let px = x0 + CGFloat(k) * 15 * sc + pace
             let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
             let bw = 11 * sc, bh = 14 * sc, top = feetY - bh
             var torso = Path()
