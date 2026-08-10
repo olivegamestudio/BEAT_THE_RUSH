@@ -100,6 +100,12 @@ final class Station: ObservableObject {
     private var waitClock: [Double]     // per platform, seconds since a train last called
     let agitateAfter = 6.0
     func agitated(_ i: Int) -> Bool { passengers[i] > 0 && waitClock[i] > agitateAfter }
+    func mood(_ i: Int) -> Mood {
+        if passengers[i] < 1 { return .happy }
+        if waitClock[i] > agitateAfter { return .cross }
+        if waitClock[i] > agitateAfter * 0.55 { return .waiting }
+        return .happy
+    }
     /// The home signal at the throat: `true` = green, arrivals may enter; `false` = held outside.
     @Published var entranceOpen = true
     /// Each platform's starter signal: `true` = held red, a berthed train waits; `false` = clear away.

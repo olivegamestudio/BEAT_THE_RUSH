@@ -63,7 +63,78 @@ struct MuteButton: View {
     }
 }
 
+/// A non-blocking coaching card along the bottom, tapped through step by step on first play.
+struct TutorialCard: View {
+    let text: String
+    let isLast: Bool
+    let onNext: () -> Void
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 14) {
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: 22)).foregroundStyle(Color(red: 0.42, green: 0.86, blue: 0.56))
+                Text(text)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                Button(action: onNext) {
+                    Text(isLast ? "Got it" : "Next")
+                        .font(.system(size: 15, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 9)
+                        .background(Color(red: 0.20, green: 0.55, blue: 0.34), in: Capsule())
+                }
+                .buttonStyle(PressStyle())
+            }
+            .padding(16)
+            .frame(maxWidth: 660)
+            .background(Color(red: 0.13, green: 0.16, blue: 0.22).opacity(0.96), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.12)))
+            .padding(.bottom, 18)
+        }
+    }
+}
+
+/// A small confirm sheet, used before leaving a game in progress.
+struct ConfirmDialog: View {
+    let title: String
+    let message: String
+    let confirmTitle: String
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea().onTapGesture(perform: onCancel)
+            VStack(spacing: 8) {
+                Text(title).font(.system(size: 24, weight: .black, design: .rounded)).foregroundStyle(.white)
+                Text(message).font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color(white: 0.72))
+                HStack(spacing: 12) {
+                    Button(action: onCancel) { pill("Stay", filled: false) }.buttonStyle(PressStyle())
+                    Button(action: onConfirm) { pill(confirmTitle, filled: true) }.buttonStyle(PressStyle())
+                }
+                .padding(.top, 12)
+            }
+            .padding(28)
+            .background(Color(red: 0.13, green: 0.16, blue: 0.22), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.1)))
+        }
+    }
+    private func pill(_ t: String, filled: Bool) -> some View {
+        Text(t).font(.system(size: 17, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+            .frame(width: 130, height: 48)
+            .background(filled ? Color(red: 0.70, green: 0.30, blue: 0.30) : Color(red: 0.24, green: 0.27, blue: 0.34),
+                       in: RoundedRectangle(cornerRadius: 13))
+    }
+}
+
 enum GameOutcome { case playing, won, lost }
+
+/// The mood of the crowd on a platform, shown as a little speech bubble once they start waiting.
+enum Mood {
+    case happy, waiting, cross
+    var emoji: String { switch self { case .happy: "🙂"; case .waiting: "😕"; case .cross: "😠" } }
+    var shows: Bool { self != .happy }   // only pop a bubble once people are impatient
+}
 
 /// Which stations the player has unlocked, persisted across launches. Station 1 is always open;
 /// clearing station N unlocks N+1.

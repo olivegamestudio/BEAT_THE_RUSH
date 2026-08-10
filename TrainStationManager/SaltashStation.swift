@@ -45,7 +45,7 @@ final class SaltashStation: ObservableObject {
     let xMergeE: CGFloat = 998   // east throat: the bridge splits back to two lines
     let platL: CGFloat = 314     // platforms sit right by the bridge
     let platR: CGFloat = 534
-    let exitW: CGFloat = -90
+    let exitW: CGFloat = -300    // west lines run well off-screen, past the pannable area
     let exitE: CGFloat = 1440    // eastbound leaves east — well off-screen, past the pannable area
     let entryE: CGFloat = 1440   // westbound arrives from the east — spawns off-screen, forms first
     let riverL: CGFloat = 628    // the Tamar — a vertical band the bridge crosses
@@ -160,6 +160,14 @@ final class SaltashStation: ObservableObject {
     let agitateAfter = 6.0
     var topAgitated: Bool { pTop >= 1 && topWait > agitateAfter }
     var botAgitated: Bool { pBot >= 1 && botWait > agitateAfter }
+    private func moodFor(_ wait: Double, _ p: Double) -> Mood {
+        if p < 1 { return .happy }
+        if wait > agitateAfter { return .cross }
+        if wait > agitateAfter * 0.55 { return .waiting }
+        return .happy
+    }
+    var topMood: Mood { moodFor(topWait, pTop) }
+    var botMood: Mood { moodFor(botWait, pBot) }
 
     let speed: CGFloat = 66
     let dwellTime = 2.6

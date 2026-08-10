@@ -21,6 +21,13 @@ struct SaltashView: View {
     private let designW: CGFloat = 980
     @State private var originX: CGFloat = 150     // design x shown at the screen's left edge
     @GestureState private var dragX: CGFloat = 0
+    @State private var confirmExit = false
+    @State private var tutStep = UserDefaults.standard.bool(forKey: "btr.tutSaltash") ? -1 : 0
+    private let tutSteps = [
+        "Welcome to Saltash! One track crosses the river — trains take turns over the bridge.",
+        "Tap a glowing signal to give that direction the bridge. Green means go.",
+        "Keep both sides moving and carry 24 people to clear the station."
+    ]
 
     /// The design x at the left edge right now, including any in-progress drag.
     private func origin(_ sc: CGFloat) -> CGFloat { originX - dragX / sc }
@@ -62,11 +69,25 @@ struct SaltashView: View {
                 Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
 
+                if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
+                    TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) {
+                        Sound.shared.play(.ui)
+                        tutStep += 1
+                        if tutStep >= tutSteps.count { UserDefaults.standard.set(true, forKey: "btr.tutSaltash") }
+                    }
+                }
+
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
                                    carried: Int(station.carried), goal: station.def.goal,
                                    stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
+                }
+
+                if confirmExit {
+                    ConfirmDialog(title: "Leave Saltash?", message: "You'll lose this go.",
+                                  confirmTitle: "Leave", onConfirm: onExit,
+                                  onCancel: { confirmExit = false })
                 }
             }
         }
@@ -209,6 +230,12 @@ struct SaltashView: View {
         let botRect = platformRect(top: false, y: s.yBot, sc: sc, S: S)
         drawPax(ctx, count: s.pBot, x0: botRect.minX + 16 * sc, feetY: botRect.minY + 4 * sc,
                 sc: sc, agitated: s.botAgitated, t: s.animT)
+        if s.topMood.shows {
+            drawMood(ctx, s.topMood.emoji, at: CGPoint(x: topRect.minX + 42 * sc, y: topRect.maxY - 40 * sc), scale: sc)
+        }
+        if s.botMood.shows {
+            drawMood(ctx, s.botMood.emoji, at: CGPoint(x: botRect.minX + 42 * sc, y: botRect.minY - 30 * sc), scale: sc)
+        }
     }
 
     private func drawPax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat,
@@ -287,7 +314,7 @@ struct SaltashView: View {
                          scale: scale, size: size)
 
             // back — top left
-            Button(action: { Sound.shared.play(.ui); onExit() }) {
+            Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.85))
                     .frame(width: 36, height: 36)

@@ -55,6 +55,23 @@ func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat
              with: .color(.white.opacity(0.75)))
 }
 
+/// A little speech bubble with `emoji`, its tail pointing down at the crowd at screen point `p`.
+func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGFloat) {
+    let w = 32 * scale, h = 27 * scale
+    let rect = CGRect(x: p.x - w / 2, y: p.y - h, width: w, height: h)
+    ctx.drawLayer { l in
+        l.addFilter(.shadow(color: .black.opacity(0.4), radius: 3 * scale, x: 0, y: 2 * scale))
+        l.fill(Path(roundedRect: rect, cornerRadius: 8 * scale), with: .color(.white.opacity(0.94)))
+        var tail = Path()
+        tail.move(to: CGPoint(x: p.x - 5 * scale, y: rect.maxY - 1))
+        tail.addLine(to: CGPoint(x: p.x + 1 * scale, y: rect.maxY + 6 * scale))
+        tail.addLine(to: CGPoint(x: p.x + 6 * scale, y: rect.maxY - 1))
+        tail.closeSubpath()
+        l.fill(tail, with: .color(.white.opacity(0.94)))
+    }
+    ctx.draw(Text(emoji).font(.system(size: 17 * scale)), at: CGPoint(x: rect.midX, y: rect.midY - 1))
+}
+
 /// Draws one carriage centred at screen point `p`, rotated to `angle`, in `tint`.
 /// Shared by the station board and the animated menu. `cw`/`ch` are design-space
 /// dimensions; `scale` maps design units to screen.

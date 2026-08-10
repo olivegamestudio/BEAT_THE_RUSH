@@ -30,24 +30,21 @@ final class Sound {
         buffers[.star] = render(0.16) { t in
             env(t, 0.16, a: 0.002, r: 0.14) * 0.28 * (sin(2 * .pi * 1500 * t) + 0.4 * sin(2 * .pi * 2300 * t))
         }
-        // the level-crossing bell: two bright strikes
-        buffers[.ding] = render(0.6) { t in
-            func bell(_ x: Double) -> Double {
-                guard x >= 0 else { return 0 }
-                let e = exp(-x * 7)
-                return e * (sin(2 * .pi * 680 * x) + 0.5 * sin(2 * .pi * 1360 * x) + 0.22 * sin(2 * .pi * 1840 * x))
-            }
-            return 0.3 * (bell(t) + bell(t - 0.22))
+        // the level-crossing bell: one short, bright ding
+        buffers[.ding] = render(0.26) { t in
+            let e = exp(-t * 12)
+            return e * 0.26 * (sin(2 * .pi * 700 * t) + 0.4 * sin(2 * .pi * 1400 * t))
         }
-        buffers[.depart] = render(0.34) { t in
-            let f = 400 - 220 * (t / 0.34)
-            return env(t, 0.34, a: 0.02, r: 0.3) * 0.28 * (sin(2 * .pi * f * t) + Double.random(in: -1...1) * 0.14)
+        // a soft descending toot as a train leaves — no harsh noise
+        buffers[.depart] = render(0.22) { t in
+            let f = 300 - 90 * (t / 0.22)
+            return env(t, 0.22, a: 0.01, r: 0.2) * 0.2 * (sin(2 * .pi * f * t) + 0.3 * sin(2 * .pi * f * 2 * t))
         }
         buffers[.win]  = arpeggio([523.25, 659.25, 783.99, 1046.5], step: 0.13)
         buffers[.lose] = arpeggio([392.0, 330.0, 262.0], step: 0.18)
 
         let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playback, options: [.mixWithOthers])
+        try? s.setCategory(.ambient, options: [.mixWithOthers])   // respects the phone's silent switch
         try? s.setActive(true)
         try? engine.start()
         players.forEach { $0.play() }

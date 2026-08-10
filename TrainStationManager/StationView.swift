@@ -9,6 +9,7 @@ struct StationView: View {
     }
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
+    @State private var confirmExit = false
     @GestureState private var pinch: CGFloat = 1
     @GestureState private var drag: CGSize = .zero
 
@@ -61,6 +62,12 @@ struct StationView: View {
                                    carried: Int(station.carried), goal: station.def.goal,
                                    stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
+                }
+
+                if confirmExit {
+                    ConfirmDialog(title: "Leave \(station.name)?", message: "You'll lose this go.",
+                                  confirmTitle: "Leave", onConfirm: onExit,
+                                  onCancel: { confirmExit = false })
                 }
             }
         }
@@ -155,6 +162,10 @@ struct StationView: View {
 
             drawPeople(ctx, count: station.passengers[i], in: rect, len: len, scale: scale,
                        agitated: station.agitated(i), t: station.animT)
+            let mood = station.mood(i)
+            if mood.shows {
+                drawMood(ctx, mood.emoji, at: CGPoint(x: rect.minX + 52 * scale, y: rect.minY - 28 * scale), scale: scale)
+            }
         }
     }
 
@@ -282,7 +293,7 @@ struct StationView: View {
                 }
 
                 // back — top left
-                Button(action: { Sound.shared.play(.ui); onExit() }) {
+                Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color(white: 0.85))
