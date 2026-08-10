@@ -112,20 +112,23 @@ struct StationView: View {
     }
 
     private func drawPlatforms(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
+        let big = station.layout.n >= 7          // slimmer slabs when the lines are packed close
+        let off: CGFloat = big ? 20 : 30
+        let ph: CGFloat = big ? 18 : 24
         for i in 0..<station.layout.n {
             let y = station.layout.lineY[i]
             let len = CGFloat(station.platCars[i]) * Track.carUnit
             // The platform: a wide, rounded numbered slab, set clearly off its running line.
             let rect = CGRect(x: S(CGPoint(x: Track.platLeft, y: y)).x,
-                              y: S(CGPoint(x: 0, y: y + 30)).y,
-                              width: len * scale, height: 24 * scale)
+                              y: S(CGPoint(x: 0, y: y + off)).y,
+                              width: len * scale, height: ph * scale)
             // A free platform gets a green lip so you can read at a glance where a train can go.
             let free = !station.occupied(i)
             let surface = Color(red: 0.34, green: 0.39, blue: 0.47)
             let side = Color(red: 0.18, green: 0.21, blue: 0.28)
             let edge = free ? Color(red: 0.42, green: 0.92, blue: 0.60).opacity(0.75)
                             : Color.white.opacity(0.28)
-            let depth = 20 * scale
+            let depth = (big ? 12 : 20) * scale
             let corner = 14 * scale
             let rr = Path(roundedRect: rect, cornerRadius: corner)
             // The bottom face: the same slab dropped straight down, so its lower band shows
@@ -301,13 +304,18 @@ struct StationView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.horizontal, 22).padding(.bottom, 14)
 
-                // station name — bottom right
-                Text(station.name)
-                    .font(.system(size: 27, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.75), radius: 6)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(.horizontal, 22).padding(.bottom, 16)
+                // station name + county — bottom right
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(station.name)
+                        .font(.system(size: 27, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("\(station.def.county) \(station.def.flag)")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(white: 0.72))
+                }
+                .shadow(color: .black.opacity(0.75), radius: 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.horizontal, 22).padding(.bottom, 16)
             }
         }
     }

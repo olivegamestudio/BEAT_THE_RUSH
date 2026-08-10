@@ -274,12 +274,17 @@ struct SaltashView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             .padding(.horizontal, 22).padding(.bottom, 14)
 
-            // name bottom-right
-            Text(station.name)
-                .font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.75), radius: 6)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.horizontal, 22).padding(.bottom, 16)
+            // name + county bottom-right
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(station.name)
+                    .font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                Text("\(station.def.county) \(station.def.flag)")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(white: 0.72))
+            }
+            .shadow(color: .black.opacity(0.75), radius: 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.horizontal, 22).padding(.bottom, 16)
         }
     }
 }

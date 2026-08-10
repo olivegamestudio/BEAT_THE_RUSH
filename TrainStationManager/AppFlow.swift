@@ -6,6 +6,18 @@ private let bg = LinearGradient(colors: [Color(red: 0.12, green: 0.15, blue: 0.2
                                          Color(red: 0.06, green: 0.08, blue: 0.12)],
                                 startPoint: .top, endPoint: .bottom)
 
+/// A press feel that dips and brightens instead of fading to transparent. A Button already
+/// cancels if you slide off before releasing, so this keeps that while never going see-through.
+struct PressStyle: ButtonStyle {
+    var scale: CGFloat = 0.95
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .brightness(configuration.isPressed ? 0.06 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 enum GameOutcome { case playing, won, lost }
 
 /// Which stations the player has unlocked, persisted across launches. Station 1 is always open;
@@ -39,12 +51,24 @@ struct OutcomeOverlay: View {
     let goal: Int
     let onRetry: () -> Void
     let onExit: () -> Void
+    @State private var pop = false
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.64).ignoresSafeArea()
-            VStack(spacing: 16) {
-                Text(won ? "Station cleared" : "Overwhelmed")
+            if won {
+                RadialGradient(colors: [Color(red: 1, green: 0.85, blue: 0.4).opacity(0.26), .clear],
+                               center: .center, startRadius: 10, endRadius: 340)
+                    .ignoresSafeArea()
+                burst
+            }
+            VStack(spacing: 14) {
+                if won {
+                    HStack(spacing: 10) { star(46); star(66); star(46) }
+                        .foregroundStyle(Color(red: 1.0, green: 0.82, blue: 0.28))
+                        .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.6), radius: 10)
+                }
+                Text(won ? "Station cleared!" : "Too busy!")
                     .font(.system(size: 34, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color(red: 0.42, green: 0.9, blue: 0.6)
                                          : Color(red: 0.97, green: 0.5, blue: 0.5))
@@ -52,8 +76,11 @@ struct OutcomeOverlay: View {
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.8))
                 HStack(spacing: 12) {
-                    if !won { Button(action: onRetry) { label("Retry", filled: false) } }
+                    if !won {
+                        Button(action: onRetry) { label("Retry", filled: false) }.buttonStyle(PressStyle())
+                    }
                     Button(action: onExit) { label(won ? "Continue" : "Stations", filled: won) }
+                        .buttonStyle(PressStyle())
                 }
                 .padding(.top, 6)
             }
@@ -61,6 +88,35 @@ struct OutcomeOverlay: View {
             .background(Color(red: 0.13, green: 0.16, blue: 0.22), in: RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.1)))
         }
+        .onAppear { pop = true }
+    }
+
+    /// A star that springs up to size when the card appears.
+    private func star(_ size: CGFloat) -> some View {
+        Image(systemName: "star.fill").font(.system(size: size))
+            .scaleEffect(pop ? 1 : 0)
+            .animation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.05), value: pop)
+    }
+
+    /// A one-shot burst of little stars flying out from the centre.
+    private var burst: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(0..<16, id: \.self) { i in
+                    let a = Double(i) / 16 * 2 * .pi
+                    Image(systemName: "star.fill")
+                        .font(.system(size: [10.0, 14, 18][i % 3]))
+                        .foregroundStyle([Color.yellow,
+                                          Color(red: 1, green: 0.6, blue: 0.3),
+                                          Color(red: 0.5, green: 0.8, blue: 1)][i % 3])
+                        .position(x: geo.size.width / 2 + CGFloat(cos(a)) * (pop ? 300 : 30),
+                                  y: geo.size.height / 2 + CGFloat(sin(a)) * (pop ? 190 : 20))
+                        .opacity(pop ? 0 : 0.95)
+                        .animation(.easeOut(duration: 0.9).delay(0.05), value: pop)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private func label(_ t: String, filled: Bool) -> some View {
@@ -185,6 +241,7 @@ final class MenuField: ObservableObject {
 struct MenuView: View {
     let onPlay: () -> Void
     @StateObject private var field = MenuField()
+    @State private var pulse = false
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     private let carUnit: CGFloat = 30
     private let carH: CGFloat = 19
@@ -241,17 +298,26 @@ struct MenuView: View {
 
                 Button(action: onPlay) {
                     Text("Play")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .font(.system(size: 25, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
-                        .frame(width: 220, height: 58)
-                        .background(Color(red: 0.20, green: 0.55, blue: 0.34),
-                                    in: RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.18)))
-                        .shadow(color: .black.opacity(0.5), radius: 10, y: 5)
+                        .frame(width: 244, height: 64)
+                        .background(
+                            LinearGradient(colors: [Color(red: 0.28, green: 0.74, blue: 0.46),
+                                                    Color(red: 0.16, green: 0.52, blue: 0.32)],
+                                           startPoint: .top, endPoint: .bottom),
+                            in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.3), lineWidth: 1.5))
+                        .shadow(color: .black.opacity(0.45), radius: 10, y: 6)
+                        .shadow(color: Color(red: 0.32, green: 0.88, blue: 0.52).opacity(pulse ? 0.85 : 0.3),
+                                radius: pulse ? 26 : 12)
                 }
+                .buttonStyle(PressStyle())
+                .scaleEffect(pulse ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true), value: pulse)
             }
         }
         .onReceive(tick) { _ in field.tick(0.03) }
+        .onAppear { pulse = true }
     }
 }
 
