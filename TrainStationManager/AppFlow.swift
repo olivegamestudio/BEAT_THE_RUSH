@@ -51,7 +51,7 @@ enum Progress {
 
 /// Stars earned from how comfortably a station was cleared — the closer a platform came to
 /// overflowing at its worst, the fewer stars. 3 = kept it flowing, 1 = a white-knuckle finish.
-func starsFor(peakFill f: Double) -> Int { f < 0.6 ? 3 : (f < 0.9 ? 2 : 1) }
+func starsFor(peakFill f: Double) -> Int { f < 0.75 ? 3 : (f < 1.0 ? 2 : 1) }
 
 func tierColour(_ t: Int) -> Color {
     switch t {
@@ -93,7 +93,7 @@ struct OutcomeOverlay: View {
                     .font(.system(size: 34, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color(red: 0.42, green: 0.9, blue: 0.6)
                                          : Color(red: 0.97, green: 0.5, blue: 0.5))
-                Text("\(carried) carried · goal \(goal)")
+                Text("\(carried) people · goal \(goal)")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.8))
                 HStack(spacing: 12) {
@@ -364,20 +364,27 @@ struct StationSelectView: View {
                             .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: Circle())
                             .overlay(Circle().stroke(.white.opacity(0.12)))
                     }
-                    Text("Choose a station")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
+                    .buttonStyle(PressStyle())
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("BEAT THE RUSH")
+                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("Pick your station")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color(white: 0.6))
+                    }
                     Spacer()
+                    Image(systemName: "tram.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.32, green: 0.82, blue: 0.5))
                 }
-                .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 8)
+                .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 10)
 
                 ScrollView {
                     LazyVGrid(columns: cols, spacing: 14) {
                         ForEach(allStations) { def in
-                            let unlocked = Progress.isUnlocked(def.id)
-                            StationCard(def: def, locked: !unlocked)
-                                .contentShape(RoundedRectangle(cornerRadius: 14))
-                                .onTapGesture { if unlocked { onPick(def) } }
+                            StationCard(def: def, locked: !Progress.isUnlocked(def.id),
+                                        onPick: { onPick(def) })
                         }
                     }
                     .padding(20)
@@ -387,59 +394,74 @@ struct StationSelectView: View {
     }
 }
 
+/// A quick left–right wobble, driven by bumping `animatableData` by 1.
+struct ShakeEffect: GeometryEffect {
+    var travel: CGFloat = 8
+    var shakes: CGFloat = 3
+    var animatableData: CGFloat
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: travel * sin(animatableData * .pi * 2 * shakes), y: 0))
+    }
+}
+
 struct StationCard: View {
     let def: StationDef
     var locked: Bool = false
+    let onPick: () -> Void
+    @State private var shake: CGFloat = 0
     private var colour: Color { tierColour(def.tier) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(def.id)")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .foregroundStyle(colour)
-                Spacer()
-                if locked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color(white: 0.55))
-                } else {
-                    Text("Tier \(def.tier)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.black.opacity(0.7))
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(colour, in: Capsule())
-                }
-            }
-            Text(def.name)
-                .font(.system(size: 17, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
-                .lineLimit(2).minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 2)
-            HStack(spacing: 4) {
-                if !locked {
-                    HStack(spacing: 3) {
-                        ForEach(0..<3, id: \.self) { i in
-                            let earned = Progress.stars(def.id) > i
-                            Image(systemName: earned ? "star.fill" : "star")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(earned ? Color(red: 1.0, green: 0.82, blue: 0.28)
-                                                        : Color(white: 0.32))
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(def.name)
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1).minimumScaleFactor(0.65)
+                Text("\(def.county) \(def.flag)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(white: 0.6))
+                Spacer(minLength: 4)
+                HStack(spacing: 4) {
+                    if !locked {
+                        HStack(spacing: 3) {
+                            ForEach(0..<3, id: \.self) { i in
+                                let earned = Progress.stars(def.id) > i
+                                Image(systemName: earned ? "star.fill" : "star")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(earned ? Color(red: 1.0, green: 0.82, blue: 0.28)
+                                                            : Color(white: 0.3))
+                            }
                         }
                     }
+                    Spacer()
+                    Text("\(def.platformCount) platforms")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color(white: 0.55))
                 }
-                Spacer()
-                Text("\(def.platformCount) platforms")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.55))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(locked ? 0.5 : 1)
+
+            if locked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 30, weight: .black))
+                    .foregroundStyle(Color(white: 0.92))
+                    .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
+                    .rotationEffect(.degrees(-16))
+                    .offset(x: 8, y: -6)
+                    .modifier(ShakeEffect(animatableData: shake))
             }
         }
         .padding(14)
         .frame(height: 118, alignment: .topLeading)
         .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14)
-            .stroke((locked ? Color.white.opacity(0.12) : colour.opacity(0.4)), lineWidth: 1.5))
-        .opacity(locked ? 0.5 : 1)
+            .stroke((locked ? Color.white.opacity(0.14) : colour.opacity(0.45)), lineWidth: 1.5))
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .onTapGesture {
+            if locked { withAnimation(.linear(duration: 0.5)) { shake += 1 } }
+            else { onPick() }
+        }
     }
 }

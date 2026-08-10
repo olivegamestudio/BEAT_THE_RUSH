@@ -51,6 +51,55 @@ final class SaltashStation: ObservableObject {
     let riverL: CGFloat = 628    // the Tamar — a vertical band the bridge crosses
     let riverR: CGFloat = 912
 
+    // MARK: terrain — Saltash climbs steeply out of the Tamar valley, drawn as contour lines
+
+    /// Land height at a point: lowest along the river, rising with distance from it — much steeper
+    /// on the Cornwall (west) side, with gentle rolls so the contours curve like a real map.
+    private static func elev(_ x: CGFloat, _ y: CGFloat) -> CGFloat {
+        let riverC: CGFloat = 770
+        let d = abs(x - riverC)
+        let slope: CGFloat = x < riverC ? 0.95 : 0.60     // west bank is the steep one
+        var h = d * slope
+        h += 55 * sin(x / 150 + 0.6) * cos(y / 130 - 0.3)
+        h += 36 * sin(y / 95 + 1.0)
+        return h
+    }
+
+    /// Contour lines over the whole board, in design space, built once via marching squares.
+    static let contour: Path = {
+        var lines = Path()
+        let step: CGFloat = 28, level: CGFloat = 56
+        var gx: CGFloat = -80
+        while gx < 1280 {
+            var gy: CGFloat = -120
+            while gy < 580 {
+                let tl = elev(gx, gy), tr = elev(gx + step, gy)
+                let br = elev(gx + step, gy + step), bl = elev(gx, gy + step)
+                var lv = (floor(min(min(tl, tr), min(br, bl)) / level) + 1) * level
+                let hi = max(max(tl, tr), max(br, bl))
+                while lv <= hi {
+                    func lerp(_ p1: CGPoint, _ v1: CGFloat, _ p2: CGPoint, _ v2: CGFloat) -> CGPoint {
+                        let t = (lv - v1) / (v2 - v1)
+                        return CGPoint(x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t)
+                    }
+                    let TL = CGPoint(x: gx, y: gy), TR = CGPoint(x: gx + step, y: gy)
+                    let BR = CGPoint(x: gx + step, y: gy + step), BL = CGPoint(x: gx, y: gy + step)
+                    var p: [CGPoint] = []
+                    if (tl < lv) != (tr < lv) { p.append(lerp(TL, tl, TR, tr)) }
+                    if (tr < lv) != (br < lv) { p.append(lerp(TR, tr, BR, br)) }
+                    if (br < lv) != (bl < lv) { p.append(lerp(BR, br, BL, bl)) }
+                    if (bl < lv) != (tl < lv) { p.append(lerp(BL, bl, TL, tl)) }
+                    if p.count >= 2 { lines.move(to: p[0]); lines.addLine(to: p[1]) }
+                    if p.count == 4 { lines.move(to: p[2]); lines.addLine(to: p[3]) }
+                    lv += level
+                }
+                gy += step
+            }
+            gx += step
+        }
+        return lines
+    }()
+
     @Published var trains: [SaltTrain] = []
     @Published var bridgeGreen: Dir? = .east   // direction currently cleared onto the bridge; nil = both held
     @Published var carried = 0.0
@@ -60,13 +109,13 @@ final class SaltashStation: ObservableObject {
     @Published var stars = 0
     private var overTop = 0.0, overBot = 0.0   // seconds each platform has sat full
     private var peakFill = 0.0
-    let overflowGrace = 8.0
+    let overflowGrace = 18.0     // very forgiving on the first level
 
     let speed: CGFloat = 66
     let dwellTime = 2.6
     let perCar = 3.0
     let boardOffRate = 6.0
-    let platformCap = 12.0
+    let platformCap = 16.0       // roomy — Saltash is the gentle first level, hard to overwhelm
 
     let eastPath: RoutePath, westPath: RoutePath
     private let eBerth, eEnter, eExit: CGFloat
@@ -150,8 +199,8 @@ final class SaltashStation: ObservableObject {
         spawnClock += dt
         if spawnClock >= nextSpawn {
             spawnClock = 0
-            spawn(Bool.random() ? .east : .west)
-            nextSpawn = Double.random(in: (def.spawnRange.lowerBound * 1.3)...(def.spawnRange.upperBound * 1.7))
+            if trains.count < 7 { spawn(Bool.random() ? .east : .west) }   // don't let the queue run away
+            nextSpawn = Double.random(in: (def.spawnRange.lowerBound * 1.7)...(def.spawnRange.upperBound * 2.2))
         }
 
         let roster = trains

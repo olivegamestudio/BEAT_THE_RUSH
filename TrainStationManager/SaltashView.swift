@@ -38,6 +38,7 @@ struct SaltashView: View {
                 Canvas { ctx, size in
                     let sc = size.width / designW
                     func S(_ p: CGPoint) -> CGPoint { project(p, scale: sc, size: size) }
+                    drawContours(ctx, sc, size)
                     drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
                     drawBridge(ctx, sc, S)
@@ -68,6 +69,15 @@ struct SaltashView: View {
         ctx.stroke(p, with: .color(railEdge), style: .init(lineWidth: 18 * sc, lineCap: .round))
         ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 12 * sc, lineCap: .round))
         ctx.stroke(p, with: .color(railSheen.opacity(0.5)), style: .init(lineWidth: 3 * sc, lineCap: .round))
+    }
+
+    /// Topographic contour lines behind the board — the valley the station sits in. Built once in
+    /// design space, then scaled/offset to the current frame.
+    private func drawContours(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
+        let vOff = (size.height - Track.H * sc) / 2
+        let t = CGAffineTransform(a: sc, b: 0, c: 0, d: sc, tx: -boxMinX * sc, ty: vOff)
+        ctx.stroke(SaltashStation.contour.applying(t),
+                   with: .color(.white.opacity(0.07)), style: .init(lineWidth: 1.3 * sc, lineCap: .round))
     }
 
     private func drawRails(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -270,7 +280,7 @@ struct SaltashView: View {
                 Text("\(Int(station.carried))")
                     .font(.system(size: 44, weight: .black, design: .rounded))
                     .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
-                Text("carried").font(.system(size: 15, weight: .semibold, design: .rounded))
+                Text("people").font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.72))
             }
             .shadow(color: .black.opacity(0.75), radius: 6)

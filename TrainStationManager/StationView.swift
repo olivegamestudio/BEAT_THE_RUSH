@@ -294,7 +294,7 @@ struct StationView: View {
                     Text("\(Int(station.carried))")
                         .font(.system(size: 44, weight: .black, design: .rounded))
                         .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
-                    Text("carried")
+                    Text("people")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color(white: 0.72))
                 }
