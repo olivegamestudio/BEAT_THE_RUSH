@@ -66,6 +66,7 @@ final class ActiveTrain: Identifiable {
     var berthDist: CGFloat = 0
     var committed = false       // past the throat — its route can no longer change
     var blocked = false         // held short of an occupied platform
+    var blockedTime = 0.0       // how long it's been stuck — flags a jam once it runs on
     var spawnedNext = false
     var finished = false        // reached the exit; removed after the tick loop
     var toBoard = 0.0           // passengers still to board while berthed (capped by length)
@@ -90,14 +91,17 @@ final class Station: ObservableObject {
     @Published var trains: [ActiveTrain] = []
     @Published var dispatched = 0
     @Published var carried = 0.0        // total passengers carried away — the score
-    /// Each point's state: `true` = thrown to divert into its platform, `false` = straight on.
-    @Published var divert: [Bool]
+    /// The home signal at the throat: `true` = green, arrivals may enter; `false` = held outside.
+    @Published var entranceOpen = true
+    /// Each platform's starter signal: `true` = held red, a berthed train waits; `false` = clear away.
+    @Published var platformHeld: [Bool]
     /// Passengers gathered on each platform, growing until a train collects them.
     @Published var passengers: [Double]
 
     let perCar = 3.0             // passengers a single carriage can carry away
     let boardOffRate = 6.0       // passengers boarding a berthed train, per second
     let platformCap = 14.0       // most a platform holds before it's full
+    let jamAfter = 4.0           // seconds a train may sit blocked before it's flagged as jammed
 
     private var spawnClock = 0.0
     private var nextSpawn = 1.5
@@ -105,7 +109,7 @@ final class Station: ObservableObject {
     init(_ def: StationDef) {
         self.def = def
         self.layout = Layout(platformCount: def.platformCount)
-        self.divert = Array(repeating: false, count: def.platformCount)
+        self.platformHeld = Array(repeating: false, count: def.platformCount)
         self.passengers = Array(repeating: 0, count: def.platformCount)
         spawn()
     }
@@ -139,11 +143,21 @@ final class Station: ObservableObject {
             && !$0.finished && !cleared($0, of: i) }
     }
 
-    /// Where the points would send a train arriving now — drives the switch blades
-    /// and the platform highlight.
-    var predicted: Int {
-        for i in layout.ladderOrder where divert[i] { return i }
-        return layout.ladderOrder.last ?? 0
+    /// A platform is taken while any train is heading to it, berthed at it, or still clearing it.
+    func platformTaken(_ i: Int, except t: ActiveTrain? = nil) -> Bool {
+        trains.contains { $0 !== t && !$0.finished && $0.target == i && !cleared($0, of: i) }
+    }
+
+    /// Trains route themselves: the first free platform (nearest the entry), or — when every
+    /// platform is taken — the nearest, where the train holds short of the throat until one frees.
+    func pickPlatform(except t: ActiveTrain? = nil) -> Int {
+        for i in layout.ladderOrder where !platformTaken(i, except: t) { return i }
+        return layout.ladderOrder.first ?? 0
+    }
+
+    /// The exit end of platform `i`, where its starter signal stands.
+    func exitX(_ i: Int) -> CGFloat {
+        Track.platLeft + CGFloat(platCars[i]) * Track.carUnit + Track.carUnit
     }
 
     /// Distance from the entry to platform `i`'s point, measured along the throat ladder —
@@ -152,30 +166,18 @@ final class Station: ObservableObject {
         layout.entry.dist(layout.ladderBottom) + layout.ladderBottom.dist(layout.junction(i))
     }
 
-    /// Where the points send a train right now, considering only the junctions it has not
-    /// yet passed — so a switch thrown ahead of the train is always honoured, and one
-    /// thrown too late (for a junction already behind it) is not.
-    private func liveTarget(_ t: ActiveTrain) -> Int {
-        let margin = Track.carUnit * 0.3
-        for i in layout.ladderOrder where t.dist <= junctionLadderDist(i) - margin {
-            if divert[i] { return i }
-        }
-        return layout.ladderOrder.last ?? 0
-    }
+    // MARK: Actions — the lights are the controls
 
-    // MARK: Actions — the points ARE the controls
-
-    func toggle(_ i: Int) {
-        divert[i].toggle()
-        objectWillChange.send()
-    }
+    func toggleEntrance() { entranceOpen.toggle(); objectWillChange.send() }
+    func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
 
     // MARK: Spawning
 
     private func spawn() {
         let spec = makeTrain()
-        let t = ActiveTrain(spec: spec, path: buildPath(spec, to: predicted), dist: 0)
-        t.target = predicted
+        let target = pickPlatform()
+        let t = ActiveTrain(spec: spec, path: buildPath(spec, to: target), dist: 0)
+        t.target = target
         trains.append(t)
     }
 
@@ -208,14 +210,13 @@ final class Station: ObservableObject {
             let t = roster[idx]
             switch t.phase {
             case .arriving:
-                // Follow the points live: the train can still be re-routed to any platform
-                // whose point it has not yet reached. The route only locks in once the train
-                // arrives at its chosen junction.
+                // The train routes itself to a free platform. It can keep re-choosing while it's
+                // still short of the junction; the route locks in once it reaches its junction.
                 if !t.committed {
                     if t.dist >= junctionLadderDist(t.target) - Track.carUnit * 0.3 {
                         t.committed = true        // turning onto the platform — lock the route in
                     } else {
-                        let tgt = liveTarget(t)   // still short of it — the points may re-route us
+                        let tgt = pickPlatform(except: t)
                         if tgt != t.target {
                             t.target = tgt
                             t.path = buildPath(t.spec, to: tgt)
@@ -228,9 +229,15 @@ final class Station: ObservableObject {
                 let junctionDist = t.path.distanceTo(vertex: 2)
                 var ceiling = t.berthDist
 
-                // Hold short of the point until the platform is completely empty — far enough
-                // back that the train stays re-routable.
-                if !platformClear(t.target, except: t) {
+                // The home signal: a red only holds a train that hasn't reached it yet. A train
+                // already through the throat must not freeze when the signal is turned red behind it.
+                if !entranceOpen {
+                    let stop = t.path.distanceTo(vertex: 1) - gap
+                    if stop >= t.dist { ceiling = min(ceiling, stop) }
+                }
+                // Hold short of the point until the platform is completely empty — only while the
+                // train is still short of the junction, where it stays re-routable.
+                if !t.committed && !platformClear(t.target, except: t) {
                     ceiling = min(ceiling, junctionDist - Track.carUnit * 0.6)
                 }
 
@@ -247,6 +254,7 @@ final class Station: ObservableObject {
 
                 let next = min(t.dist + step, ceiling)
                 t.blocked = next < t.dist + step - 0.01 && ceiling < t.berthDist
+                t.blockedTime = t.blocked ? t.blockedTime + dt : 0    // flags a jam once it runs on
                 t.dist = max(t.dist, next)
 
                 // Keep the flow going: once this train clears the throat, the next arrives.
@@ -255,12 +263,13 @@ final class Station: ObservableObject {
                 if t.dist >= t.berthDist {
                     t.dist = t.berthDist
                     t.phase = .berthed
+                    t.blocked = false; t.blockedTime = 0
                     t.dwell = dwellTime
                     // Capacity scales with length: a longer train carries more away.
                     t.toBoard = min(passengers[t.target], Double(t.spec.length) * perCar)
                 }
             case .berthed:
-                t.dwell -= dt
+                if t.dwell > 0 { t.dwell -= dt }
                 // Board up to the train's capacity; anyone left over keeps waiting.
                 if t.toBoard > 0 {
                     let take = min(boardOffRate * dt, t.toBoard)
@@ -268,7 +277,8 @@ final class Station: ObservableObject {
                     t.toBoard -= take
                     carried += take
                 }
-                if t.dwell <= 0 { t.phase = .departing }
+                // Boarded, and the platform's starter is clear — the train takes itself away.
+                if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing }
             case .departing:
                 t.dist += step
                 if t.dist >= t.path.total { t.finished = true; dispatched += 1 }

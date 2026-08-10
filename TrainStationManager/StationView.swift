@@ -84,12 +84,14 @@ struct StationView: View {
                    style: .init(lineWidth: 3 * scale, lineCap: .round))    // metal sheen
     }
 
-    /// A standing signal guarding each platform: red when it's occupied, green when clear.
+    /// The controls, shown as signals: a home signal at the throat (hold the incoming flow) and
+    /// a starter at each platform's exit end (hold or release its train). Green shows what you set.
     private func drawSignals(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
         let L = station.layout
+        drawSignal(ctx, at: S(L.ladderBottom), red: !station.entranceOpen, scale: scale * 1.3)
         for i in 0..<L.n {
-            drawSignal(ctx, at: S(CGPoint(x: 362, y: L.lineY[i])),
-                       red: station.occupied(i), scale: scale)
+            drawSignal(ctx, at: S(CGPoint(x: station.exitX(i), y: L.lineY[i])),
+                       red: station.platformHeld[i], scale: scale * 1.3)
         }
     }
 
@@ -111,17 +113,12 @@ struct StationView: View {
             let rect = CGRect(x: S(CGPoint(x: Track.platLeft, y: y)).x,
                               y: S(CGPoint(x: 0, y: y + 30)).y,
                               width: len * scale, height: 24 * scale)
-            let isTarget = i == station.predicted
+            // A free platform gets a green lip so you can read at a glance where a train can go.
             let free = !station.occupied(i)
-            let surface = isTarget ? (free ? Color(red: 0.22, green: 0.50, blue: 0.34)
-                                           : Color(red: 0.50, green: 0.24, blue: 0.26))
-                                   : Color(red: 0.34, green: 0.39, blue: 0.47)
-            let side = isTarget ? (free ? Color(red: 0.12, green: 0.30, blue: 0.20)
-                                        : Color(red: 0.30, green: 0.14, blue: 0.15))
-                                : Color(red: 0.18, green: 0.21, blue: 0.28)
-            let edge = isTarget ? (free ? Color(red: 0.42, green: 0.92, blue: 0.60)
-                                        : Color(red: 0.97, green: 0.44, blue: 0.46))
-                                : Color.white.opacity(0.28)
+            let surface = Color(red: 0.34, green: 0.39, blue: 0.47)
+            let side = Color(red: 0.18, green: 0.21, blue: 0.28)
+            let edge = free ? Color(red: 0.42, green: 0.92, blue: 0.60).opacity(0.75)
+                            : Color.white.opacity(0.28)
             let depth = 20 * scale
             let corner = 14 * scale
             let rr = Path(roundedRect: rect, cornerRadius: corner)
@@ -202,6 +199,18 @@ struct StationView: View {
             drawCarriage(ctx, at: S(s.p), angle: s.angle, tint: t.spec.tint,
                          cw: Track.carUnit - 6, ch: Track.carHeight, scale: scale)
         }
+        // A train stuck too long raises a flag — a pulsing warning over its head.
+        if t.blockedTime > station.jamAfter {
+            let head = S(t.path.sample(t.dist).p)
+            let c = CGPoint(x: head.x, y: head.y - 26 * scale)
+            let r = 11 * scale
+            ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                     with: .color(Color(red: 0.95, green: 0.75, blue: 0.20).opacity(0.35)))
+            let warn = Text(Image(systemName: "exclamationmark.triangle.fill"))
+                .font(.system(size: 15 * scale, weight: .black))
+                .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.18))
+            ctx.draw(warn, at: c)
+        }
         // dwell ring while berthed
         if t.phase == .berthed {
             let head = S(t.path.sample(t.dist).p)
@@ -226,7 +235,15 @@ struct StationView: View {
         pan.height = min(max(pan.height, -maxY), maxY)
     }
 
-    // MARK: - Controls (points as buttons) + HUD
+    // MARK: - Controls (signals as buttons) + HUD
+
+    /// A tap target over a drawn signal — the light shows red/green; a faint ring hints it's a control.
+    private func signalTap(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle().stroke(.white.opacity(0.16), lineWidth: 2)
+                .frame(width: 48, height: 48).contentShape(Circle())
+        }
+    }
 
     private func project(_ p: CGPoint, scale: CGFloat, z: CGFloat, in size: CGSize) -> CGPoint {
         let base = CGSize(width: Track.W * scale, height: Track.H * scale)
@@ -241,12 +258,16 @@ struct StationView: View {
     private func controls(scale: CGFloat, zoom z: CGFloat) -> some View {
         GeometryReader { geo in
             ZStack {
-                // No switch on the final platform — the ladder ends there, so there's no
-                // choice to make. Points only where a train can divert or carry on.
-                ForEach(Array(1..<station.layout.n), id: \.self) { i in
-                    PointButton(thrown: station.divert[i])
-                        .position(project(station.layout.junction(i), scale: scale, z: z, in: geo.size))
-                        .onTapGesture { station.toggle(i) }
+                // Home signal at the throat — tap to hold or release the incoming flow.
+                signalTap { station.toggleEntrance() }
+                    .position(project(CGPoint(x: station.layout.ladderBottom.x,
+                                              y: station.layout.ladderBottom.y - 14),
+                                      scale: scale, z: z, in: geo.size))
+                // A starter at each platform's exit — tap to hold a train or send it on its way.
+                ForEach(0..<station.layout.n, id: \.self) { i in
+                    signalTap { station.toggleStarter(i) }
+                        .position(project(CGPoint(x: station.exitX(i), y: station.layout.lineY[i] - 14),
+                                          scale: scale, z: z, in: geo.size))
                 }
 
                 // back — top left
@@ -283,31 +304,6 @@ struct StationView: View {
                     .padding(.horizontal, 22).padding(.bottom, 16)
             }
         }
-    }
-}
-
-/// A point/switch the player throws: a hub circle with a chevron sitting *outside* it
-/// that swings round between "straight on" and "diverted into the platform".
-struct PointButton: View {
-    let thrown: Bool
-    private var tint: Color { thrown ? Color(red: 1.0, green: 0.55, blue: 0.0)
-                                     : Color(red: 0.25, green: 0.6, blue: 1.0) }
-    var body: some View {
-        ZStack {
-            Circle().fill(.white)
-                .overlay(Circle().stroke(tint, lineWidth: 3))
-                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-                .frame(width: 26, height: 26)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 18, weight: .black))
-                .foregroundStyle(tint)
-                .offset(x: 22)
-        }
-        .frame(width: 66, height: 66)
-        // straight on = pointing up the ladder; thrown = pointing along the platform line
-        .rotationEffect(.degrees(thrown ? 0 : -58))
-        .animation(.easeInOut(duration: 0.25), value: thrown)
-        .contentShape(Circle())
     }
 }
 
