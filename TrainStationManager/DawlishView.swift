@@ -75,14 +75,14 @@ struct DawlishView: View {
         // A sandy spit at the mouth of the Exe: estuary behind, beach and sea in front.
         band(ctx, 0, w, 0, y(102), Color(red: 0.55, green: 0.72, blue: 0.90), Color(red: 0.72, green: 0.83, blue: 0.93))     // sky
         band(ctx, 0, w, y(90), y(108), Color(red: 0.40, green: 0.50, blue: 0.44), Color(red: 0.34, green: 0.44, blue: 0.40)) // far shore (Exmouth)
-        band(ctx, 0, w, y(102), y(140), Color(red: 0.38, green: 0.56, blue: 0.62), Color(red: 0.32, green: 0.50, blue: 0.56)) // Exe estuary
-        band(ctx, 0, w, y(140), y(196), Color(red: 0.84, green: 0.74, blue: 0.52), Color(red: 0.74, green: 0.63, blue: 0.42)) // sand dunes
-        band(ctx, 0, w, y(196), y(348), Color(red: 0.82, green: 0.75, blue: 0.58), Color(red: 0.76, green: 0.68, blue: 0.52)) // sandy ground
-        band(ctx, 0, w, y(348), y(394), Color(red: 0.90, green: 0.82, blue: 0.62), Color(red: 0.82, green: 0.73, blue: 0.53)) // beach
-        band(ctx, 0, w, y(394), size.height, Color(red: 0.16, green: 0.44, blue: 0.60), Color(red: 0.10, green: 0.30, blue: 0.48)) // sea
-        marram(ctx, y0: y(150), x0: 0, x1: w, sc: sc)          // grass on the dunes
-        for k in 0..<4 {                                        // waves + estuary ripples
-            let wy = y(406 + CGFloat(k) * 12)
+        band(ctx, 0, w, y(102), y(138), Color(red: 0.38, green: 0.56, blue: 0.62), Color(red: 0.32, green: 0.50, blue: 0.56)) // Exe estuary
+        band(ctx, 0, w, y(138), y(184), Color(red: 0.84, green: 0.74, blue: 0.52), Color(red: 0.74, green: 0.63, blue: 0.42)) // sand dunes
+        band(ctx, 0, w, y(184), y(374), Color(red: 0.82, green: 0.75, blue: 0.58), Color(red: 0.76, green: 0.68, blue: 0.52)) // sandy ground
+        band(ctx, 0, w, y(374), y(414), Color(red: 0.90, green: 0.82, blue: 0.62), Color(red: 0.82, green: 0.73, blue: 0.53)) // beach
+        band(ctx, 0, w, y(414), size.height, Color(red: 0.16, green: 0.44, blue: 0.60), Color(red: 0.10, green: 0.30, blue: 0.48)) // sea
+        marram(ctx, y0: y(148), x0: 0, x1: w, sc: sc)          // grass on the dunes
+        for k in 0..<3 {                                        // waves
+            let wy = y(424 + CGFloat(k) * 10)
             var wave = Path(); wave.move(to: CGPoint(x: 20, y: wy)); wave.addLine(to: CGPoint(x: w - 20, y: wy))
             ctx.stroke(wave, with: .color(.white.opacity(0.10)), style: .init(lineWidth: 2 * sc, lineCap: .round))
         }
@@ -113,8 +113,8 @@ struct DawlishView: View {
         let s = station
         for mouth in [s.tunL, s.tunR] {
             let toRight = mouth < designW / 2          // left dune slopes down to the right
-            let base = S(CGPoint(x: mouth, y: 352))
-            let crest = S(CGPoint(x: toRight ? 0 : designW, y: 150))
+            let base = S(CGPoint(x: mouth, y: 362))
+            let crest = S(CGPoint(x: toRight ? 0 : designW, y: 145))
             var dune = Path()
             dune.move(to: CGPoint(x: crest.x, y: base.y))
             dune.addLine(to: CGPoint(x: crest.x, y: crest.y))
@@ -131,8 +131,8 @@ struct DawlishView: View {
 
     private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        drawPlatform(ctx, y: 214, occupied: s.pUp > 0, sc: sc, S: S)     // up platform, above the up line
-        drawPlatform(ctx, y: 338, occupied: s.pDown > 0, sc: sc, S: S)   // down platform, below the down line
+        drawPlatform(ctx, y: 190, occupied: s.pUp > 0, sc: sc, S: S)     // up platform (top, outside the loop)
+        drawPlatform(ctx, y: 352, occupied: s.pDown > 0, sc: sc, S: S)   // down platform (bottom)
     }
 
     private func drawPlatform(_ ctx: GraphicsContext, y: CGFloat, occupied: Bool, sc: CGFloat, S: (CGPoint) -> CGPoint) {
@@ -146,10 +146,10 @@ struct DawlishView: View {
 
     private func drawRails(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for ly in [s.upY, s.downY] {
+        for ly in [s.upPlatY, s.upFastY, s.downFastY, s.downPlatY] {
             var p = Path(); p.move(to: S(CGPoint(x: 0, y: ly))); p.addLine(to: S(CGPoint(x: designW, y: ly)))
-            ctx.stroke(p, with: .color(railEdge), style: .init(lineWidth: 16 * sc, lineCap: .round))
-            ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 10 * sc, lineCap: .round))
+            ctx.stroke(p, with: .color(railEdge), style: .init(lineWidth: 15 * sc, lineCap: .round))
+            ctx.stroke(p, with: .color(railSteel), style: .init(lineWidth: 9 * sc, lineCap: .round))
             ctx.stroke(p, with: .color(railSheen.opacity(0.5)), style: .init(lineWidth: 2.5 * sc, lineCap: .round))
         }
     }
@@ -166,10 +166,10 @@ struct DawlishView: View {
 
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        pax(ctx, count: s.pUp, x0: s.platL - 6, feetY: 214 + 18, sc: sc, agitated: s.upAgitated, t: s.animT, S: S)
-        pax(ctx, count: s.pDown, x0: s.platL - 6, feetY: 338 + 4, sc: sc, agitated: s.downAgitated, t: s.animT, S: S)
-        if s.upMood.shows { drawMood(ctx, s.upMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 200)), scale: sc) }
-        if s.downMood.shows { drawMood(ctx, s.downMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 326)), scale: sc) }
+        pax(ctx, count: s.pUp, x0: s.platL - 6, feetY: 208, sc: sc, agitated: s.upAgitated, t: s.animT, S: S)
+        pax(ctx, count: s.pDown, x0: s.platL - 6, feetY: 356, sc: sc, agitated: s.downAgitated, t: s.animT, S: S)
+        if s.upMood.shows { drawMood(ctx, s.upMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 178)), scale: sc) }
+        if s.downMood.shows { drawMood(ctx, s.downMood.emoji, at: S(CGPoint(x: s.platL + 20, y: 340)), scale: sc) }
     }
 
     private func pax(_ ctx: GraphicsContext, count: Double, x0: CGFloat, feetY: CGFloat, sc: CGFloat,
@@ -199,8 +199,8 @@ struct DawlishView: View {
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let sig = sc * 1.9
-        drawSignal(ctx, at: S(CGPoint(x: s.platR + 30, y: s.upY)), red: s.upHeld, scale: sig)    // up starter (east)
-        drawSignal(ctx, at: S(CGPoint(x: s.platL - 30, y: s.downY)), red: s.downHeld, scale: sig) // down starter (west)
+        drawSignal(ctx, at: S(CGPoint(x: s.platR + 30, y: s.upPlatY)), red: s.upHeld, scale: sig)    // up starter (east)
+        drawSignal(ctx, at: S(CGPoint(x: s.platL - 30, y: s.downPlatY)), red: s.downHeld, scale: sig) // down starter (west)
     }
 
     // MARK: controls / HUD
@@ -209,10 +209,10 @@ struct DawlishView: View {
         ZStack {
             Button(action: { station.toggle(.east); Sound.shared.play(.tap) }) { SignalHalo() }
                 .buttonStyle(PressStyle())
-                .position(project(CGPoint(x: station.platR + 30, y: station.upY - 22), scale, size))
+                .position(project(CGPoint(x: station.platR + 30, y: station.upPlatY - 22), scale, size))
             Button(action: { station.toggle(.west); Sound.shared.play(.tap) }) { SignalHalo() }
                 .buttonStyle(PressStyle())
-                .position(project(CGPoint(x: station.platL - 30, y: station.downY - 22), scale, size))
+                .position(project(CGPoint(x: station.platL - 30, y: station.downPlatY - 22), scale, size))
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))
