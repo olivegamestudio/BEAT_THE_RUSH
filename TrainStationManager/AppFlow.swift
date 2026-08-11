@@ -54,10 +54,10 @@ struct MuteButton: View {
         } label: {
             Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Color(white: 0.82))
+                .foregroundStyle(.white)
                 .frame(width: 36, height: 36)
-                .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
-                .overlay(Circle().stroke(.white.opacity(0.14)))
+                .background(Color(red: 0.20, green: 0.46, blue: 0.86), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.22)))
         }
         .buttonStyle(PressStyle())
     }
@@ -320,6 +320,7 @@ func levelChecklist(_ def: StationDef) -> [String] {
 struct LevelBriefing: View {
     let def: StationDef
     let onStart: () -> Void
+    let onClose: () -> Void          // X — back to the station list
     @State private var pop = false
 
     var body: some View {
@@ -354,6 +355,16 @@ struct LevelBriefing: View {
             .frame(maxWidth: 430)
             .background(Color(red: 0.13, green: 0.15, blue: 0.20).opacity(0.97), in: RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.12)))
+            .overlay(alignment: .topTrailing) {
+                Button(action: { Sound.shared.play(.ui); onClose() }) {
+                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 34, height: 34)
+                        .background(Color(red: 0.86, green: 0.24, blue: 0.24), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.22)))
+                }
+                .buttonStyle(PressStyle())
+                .padding(10)
+            }
             .scaleEffect(pop ? 1 : 0.92).opacity(pop ? 1 : 0)
             .padding(28)
         }

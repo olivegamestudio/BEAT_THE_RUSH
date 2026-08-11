@@ -64,7 +64,7 @@ struct NewarkView: View {
                 controls(scale: scale, size: geo.size)
 
                 if !started && station.outcome == .playing {
-                    LevelBriefing(def: station.def, onStart: { started = true })
+                    LevelBriefing(def: station.def, onStart: { started = true }, onClose: onExit)
                 }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
@@ -293,7 +293,7 @@ struct NewarkView: View {
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))
                     .frame(width: 36, height: 36)
-                    .background(Color(red: 0.16, green: 0.19, blue: 0.25).opacity(0.92), in: Circle())
+                    .background(Color(red: 0.82, green: 0.24, blue: 0.24).opacity(0.94), in: Circle())
                     .overlay(Circle().stroke(.white.opacity(0.14)))
             }
             .buttonStyle(PressStyle())
