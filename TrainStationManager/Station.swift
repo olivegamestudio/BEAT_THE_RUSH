@@ -84,6 +84,7 @@ final class ActiveTrain: Identifiable {
     var finished = false        // reached the exit; removed after the tick loop
     var toBoard = 0.0           // passengers still to board while berthed (capped by length)
     var loaded = 0.0            // passengers aboard so far — drives the filling-windows look
+    var railAspect = 0          // 0 green / 1 amber / 2 red — lights the track ahead to show its route
     enum Phase { case arriving, berthed, departing }
     var phase: Phase = .arriving
     var dwell: Double = 0
@@ -307,6 +308,8 @@ final class Station: ObservableObject {
                 t.blocked = next < t.dist + step - 0.01 && ceiling < t.berthDist
                 t.blockedTime = t.blocked ? t.blockedTime + dt : 0    // flags a jam once it runs on
                 t.dist = max(t.dist, next)
+                // Light the road to the platform: green if clear to the berth, red/amber if held short.
+                t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.berthDist - 1)
 
                 // Keep the flow going: once this train clears the throat, the next arrives.
                 if !t.spawnedNext && t.dist >= junctionDist { t.spawnedNext = true; spawnCount += 1 }
@@ -338,8 +341,10 @@ final class Station: ObservableObject {
                     }
                 }
                 // Boarded, and the platform's starter is clear — the train takes itself away.
+                t.railAspect = platformHeld[t.target] ? 2 : 0     // red while held at the platform, else clear to leave
                 if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing }
             case .departing:
+                t.railAspect = 0                                   // running away on a clear road
                 t.dist += step
                 if t.dist >= t.path.total { t.finished = true; dispatched += 1; Sound.shared.play(.depart) }
             }

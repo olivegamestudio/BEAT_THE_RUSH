@@ -85,6 +85,7 @@ struct StationView: View {
         Canvas { ctx, _ in
             func S(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x * scale, y: p.y * scale) }
             drawRails(ctx, scale: scale, S: S)
+            drawRouteLights(ctx, scale: scale, S: S)   // green/amber/red road ahead of each train
             for t in station.trains { drawTrain(ctx, t, scale: scale, S: S) }
             // Platforms sit in front of the carriages — trains berth behind the platform edge.
             drawPlatforms(ctx, scale: scale, S: S)
@@ -94,6 +95,20 @@ struct StationView: View {
             drawSignals(ctx, scale: scale, S: S)
         }
         .frame(width: Track.W * scale, height: Track.H * scale)
+    }
+
+    /// Lights the stretch of track just ahead of each train green/amber/red, so its route and priority read
+    /// at a glance (green = clear road to its platform / away, amber = closing on something, red = held).
+    private func drawRouteLights(_ ctx: GraphicsContext, scale: CGFloat, S: (CGPoint) -> CGPoint) {
+        for t in station.trains where !t.finished {
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)
+            if end <= start + 1 { continue }
+            var pts: [CGPoint] = []
+            var d = start
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: scale)
+        }
     }
 
     private func rail(_ ctx: GraphicsContext, _ a: CGPoint, _ b: CGPoint,

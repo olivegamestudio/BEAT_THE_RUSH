@@ -39,6 +39,7 @@ struct WorcesterView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
+                    drawRouteLights(ctx, sc, S)                    // green/amber/red road ahead of each train
                     drawPlatform(ctx, y: station.yP2 - 40, tint: orange, sc: sc, S: S)
                     drawPlatform(ctx, y: station.yP1 + 26, tint: lime, sc: sc, S: S)
                     let ordered = station.trains.sorted { $0.path.sample($0.dist).p.y < $1.path.sample($1.dist).p.y }
@@ -161,6 +162,18 @@ struct WorcesterView: View {
             let bx = s.branchX(y)
             let out = (y == s.yDroitwich || y == s.yBirmingham)
             railLine(ctx, [CGPoint(x: bx, y: s.ySingle), CGPoint(x: bx + s.branchFan, y: y), CGPoint(x: contentMaxX, y: y)], sc, tint: out ? orange : lime, S)
+        }
+    }
+
+    private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        for t in station.trains where !t.finished {
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)
+            if end <= start + 1 { continue }
+            var pts: [CGPoint] = []
+            var d = start
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: sc)
         }
     }
 

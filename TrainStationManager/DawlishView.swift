@@ -311,27 +311,14 @@ struct DawlishView: View {
     /// Lights the stretch of track a train is about to run over: green when it has a clear road, amber when
     /// it's closing on something, red when it's held. Lets you read each train's route and priority at a glance.
     private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
-        let aspectCol: [Color] = [Color(red: 0.30, green: 0.95, blue: 0.44),   // green
-                                  Color(red: 1.0, green: 0.74, blue: 0.14),    // amber
-                                  Color(red: 1.0, green: 0.32, blue: 0.32)]    // red
         for t in station.trains where !t.finished {
-            let col = aspectCol[min(max(t.railAspect, 0), 2)]
             let start = max(0, t.dist)
             let end = min(t.path.total, t.dist + Track.carUnit * 6)   // preview the road just ahead of the nose
             if end <= start + 1 { continue }
-            var p = Path()
+            var pts: [CGPoint] = []
             var d = start
-            var first = true
-            while d <= end {
-                let pt = S(t.path.sample(d).p)
-                if first { p.move(to: pt); first = false } else { p.addLine(to: pt) }
-                d += 9
-            }
-            ctx.drawLayer { g in                                     // soft glow so it reads as the rail lit up
-                g.addFilter(.blur(radius: 5 * sc))
-                g.stroke(p, with: .color(col.opacity(0.5)), style: .init(lineWidth: 11 * sc, lineCap: .round, lineJoin: .round))
-            }
-            ctx.stroke(p, with: .color(col.opacity(0.72)), style: .init(lineWidth: 4 * sc, lineCap: .round, lineJoin: .round))
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: sc)
         }
     }
 

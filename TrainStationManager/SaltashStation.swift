@@ -21,6 +21,7 @@ final class SaltTrain: Identifiable {
     var finished = false
     var blocked = false
     var stopped = 0.0            // seconds sat still at a red — drives the "waiting" bubble
+    var railAspect = 0           // 0 green / 1 amber / 2 red — lights the track ahead to show its route
     var carLen: CGFloat { spec.carLength }
 
     init(_ spec: Train, _ dir: SaltashStation.Dir, _ path: RoutePath,
@@ -339,6 +340,8 @@ final class SaltashStation: ObservableObject {
             t.blocked = next < t.dist + step - 0.01 && next < t.path.total - 1
             t.stopped = t.blocked ? t.stopped + dt : 0
             t.dist = max(t.dist, next)
+            // Light the road ahead: green for a clear run to the exit, red/amber when held or closing in.
+            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1, amber: spd < speed)
 
             // Board while standing at the platform. It keeps topping up from newly-arrived passengers (up to
             // its capacity) until it pulls away — once it's moved off the berth, no more can board.

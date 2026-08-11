@@ -22,6 +22,7 @@ final class NewarkTrain: Identifiable {
     var v: CGFloat = 0
     var stopped = 0.0
     var finished = false
+    var railAspect = 0              // 0 green / 1 amber / 2 red — lights the track ahead to show its route
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, _ line: Line, _ path: RoutePath, entry: CGFloat, berth: CGFloat, cross: CGFloat) {
         self.spec = spec; self.line = line; self.path = path
@@ -175,6 +176,8 @@ final class NewarkStation: ObservableObject {
             else { t.v = max(target, t.v - decel * CGFloat(dt)) }
             t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
             t.stopped = t.v < 5 ? t.stopped + dt : 0
+            // Light the road ahead so the route over the diamond crossing reads at a glance.
+            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
 
             // Take the crossing when dispatched and at it and it's clear; free it once the tail is over.
             if !t.hasCross && occupant == nil && t.boarded && starterOpen(t.line) && t.dist >= t.crossDist - gap - 1 {

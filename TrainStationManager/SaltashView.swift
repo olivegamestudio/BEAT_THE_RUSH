@@ -50,6 +50,7 @@ struct SaltashView: View {
                     drawContours(ctx, sc, size)
                     drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
+                    drawRouteLights(ctx, sc, S)                     // green/amber/red road ahead of each train
                     drawBridge(ctx, sc, S)
                     drawPlatforms(ctx, sc, S)                       // slabs sit behind the trains
                     for t in station.trains { drawTrain(ctx, t, sc, S) }
@@ -286,6 +287,18 @@ struct SaltashView: View {
         }
         for bx in s.blockXsWest {
             drawBlockSignal(ctx, at: S(CGPoint(x: bx, y: s.yBot + 26)), aspect: s.blockAspect(bx, .west), scale: sc * 1.7)
+        }
+    }
+
+    private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        for t in station.trains where !t.finished {
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)
+            if end <= start + 1 { continue }
+            var pts: [CGPoint] = []
+            var d = start
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: sc)
         }
     }
 

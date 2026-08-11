@@ -38,6 +38,7 @@ struct NewarkView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
+                    drawRouteLights(ctx, sc, S)                    // green/amber/red road ahead of each train
                     drawDiamond(ctx, sc, S)
                     drawPlatform(ctx, y: station.yEcml + 30, tint: ecmlTint, sc: sc, above: false, S: S)
                     drawPlatform(ctx, y: station.yCastle - 40, tint: castleTint, sc: sc, above: true, S: S)
@@ -196,6 +197,18 @@ struct NewarkView: View {
         let stripeY = above ? rect.maxY - 4 * sc : rect.minY
         ctx.fill(Path(CGRect(x: rect.minX, y: stripeY, width: rect.width, height: 4 * sc)), with: .color(tint))
         ctx.stroke(rr, with: .color(.white.opacity(0.22)), style: .init(lineWidth: 2 * sc))
+    }
+
+    private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        for t in station.trains where !t.finished {
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)
+            if end <= start + 1 { continue }
+            var pts: [CGPoint] = []
+            var d = start
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: sc)
+        }
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: NewarkTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {

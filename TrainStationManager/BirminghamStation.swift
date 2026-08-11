@@ -18,6 +18,7 @@ final class BirmTrain: Identifiable {
     var v: CGFloat = 0
     var stopped = 0.0
     var finished = false
+    var railAspect = 0             // 0 green / 1 amber / 2 red — lights the track ahead to show its route
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, path: RoutePath, platform: Int, berth: CGFloat) {
         self.spec = spec; self.path = path; self.platform = platform; berthDist = berth
@@ -235,6 +236,8 @@ final class BirminghamStation: ObservableObject {
             else { t.v = max(target, t.v - decel * CGFloat(dt)) }
             t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
             t.stopped = t.v < 5 ? t.stopped + dt : 0
+            // Light the road ahead so each shuffle out to a platform and back reads at a glance.
+            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
 
             if t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
                 if !t.started {

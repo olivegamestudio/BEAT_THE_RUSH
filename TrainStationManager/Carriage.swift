@@ -19,6 +19,31 @@ func drawCloud(_ ctx: GraphicsContext, at c: CGPoint, s: CGFloat) {
     }
 }
 
+/// Route lighting shared by every station. Given the screen-space points of the track just ahead of a
+/// train and its aspect (0 green / 1 amber / 2 red), lights that stretch with a soft glow — so the player
+/// can read where each train is going and whether it has the road.
+func drawRouteAhead(_ ctx: GraphicsContext, _ pts: [CGPoint], aspect: Int, scale: CGFloat) {
+    guard pts.count > 1 else { return }
+    let cols: [Color] = [Color(red: 0.30, green: 0.95, blue: 0.44),   // green — clear
+                         Color(red: 1.0, green: 0.74, blue: 0.14),    // amber — closing on something
+                         Color(red: 1.0, green: 0.32, blue: 0.32)]    // red — held
+    let col = cols[min(max(aspect, 0), 2)]
+    var p = Path(); p.move(to: pts[0]); for q in pts.dropFirst() { p.addLine(to: q) }
+    ctx.drawLayer { g in
+        g.addFilter(.blur(radius: 5 * scale))
+        g.stroke(p, with: .color(col.opacity(0.5)), style: .init(lineWidth: 11 * scale, lineCap: .round, lineJoin: .round))
+    }
+    ctx.stroke(p, with: .color(col.opacity(0.72)), style: .init(lineWidth: 4 * scale, lineCap: .round, lineJoin: .round))
+}
+
+/// The aspect for a stretch of track from a train's movement authority: green if it can run clear to the
+/// end of its road, else red when it's about to stop and amber when it's closing on something.
+func railAspect(headroom: CGFloat, clearToEnd: Bool, amber: Bool = false) -> Int {
+    if clearToEnd { return amber ? 1 : 0 }
+    if headroom < Track.carUnit * 0.9 { return 2 }
+    return (headroom < Track.carUnit * 4 || amber) ? 1 : 0
+}
+
 /// A two-aspect running signal standing at screen point `p` (its foot on the track):
 /// a post and head with a red lamp over a green, the active one lit and glowing.
 func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat) {

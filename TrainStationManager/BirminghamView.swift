@@ -36,6 +36,7 @@ struct BirminghamView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
+                    drawRouteLights(ctx, sc, S)                    // green/amber/red road ahead of each train
                     drawPlatforms(ctx, sc, S)
                     for t in station.trains { drawTrain(ctx, t, sc, S) }
                     drawPeople(ctx, sc, S)
@@ -140,6 +141,18 @@ struct BirminghamView: View {
             lip.fill(Path(roundedRect: rect.offsetBy(dx: 0, dy: 3 * sc), cornerRadius: 4 * sc),
                      with: .color(Color(red: 0.19, green: 0.20, blue: 0.24)))
             ctx.fill(Path(roundedRect: rect, cornerRadius: 4 * sc), with: .color(Color(red: 0.40, green: 0.42, blue: 0.48)))
+        }
+    }
+
+    private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        for t in station.trains where !t.finished {
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)
+            if end <= start + 1 { continue }
+            var pts: [CGPoint] = []
+            var d = start
+            while d <= end { pts.append(S(t.path.sample(d).p)); d += 9 }
+            drawRouteAhead(ctx, pts, aspect: t.railAspect, scale: sc)
         }
     }
 

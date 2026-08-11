@@ -22,6 +22,7 @@ final class WorcTrain: Identifiable {
     var v: CGFloat = 0
     var stopped = 0.0
     var finished = false
+    var railAspect = 0             // 0 green / 1 amber / 2 red — lights the track ahead to show its route
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, _ line: Line, _ path: RoutePath, berth: CGFloat, enter: CGFloat, exit: CGFloat) {
         self.spec = spec; self.line = line; self.path = path
@@ -254,6 +255,8 @@ final class WorcesterStation: ObservableObject {
             else { t.v = max(target, t.v - decel * CGFloat(dt)) }
             t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
             t.stopped = t.v < 5 ? t.stopped + dt : 0
+            // Light the road ahead green/amber/red so its route over the single line reads at a glance.
+            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
 
             // Take the single line when at the neck, granted, and it's clear.
             if !t.hasSingle && mayTakeSingle(t)
