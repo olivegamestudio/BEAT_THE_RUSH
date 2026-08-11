@@ -37,6 +37,9 @@ struct DawlishView: View {
                     let sc = size.width / worldW
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size, S)
+                    drawTanker(ctx, sc, size)        // a distant ship out on the estuary
+                    drawGull(ctx, sc, size)          // a seagull in the sky
+                    drawBoat(ctx, sc, size)          // a speed boat on the estuary
                     drawRails(ctx, sc, S)
                     // Depth by screen height: the up platform sits behind its trains, the down platform in
                     // front of its trains, and the trains themselves draw back-to-front (lower = nearer).
@@ -101,8 +104,8 @@ struct DawlishView: View {
         func y(_ d: CGFloat) -> CGFloat { d * sc + vOff }
         // A sandy spit at the mouth of the Exe: estuary behind, beach and sea in front.
         band(ctx, 0, w, 0, y(100), Color(red: 0.27, green: 0.38, blue: 0.53), Color(red: 0.36, green: 0.47, blue: 0.60))     // sky
-        // a low sun out over the estuary
-        let sunC = CGPoint(x: w * 0.24, y: y(38))
+        // a low sun out over the estuary — drifts a touch with the pan, but it's so distant it barely parallaxes
+        let sunC = CGPoint(x: w * 0.24 - originX * 0.1 * sc, y: y(38))
         ctx.drawLayer { g in
             g.addFilter(.blur(radius: 18 * sc))
             g.fill(Path(ellipseIn: CGRect(x: sunC.x - 40 * sc, y: sunC.y - 40 * sc, width: 80 * sc, height: 80 * sc)),
@@ -124,6 +127,117 @@ struct DawlishView: View {
         }
         var rip = Path(); rip.move(to: CGPoint(x: 20, y: y(122))); rip.addLine(to: CGPoint(x: w - 20, y: y(122)))
         ctx.stroke(rip, with: .color(.white.opacity(0.08)), style: .init(lineWidth: 2 * sc, lineCap: .round))
+    }
+
+    /// A big tanker inching across the far estuary — a hazy low silhouette, world-anchored at a slow
+    /// parallax so it drifts with the pan but far slower than the foreground (it reads as distant).
+    private func drawTanker(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
+        guard station.tankerActive else { return }
+        let s = sc
+        let vOff = (size.height - Track.H * sc) / 2
+        let ty = CGFloat(station.tankerY) * sc + vOff
+        let dir = CGFloat(station.tankerDir)
+        let prog = CGFloat(station.tankerProgress)
+        let lo = contentMinX - 300, hi = contentMaxX + 300
+        let worldX = dir > 0 ? lo + prog * (hi - lo) : hi - prog * (hi - lo)
+        let x = (worldX - originX * 0.4) * sc            // low parallax factor → distant
+        let haze = Color(red: 0.32, green: 0.39, blue: 0.47)      // washed-out by distance / haze
+        let L = 28.0 * s                                          // half-length — small, it's far off on the horizon
+        ctx.drawLayer { g in
+            g.addFilter(.blur(radius: 0.5 * s))
+            var hull = Path()                                    // a long, low hull
+            hull.move(to: CGPoint(x: x - dir * L, y: ty - 1.5 * s))
+            hull.addLine(to: CGPoint(x: x + dir * L * 0.86, y: ty - 2 * s))
+            hull.addQuadCurve(to: CGPoint(x: x + dir * L, y: ty + 1.5 * s), control: CGPoint(x: x + dir * L * 1.02, y: ty))
+            hull.addLine(to: CGPoint(x: x - dir * L, y: ty + 2.5 * s))
+            hull.closeSubpath()
+            g.fill(hull, with: .color(haze))
+            // a few tiny cranes/masts along the deck
+            for m in 0..<4 {
+                let mx = x - dir * L * 0.5 + dir * CGFloat(m) * L * 0.26
+                g.fill(Path(CGRect(x: mx - 0.7 * s, y: ty - 5 * s, width: 1.4 * s, height: 4 * s)), with: .color(haze))
+            }
+            // superstructure block + funnel at the stern
+            let sx = x - dir * L * 0.72
+            g.fill(Path(roundedRect: CGRect(x: sx - 4.5 * s, y: ty - 8 * s, width: 9 * s, height: 7 * s), cornerRadius: 1 * s),
+                   with: .color(haze))
+            g.fill(Path(roundedRect: CGRect(x: sx - 1.5 * s, y: ty - 11 * s, width: 3.5 * s, height: 4 * s), cornerRadius: 0.8 * s),
+                   with: .color(Color(red: 0.25, green: 0.30, blue: 0.37)))
+        }
+    }
+
+    /// An occasional speed boat skimming across the estuary, throwing a bow splash and a spreading wake.
+    private func drawBoat(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
+        guard station.boatActive else { return }
+        let s = sc
+        let vOff = (size.height - Track.H * sc) / 2
+        let by = CGFloat(station.boatY) * sc + vOff
+        let dir = CGFloat(station.boatDir)
+        // World-anchored so the boat pans with the scene: it crosses the whole content, projected like the track.
+        let prog = CGFloat(station.boatProgress)
+        let lo = contentMinX - 120, hi = contentMaxX + 120
+        let worldX = dir > 0 ? lo + prog * (hi - lo) : hi - prog * (hi - lo)
+        let x = (worldX - originX) * sc
+        let sternX = x - dir * 28 * s
+        // Wake: a train of chevron ripples that spread wider and fade as they fall behind the stern.
+        for k in 0..<4 {
+            let ph = CGFloat((station.animT * 1.15 + Double(k) * 0.25).truncatingRemainder(dividingBy: 1))
+            let cx = sternX - dir * (6 * s + ph * 80 * s)
+            let spread = (4 + ph * 17) * s
+            let a = Double(1 - ph) * 0.5
+            var rip = Path()
+            rip.move(to: CGPoint(x: cx + dir * spread * 0.5, y: by - spread))
+            rip.addQuadCurve(to: CGPoint(x: cx + dir * spread * 0.5, y: by + spread),
+                             control: CGPoint(x: cx - dir * 5 * s, y: by))
+            ctx.stroke(rip, with: .color(.white.opacity(a)), style: .init(lineWidth: 2 * s, lineCap: .round))
+        }
+        let f = dir                                             // +1 = bow to the right
+        var hull = Path()                                       // a side-on speedboat: flat deck, raked bow, transom stern
+        hull.move(to: CGPoint(x: x - f * 26 * s, y: by - 6 * s))    // stern top
+        hull.addLine(to: CGPoint(x: x + f * 22 * s, y: by - 7 * s)) // deck to the bow
+        hull.addQuadCurve(to: CGPoint(x: x + f * 15 * s, y: by + 7 * s),   // bow curves down into the water
+                          control: CGPoint(x: x + f * 33 * s, y: by + 2 * s))
+        hull.addLine(to: CGPoint(x: x - f * 22 * s, y: by + 7 * s)) // flat bottom back to the stern
+        hull.closeSubpath()                                        // transom
+        ctx.fill(hull, with: .color(Color(red: 0.94, green: 0.96, blue: 0.99)))
+        var stripe = Path()                                     // red boot-stripe along the waterline
+        stripe.move(to: CGPoint(x: x - f * 24 * s, y: by + 2 * s)); stripe.addLine(to: CGPoint(x: x + f * 20 * s, y: by + 2 * s))
+        ctx.stroke(stripe, with: .color(Color(red: 0.86, green: 0.26, blue: 0.24)), style: .init(lineWidth: 3 * s, lineCap: .round))
+        ctx.stroke(hull, with: .color(.black.opacity(0.28)), style: .init(lineWidth: 1 * s))
+        var cabin = Path()                                      // a raked windscreen on the deck
+        cabin.move(to: CGPoint(x: x - f * 1 * s, y: by - 7 * s))
+        cabin.addLine(to: CGPoint(x: x + f * 10 * s, y: by - 7 * s))
+        cabin.addLine(to: CGPoint(x: x + f * 5 * s, y: by - 15 * s))
+        cabin.closeSubpath()
+        ctx.fill(cabin, with: .color(Color(red: 0.30, green: 0.46, blue: 0.64)))
+        ctx.drawLayer { g in                                    // bow splash
+            g.addFilter(.blur(radius: 1.6 * s))
+            g.fill(Path(ellipseIn: CGRect(x: x + dir * 24 * s - 7 * s, y: by - 5 * s, width: 16 * s, height: 11 * s)),
+                   with: .color(.white.opacity(0.72)))
+        }
+    }
+
+    /// An occasional seagull gliding across the sky, wings flapping in a slow beat.
+    private func drawGull(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize) {
+        guard station.gullActive else { return }
+        let w = size.width, s = sc
+        let vOff = (size.height - Track.H * sc) / 2
+        let gy = CGFloat(station.gullY) * sc + vOff
+        let prog = CGFloat(station.gullProgress), span = w + 120 * s
+        let x = station.gullDir > 0 ? (-60 * s + prog * span) : (w + 60 * s - prog * span)
+        let flap = CGFloat(sin(station.animT * 7))               // −1…1 full wing beat
+        let wing = 12 * s
+        let tipUp = (5 + flap * 13) * s                          // wing tips sweep high on the up-beat, drop on the down
+        let bodyY = gy - flap * 3 * s                            // the bird bobs a little with each stroke
+        let tipY = bodyY - tipUp
+        var g = Path()
+        g.move(to: CGPoint(x: x - wing * 2, y: tipY))
+        g.addQuadCurve(to: CGPoint(x: x, y: bodyY), control: CGPoint(x: x - wing, y: bodyY - tipUp * 0.35))
+        g.addQuadCurve(to: CGPoint(x: x + wing * 2, y: tipY), control: CGPoint(x: x + wing, y: bodyY - tipUp * 0.35))
+        ctx.stroke(g, with: .color(Color(white: 0.9).opacity(0.92)), style: .init(lineWidth: 2.6 * s, lineCap: .round))
+        // a small body where the wings meet
+        ctx.fill(Path(ellipseIn: CGRect(x: x - 2 * s, y: bodyY - 2 * s, width: 4 * s, height: 5 * s)),
+                 with: .color(Color(white: 0.85)))
     }
 
     /// A row of little marram-grass tufts along the dune top. The tufts are anchored in world space and
@@ -202,7 +316,7 @@ struct DawlishView: View {
             if t.steam && c == 0 {
                 // The engine is longer and taller than a coach — it reaches forward past the nose and back
                 // to meet the first carriage, so it reads as a proper locomotive rather than a stubby box.
-                let locoCW = Track.carUnit * 1.26, locoCH = Track.carHeight * 1.12
+                let locoCW = Track.carUnit * 1.16, locoCH = Track.carHeight * 1.05
                 let phase = t.dist / (0.19 * locoCH)         // wheels roll with distance travelled
                 drawSteamLoco(ctx, at: S(smp.p), angle: t.path.smoothAngle(d),
                               cw: locoCW, ch: locoCH, scale: sc, phase: phase)
@@ -215,11 +329,10 @@ struct DawlishView: View {
             }
             // An express is a power car at each end — rounded, no windows — with coaches between.
             let endCap = t.express && (c == 0 || c == t.spec.length - 1)
-            // Heritage coaches are shorter and skinnier than modern stock, to sit behind the engine.
-            let coachH = t.steam ? Track.carHeight * 0.82 : Track.carHeight
-            let coachW = t.steam ? Track.carUnit - 10 : Track.carUnit - 6
+            // Heritage coaches keep the standard length (so they don't leave gaps in the rake) but are drawn
+            // squarer, in brown; modern stock stays as-is.
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: coachW, ch: coachH, scale: sc, endCap: endCap,
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, endCap: endCap,
                          fill: min(1, t.load / (Double(t.spec.length) * 3)), seed: t.id.hashValue &+ c,
                          cornerRadius: t.steam ? 3 : nil)
         }

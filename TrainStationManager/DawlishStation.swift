@@ -65,6 +65,13 @@ final class DawlishStation: ObservableObject {
     @Published var sparkles: [Sparkle] = []
 
     var animT = 0.0
+    // Ambient life on the estuary and in the sky — a speed boat now and then, the odd gliding seagull.
+    var boatActive = false, boatProgress = 0.0, boatDir = 1.0, boatY = 505.0
+    private var boatClock = 0.0, nextBoat = 5.0
+    var gullActive = false, gullProgress = 0.0, gullDir = 1.0, gullY = 70.0
+    private var gullClock = 0.0, nextGull = 3.5
+    var tankerActive = false, tankerProgress = 0.0, tankerDir = 1.0, tankerY = 101.0   // a distant ship on the horizon
+    private var tankerClock = 0.0, nextTanker = 2.0
     private var upWait = 0.0, downWait = 0.0
     let agitateAfter = 20.0
     var upAgitated: Bool { pUp >= 1 && upWait > agitateAfter }
@@ -212,6 +219,8 @@ final class DawlishStation: ObservableObject {
         pUp = 1; pDown = 1; overUp = 0; overDown = 0; upWait = 0; downWait = 0
         expressNearUp = false; expressNearDown = false; upHold = true; downHold = true
         spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 1.2
+        boatActive = false; boatClock = 0; nextBoat = 5.0; gullActive = false; gullClock = 0; nextGull = 3.5
+        tankerActive = false; tankerClock = 0; nextTanker = 2.0
         spawn()
         objectWillChange.send()
     }
@@ -219,7 +228,7 @@ final class DawlishStation: ObservableObject {
     private func spawn() {
         let express = Double.random(in: 0...1) < def.expressChance
         // Now and then a heritage steam special sweeps through — a fast service that never stops here.
-        let steam = !express && Double.random(in: 0...1) < 0.16
+        let steam = !express && Double.random(in: 0...1) < 0.05   // very occasional, like the speed boat
         // Expresses are long intercity sets — a red or a green operator; the steam special runs a short
         // rake of cream coaches behind its engine; the short locals run in plain white.
         let len = express ? Int.random(in: 6...8) : (steam ? 5 : (def.trainLengths.randomElement() ?? 3))
@@ -247,6 +256,37 @@ final class DawlishStation: ObservableObject {
         let gap = Track.carUnit * 0.9
 
         animT += dt
+        // Ambient life: a speed boat crosses the estuary now and then; a seagull glides over occasionally.
+        if boatActive {
+            boatProgress += 0.11 * dt
+            if boatProgress >= 1 { boatActive = false; boatClock = 0; nextBoat = Double.random(in: 11...24) }
+        } else {
+            boatClock += dt
+            if boatClock >= nextBoat {
+                boatActive = true; boatProgress = 0
+                boatDir = Bool.random() ? 1 : -1; boatY = Double.random(in: 468...545)
+            }
+        }
+        if gullActive {
+            gullProgress += 0.075 * dt
+            if gullProgress >= 1 { gullActive = false; gullClock = 0; nextGull = Double.random(in: 7...17) }
+        } else {
+            gullClock += dt
+            if gullClock >= nextGull {
+                gullActive = true; gullProgress = 0
+                gullDir = Bool.random() ? 1 : -1; gullY = Double.random(in: 44...98)
+            }
+        }
+        if tankerActive {
+            tankerProgress += 0.017 * dt        // very slow — it's a huge ship far out
+            if tankerProgress >= 1 { tankerActive = false; tankerClock = 0; nextTanker = Double.random(in: 22...48) }
+        } else {
+            tankerClock += dt
+            if tankerClock >= nextTanker {
+                tankerActive = true; tankerProgress = 0
+                tankerDir = Bool.random() ? 1 : -1; tankerY = Double.random(in: 99...104)   // sit on the far horizon
+            }
+        }
         upWait = pUp >= 1 ? upWait + dt : 0
         downWait = pDown >= 1 ? downWait + dt : 0
 

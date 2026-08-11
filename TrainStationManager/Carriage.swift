@@ -164,26 +164,21 @@ func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
             let c = CGPoint(x: wx * W, y: wheelY)
             l.fill(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)), with: .color(wheelC))
             l.stroke(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)),
-                     with: .color(brass.opacity(0.8)), style: .init(lineWidth: 1.4 * scale))
-            l.fill(Path(ellipseIn: CGRect(x: c.x - wr * 0.3, y: c.y - wr * 0.3, width: wr * 0.6, height: wr * 0.6)), with: .color(brass))
+                     with: .color(Color(white: 0.55)), style: .init(lineWidth: 1.4 * scale))
+            l.fill(Path(ellipseIn: CGRect(x: c.x - wr * 0.3, y: c.y - wr * 0.3, width: wr * 0.6, height: wr * 0.6)), with: .color(Color(white: 0.6)))
         }
         block(R(-0.50, 0.10, 0.48, 0.20), 2 * scale, frame)          // footplate / red frames
         block(R(-0.34, -0.20, 0.30, 0.18), 0.20 * H, green)          // boiler barrel
         block(R(0.24, -0.22, 0.46, 0.20), 0.20 * H, dark)            // smokebox at the front
         block(R(-0.54, -0.32, -0.22, 0.18), 3 * scale, green)       // cab (taller than the boiler)
-        block(R(0.20, -0.50, 0.33, -0.20), 1.5 * scale, dark)        // chimney
-        block(R(-0.07, -0.42, 0.11, -0.20), 4 * scale, brass)       // brass steam dome
-        // details, painted onto the side wall (dropped by depth)
+        block(R(0.20, -0.50, 0.33, -0.20), 1.5 * scale, dark)        // the one funnel (chimney)
+        block(R(-0.09, -0.40, 0.09, -0.20), 0.09 * H, brass)        // a single brass dome, centred on top
+        // smokebox door on the front, kept dark so the dome is the only golden part
         let doorC = CGPoint(x: 0.35 * W, y: depth - 0.01 * H), dr = 0.15 * H
         l.fill(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
                with: .color(Color(red: 0.16, green: 0.17, blue: 0.19)))
         l.stroke(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
-                 with: .color(brass.opacity(0.7)), style: .init(lineWidth: 1 * scale))
-        for by: CGFloat in [-0.07, 0.07] {                           // brass boiler bands
-            var band = Path()
-            band.move(to: CGPoint(x: -0.32 * W, y: by * H + depth)); band.addLine(to: CGPoint(x: 0.24 * W, y: by * H + depth))
-            l.stroke(band, with: .color(brass.opacity(0.85)), style: .init(lineWidth: 1.2 * scale))
-        }
+                 with: .color(.black.opacity(0.4)), style: .init(lineWidth: 1 * scale))
         l.fill(Path(roundedRect: CGRect(x: -0.48 * W, y: depth - 0.14 * H, width: 0.20 * W, height: 0.22 * H),
                     cornerRadius: 2 * scale), with: .color(Color(red: 0.55, green: 0.72, blue: 0.82)))   // cab window
         // Coupling rod: the crank pins on every driving wheel share one phase, so the steel side rod stays
