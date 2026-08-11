@@ -58,9 +58,9 @@ final class CreweStation: ObservableObject {
 
     // Platform / track geometry (design space; wide and pannable). West = small x, East = large x.
     let plats: [CrewePlat]
-    let fastY: [CGFloat] = [226, 264]     // the two fast lines between P5 and P6
-    let singleY: CGFloat = 498            // the single line, faced by P11 (above) and P12 (below)
-    let throatY: CGFloat = 245            // where the running lines bunch together in the throats
+    let fastY: [CGFloat] = [262, 316]     // the two fast lines between P5 and P6
+    let singleY: CGFloat = 606            // the single line, faced by P11 (above) and P12 (below)
+    let throatY: CGFloat = 289            // where the running lines bunch together in the throats
     let xSL: CGFloat = 300, xSR: CGFloat = 1300      // platform west / east ends
     let xW: CGFloat = -760, xE: CGFloat = 2360       // spawn / exit — long throats so the staggers feed in gently
     // West throat: 4 tracks gather over a long, gentle staircase.
@@ -109,19 +109,19 @@ final class CreweStation: ObservableObject {
         let L = 300.0, R = 1300.0
         let midL = 720.0, midR = 900.0     // concourse gap between the middle bays
         plats = [
-            CrewePlat(id: 1,  y: -18, xL: L,    xR: R,    kind: .through, slabAbove: true),    // platform above the line so the train isn't on it
-            CrewePlat(id: 2,  y: 44,  xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
-            CrewePlat(id: 3,  y: 96,  xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
-            CrewePlat(id: 4,  y: 148, xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
-            CrewePlat(id: 5,  y: 182, xL: L,    xR: R,    kind: .through, slabAbove: true),   // pushed up, clear of the fast lines
-            CrewePlat(id: 6,  y: 308, xL: L,    xR: R,    kind: .through, slabAbove: false),  // pushed down, clear of the fast lines
+            CrewePlat(id: 1,  y: -30, xL: L,    xR: R,    kind: .through, slabAbove: true),    // platform above the line so the train isn't on it
+            CrewePlat(id: 2,  y: 34,  xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
+            CrewePlat(id: 3,  y: 88,  xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
+            CrewePlat(id: 4,  y: 142, xL: 820,  xR: R,    kind: .bayEast, slabAbove: false),
+            CrewePlat(id: 5,  y: 220, xL: L,    xR: R,    kind: .through, slabAbove: true),   // clear of 4 above and the fast lines below
+            CrewePlat(id: 6,  y: 360, xL: L,    xR: R,    kind: .through, slabAbove: false),  // below the fast lines
             // 7/9 and 8/10 are the left and right faces of two straight-through lines (no concourse, no buffers)
-            CrewePlat(id: 7,  y: 360, xL: L,    xR: R,    kind: .through, slabAbove: true,  slabL: L,    slabR: midL),
-            CrewePlat(id: 9,  y: 360, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
-            CrewePlat(id: 8,  y: 408, xL: L,    xR: R,    kind: .through, slabAbove: true,  slabL: L,    slabR: midL),
-            CrewePlat(id: 10, y: 408, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
-            CrewePlat(id: 11, y: 470, xL: L,    xR: R,    kind: .through, slabAbove: true,  ownsLine: false),   // top face of the single line
-            CrewePlat(id: 12, y: 526, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false),  // bottom face of the single line
+            CrewePlat(id: 7,  y: 424, xL: L,    xR: R,    kind: .through, slabAbove: true,  slabL: L,    slabR: midL),
+            CrewePlat(id: 9,  y: 424, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
+            CrewePlat(id: 8,  y: 488, xL: L,    xR: R,    kind: .through, slabAbove: true,  slabL: L,    slabR: midL),
+            CrewePlat(id: 10, y: 488, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
+            CrewePlat(id: 11, y: 566, xL: L,    xR: R,    kind: .through, slabAbove: true,  ownsLine: false),   // top face of the single line
+            CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false),  // bottom face of the single line
         ]
         passengers = Array(repeating: 0, count: 12)
         platformHeld = Array(repeating: true, count: 12)
@@ -171,7 +171,7 @@ final class CreweStation: ObservableObject {
             pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
                    CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: fastY[0]), CGPoint(x: far, y: fastY[0])]
         } else if y > plats[5].y + 20 {          // bottom group: join a gathering line one at a time, then the bottom fast line
-            let gy: CGFloat = 402
+            let gy: CGFloat = 486
             pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
                    CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: fastY[1]), CGPoint(x: far, y: fastY[1])]
         } else {                                  // P5 / P6: straight onto their fast line

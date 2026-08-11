@@ -14,10 +14,10 @@ struct CreweView: View {
     private let worldW: CGFloat = 1050
     private let contentMinX: CGFloat = -760
     private let contentMaxX: CGFloat = 2360
-    private let contentMinY: CGFloat = -70
-    private let contentMaxY: CGFloat = 560
+    private let contentMinY: CGFloat = -84
+    private let contentMaxY: CGFloat = 704
     @State private var originX: CGFloat = 300
-    @State private var originY: CGFloat = 250
+    @State private var originY: CGFloat = 310
     @State private var dragStartX: CGFloat? = nil
     @State private var dragStartY: CGFloat? = nil
     private let railSteel = Color(red: 0.44, green: 0.48, blue: 0.56)
@@ -199,7 +199,7 @@ struct CreweView: View {
         let s = station
         for pl in s.plats {
             // keep slabs clear of the rail so a berthed train sits beside the platform, not on it
-            let top = pl.slabAbove ? pl.y - 32 : pl.y + 20
+            let top = pl.slabAbove ? pl.y - 42 : pl.y + 20
             slab(ctx, id: pl.id, xL: pl.sLeft, xR: pl.sRight, top: top, sc: sc, S)
         }
     }
