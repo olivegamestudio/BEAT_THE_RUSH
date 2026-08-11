@@ -155,3 +155,11 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
+
+## Future level ideas
+- **Breakdown & rescue** (Simon): a train fails and sits blocking a track; the player keeps the rest
+  flowing by routing around the blockage until a **rescue/recovery train** arrives, couples, and drags
+  it clear. A dynamic obstacle + countdown. Needs a layout with alternates (a ladder station or a
+  passing loop) so there's somewhere to divert.
+- **L5 Reedham** — swing bridge on a timer (planned). **L6** — inland reversing terminus, bay
+  platforms, trains reverse out (planned; not seaside).
