@@ -10,7 +10,8 @@ final class NewarkTrain: Identifiable {
     var spec: Train
     let line: Line
     let path: RoutePath
-    let berthDist: CGFloat
+    let entryDist: CGFloat          // distance at the platform entrance (held by the entry signal)
+    let berthDist: CGFloat          // where it berths and waits at the starter
     let crossDist: CGFloat          // distance at which the front reaches the diamond
     var dist: CGFloat = 0
     var boarded = false
@@ -22,9 +23,9 @@ final class NewarkTrain: Identifiable {
     var stopped = 0.0
     var finished = false
     var carLen: CGFloat { spec.carLength }
-    init(_ spec: Train, _ line: Line, _ path: RoutePath, berth: CGFloat, cross: CGFloat) {
+    init(_ spec: Train, _ line: Line, _ path: RoutePath, entry: CGFloat, berth: CGFloat, cross: CGFloat) {
         self.spec = spec; self.line = line; self.path = path
-        berthDist = berth; crossDist = cross
+        entryDist = entry; berthDist = berth; crossDist = cross
     }
 }
 
@@ -38,8 +39,8 @@ final class NewarkStation: ObservableObject {
     let yEcml: CGFloat = 252       // East Coast Main Line — horizontal
     let yCastle: CGFloat = 132     // Castle line platform — horizontal lead before it dives to the crossing
     let xD: CGFloat = 980          // the flat crossing (diamond), on the main line
-    let platL: CGFloat = 430
-    let platR: CGFloat = 720
+    let platL: CGFloat = 380
+    let platR: CGFloat = 860
     var platC: CGFloat { (platL + platR) / 2 }
     let spawnL: CGFloat = -320
     let spawnR: CGFloat = 1720
@@ -50,7 +51,12 @@ final class NewarkStation: ObservableObject {
     @Published var carried = 0.0
     @Published var pEcml = 1.0
     @Published var pCastle = 1.0
-    @Published var grant: Line? = nil        // which line is cleared over the crossing
+    // Two lights per line: an entry signal (admit into the platform) and a platform starter (send the
+    // loaded train over the crossing). Entry defaults open (trains flow in); the starter you work.
+    @Published var entryEcml = true
+    @Published var entryCastle = true
+    @Published var starterEcml = false
+    @Published var starterCastle = false
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     @Published var sparkles: [Sparkle] = []
@@ -84,10 +90,11 @@ final class NewarkStation: ObservableObject {
 
     init(_ def: StationDef) { self.def = def; spawn() }
 
-    /// Set (or clear) the crossing for a line.
-    func setGrant(_ g: Line) { grant = (grant == g) ? nil : g; objectWillChange.send() }
+    func entryOpen(_ l: Line) -> Bool { l == .ecml ? entryEcml : entryCastle }
+    func starterOpen(_ l: Line) -> Bool { l == .ecml ? starterEcml : starterCastle }
+    func toggleEntry(_ l: Line) { if l == .ecml { entryEcml.toggle() } else { entryCastle.toggle() }; objectWillChange.send() }
+    func toggleStarter(_ l: Line) { if l == .ecml { starterEcml.toggle() } else { starterCastle.toggle() }; objectWillChange.send() }
     var diamondOccupied: Bool { occupant != nil }
-    private func mayTakeDiamond(_ t: NewarkTrain) -> Bool { occupant == nil && grant == t.line }
 
     private func spawn() {
         let line: Line = Bool.random() ? .ecml : .castle
@@ -95,25 +102,27 @@ final class NewarkStation: ObservableObject {
                          tint: line == .ecml ? Color(red: 0.30, green: 0.55, blue: 0.86)
                                              : Color(red: 0.86, green: 0.44, blue: 0.30),
                          name: "")
-        let path: RoutePath, berthV: Int, diamondV: Int
-        if line == .ecml {   // straight along the main line, load, then over the crossing and away east
-            path = RoutePath([CGPoint(x: spawnL, y: yEcml), CGPoint(x: platC, y: yEcml),
+        let path: RoutePath, entryV: Int, berthV: Int, diamondV: Int
+        if line == .ecml {   // straight along the main line: enter, load, then over the crossing and away east
+            path = RoutePath([CGPoint(x: spawnL, y: yEcml), CGPoint(x: platL, y: yEcml),
+                              CGPoint(x: platC, y: yEcml), CGPoint(x: platR, y: yEcml),
                               CGPoint(x: xD, y: yEcml), CGPoint(x: spawnR, y: yEcml)])
-            berthV = 1; diamondV = 2
+            entryV = 1; berthV = 2; diamondV = 4
         } else {             // load on the Castle platform, dive to the crossing, away to the south
             let exitY = yEcml + (yEcml - yCastle) / (xD - platR) * (spawnR - xD)   // keep the same slope past the diamond
-            path = RoutePath([CGPoint(x: spawnL, y: yCastle), CGPoint(x: platC, y: yCastle),
-                              CGPoint(x: platR, y: yCastle), CGPoint(x: xD, y: yEcml),
-                              CGPoint(x: spawnR, y: exitY)])
-            berthV = 1; diamondV = 3
+            path = RoutePath([CGPoint(x: spawnL, y: yCastle), CGPoint(x: platL, y: yCastle),
+                              CGPoint(x: platC, y: yCastle), CGPoint(x: platR, y: yCastle),
+                              CGPoint(x: xD, y: yEcml), CGPoint(x: spawnR, y: exitY)])
+            entryV = 1; berthV = 2; diamondV = 4
         }
-        trains.append(NewarkTrain(spec, line, path, berth: path.distanceTo(vertex: berthV),
-                                  cross: path.distanceTo(vertex: diamondV)))
+        trains.append(NewarkTrain(spec, line, path, entry: path.distanceTo(vertex: entryV),
+                                  berth: path.distanceTo(vertex: berthV), cross: path.distanceTo(vertex: diamondV)))
     }
 
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
-        pEcml = 1; pCastle = 1; overE = 0; overC = 0; eWait = 0; cWait = 0; grant = nil
+        pEcml = 1; pCastle = 1; overE = 0; overC = 0; eWait = 0; cWait = 0
+        entryEcml = true; entryCastle = true; starterEcml = false; starterCastle = false
         spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 1.1
         spawn()
         objectWillChange.send()
@@ -144,13 +153,13 @@ final class NewarkStation: ObservableObject {
         for t in roster where !t.finished {
             let overrun = CGFloat(t.spec.length) * Track.carUnit
             var ceiling = t.path.total + overrun
-            // Load at the platform first.
-            if !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            // Hold short of the diamond unless it's granted our way and clear — and we've finished loading.
-            if !t.hasCross && (t.dist - t.carLen) < t.crossDist {
-                if !(t.boarded && mayTakeDiamond(t)) {
-                    ceiling = min(ceiling, t.crossDist - gap)
-                }
+            // Entry signal — hold on the approach until admitted into the platform.
+            if !entryOpen(t.line) && t.dist < t.entryDist - 1 { ceiling = min(ceiling, t.entryDist - gap) }
+            // Platform starter — load at the berth, then wait there until the starter sends it over the crossing.
+            if !(t.boarded && starterOpen(t.line)) { ceiling = min(ceiling, t.berthDist) }
+            // The crossing takes one train at a time — hold short of the diamond while another is on it.
+            if !t.hasCross && occupant != nil && occupant !== t && (t.dist - t.carLen) < t.crossDist {
+                ceiling = min(ceiling, t.crossDist - gap)
             }
             // Follow the train ahead on the same line.
             var aheadTail = CGFloat.infinity
@@ -167,8 +176,8 @@ final class NewarkStation: ObservableObject {
             t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
             t.stopped = t.v < 5 ? t.stopped + dt : 0
 
-            // Take the crossing when at it, boarded, granted and clear; free it once the tail is over.
-            if !t.hasCross && t.boarded && mayTakeDiamond(t) && t.dist >= t.crossDist - gap - 1 {
+            // Take the crossing when dispatched and at it and it's clear; free it once the tail is over.
+            if !t.hasCross && occupant == nil && t.boarded && starterOpen(t.line) && t.dist >= t.crossDist - gap - 1 {
                 t.hasCross = true; occupant = t
                 Sound.shared.play(.ding)
             }

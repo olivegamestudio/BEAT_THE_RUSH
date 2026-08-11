@@ -89,16 +89,18 @@ The Malverns sit on the west skyline; a moon above.
 ### Newark (4) — `newark`
 **Flat crossing.** The East Coast Main Line (blue, horizontal) crosses the Nottingham–Lincoln
 **Castle line** (orange — a horizontal platform lead that dives across the main line) on the level, at a
-**diamond**. Only one train fits the crossover at a time; the player **grants the diamond to one line at
-a time** (tap its signal) and the two take turns. Each line has a platform its trains load at *before*
-they reach the diamond. Newark Castle ruin sits on the skyline.
-- Shared-resource pattern like Worcester's single line: `occupant` weak var, `grant: Line?`,
-  `mayTakeDiamond` needs `occupant == nil && grant == line`; a train holds short of `crossDist` until
-  granted, takes the diamond, frees it when its tail is over.
-- Key: `yEcml=252`, `yCastle=132` (Castle platform lead), diamond `xD=980`, `platL=430`/`platR=720`.
-  Two grant signals sit by the diamond, one per line. Goal 45.
-- **Polish TODO:** the two signal circles overlap (separate them); ECML can queue heavily (spawn
-  balance); castle silhouette is blocky.
+**diamond**. Only one train fits the crossover at a time. Newark Castle ruin on the skyline, drifting
+clouds, a subtly-graded green.
+- **Four lights (two per line):** an **entry** signal (admit a train into the platform, default green)
+  and a **platform starter** (send the loaded train over the crossing, default red). The diamond is the
+  shared resource — `occupant` weak var, auto-arbitrated: a dispatched train takes it when it arrives
+  and it's clear, else holds short. Sequence the two starters so both don't hit the diamond at once.
+- A train holds at `entryDist` (entry red), loads and waits at `berthDist` (starter red), then crosses.
+- Key: `yEcml=252`, `yCastle=132` (Castle platform lead), diamond `xD=980`, `platL=380`/`platR=860`.
+  Entry lights at the platform mouth, starters at the exit end; a non-tappable indicator on the diamond
+  goes red while it's occupied. Goal 45.
+- **Polish TODO:** entry/starter halos still touch a little; ECML can queue heavily (spawn balance);
+  castle silhouette is blocky.
 
 ### Birmingham New Street (19) — `birmingham`  *(scaffold — auto-routing)*
 12 platforms as **six two-track islands** fanning above/below **two central lanes**. A train shuffles

@@ -13,8 +13,8 @@ struct NewarkView: View {
     @State private var tutClock = 0.0
     private let tutSteps = [
         "Newark — the East Coast Main Line crosses the Castle line flat. Only one train fits the crossing at a time.",
-        "Tap a signal to grant the crossing — the blue main line, or the orange Castle line. Let them take turns.",
-        "Load both platforms before their trains reach the diamond, and don't let either fill up.",
+        "Each line has two lights: an entry signal to let a train into its platform, and a starter to send the loaded train over the crossing.",
+        "Send one over the diamond at a time — set both starters green and one has to wait. Keep both platforms flowing.",
         "Carry 45 people to clear the crossing."
     ]
     private func advanceTut(sound: Bool) { if sound { Sound.shared.play(.ui) }; tutStep += 1; tutClock = 0 }
@@ -104,10 +104,38 @@ struct NewarkView: View {
                      with: .linearGradient(Gradient(colors: [top, bot]),
                                            startPoint: CGPoint(x: w / 2, y: y0), endPoint: CGPoint(x: w / 2, y: y1)))
         }
-        band(0, y(70), Color(red: 0.52, green: 0.62, blue: 0.78), Color(red: 0.78, green: 0.80, blue: 0.82))
+        band(0, y(70), Color(red: 0.52, green: 0.62, blue: 0.78), Color(red: 0.80, green: 0.82, blue: 0.84))
+        clouds(ctx, sc, w: w, topY: y(6), botY: y(58))
         castle(ctx, baseY: y(70), sc: sc, w: w)
-        band(y(64), y(84), Color(red: 0.30, green: 0.40, blue: 0.30), Color(red: 0.26, green: 0.34, blue: 0.26))
-        band(y(84), size.height, Color(red: 0.26, green: 0.31, blue: 0.22), Color(red: 0.17, green: 0.21, blue: 0.15))
+        band(y(64), y(84), Color(red: 0.32, green: 0.42, blue: 0.31), Color(red: 0.27, green: 0.35, blue: 0.26))
+        // The green — a soft top-to-bottom gradient so it isn't flat, plus a faint sheen near the tracks.
+        band(y(84), size.height, Color(red: 0.31, green: 0.37, blue: 0.26), Color(red: 0.15, green: 0.19, blue: 0.13))
+        ctx.fill(Path(CGRect(x: 0, y: y(84), width: w, height: 120 * sc)),
+                 with: .linearGradient(Gradient(colors: [.white.opacity(0.06), .clear]),
+                                       startPoint: CGPoint(x: w / 2, y: y(84)), endPoint: CGPoint(x: w / 2, y: y(84) + 120 * sc)))
+    }
+
+    /// A few soft clouds drifting slowly across the sky.
+    private func clouds(_ ctx: GraphicsContext, _ sc: CGFloat, w: CGFloat, topY: CGFloat, botY: CGFloat) {
+        let t = CGFloat(station.animT)
+        let data: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [   // fx, fy, size, drift
+            (0.18, 0.30, 1.2, 6), (0.52, 0.55, 1.7, 4), (0.83, 0.22, 1.0, 8), (0.68, 0.70, 1.35, 5)]
+        let span = w + 180 * sc
+        for (fx, fy, sz, spd) in data {
+            var cx = (fx * w + t * spd * sc).truncatingRemainder(dividingBy: span)
+            if cx < 0 { cx += span }
+            cx -= 90 * sc
+            let cy = topY + fy * (botY - topY)
+            let s = sz * sc
+            ctx.drawLayer { g in
+                g.addFilter(.blur(radius: 5 * s))
+                for (dx, dy, r) in [(-1.1, 0.15, 1.0), (0.0, -0.35, 1.35), (1.15, 0.12, 0.95), (0.45, 0.4, 0.8)] {
+                    let rw = 30 * s * r, rh = 17 * s * r
+                    g.fill(Path(ellipseIn: CGRect(x: cx + dx * 20 * s - rw, y: cy + dy * 12 * s - rh, width: rw * 2, height: rh * 2)),
+                           with: .color(.white.opacity(0.5)))
+                }
+            }
+        }
     }
 
     /// Newark Castle — a ruined curtain wall with a gatehouse, low on the skyline.
@@ -239,36 +267,39 @@ struct NewarkView: View {
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let sig = sc * 2.5
-        // A signal on each line protecting the crossing — green shows which line the diamond is granted to.
-        drawSignal(ctx, at: S(ecmlControlPoint()), red: s.grant != .ecml, scale: sig)
-        drawSignal(ctx, at: S(castleSignalPoint()), red: s.grant != .castle, scale: sig)
+        // Two lights per line: entry (admit into the platform) and starter (send over the crossing).
+        drawSignal(ctx, at: S(ecmlEntryPt()), red: !s.entryOpen(.ecml), scale: sig)
+        drawSignal(ctx, at: S(ecmlStarterPt()), red: !s.starterOpen(.ecml), scale: sig)
+        drawSignal(ctx, at: S(castleEntryPt()), red: !s.entryOpen(.castle), scale: sig)
+        drawSignal(ctx, at: S(castleStarterPt()), red: !s.starterOpen(.castle), scale: sig)
+        // A little indicator on the diamond so the crossing conflict reads: red while a train is over it.
+        drawSignal(ctx, at: S(CGPoint(x: s.xD + 30, y: s.yEcml - 30)), red: s.diamondOccupied, scale: sig * 0.8)
     }
 
-    // Where the Castle-line signal sits — on the dive to the diamond, lifted off the rail.
-    private func castleSignalPoint() -> CGPoint {
-        let s = station
-        let t: CGFloat = 0.62
-        let x = s.platR + (s.xD - s.platR) * t
-        let y = s.yCastle + (s.yEcml - s.yCastle) * t
-        return CGPoint(x: x - 8, y: y - 26)
-    }
-    private func ecmlControlPoint() -> CGPoint { CGPoint(x: station.xD - 66, y: station.yEcml - 26) }
+    // Entry lights sit at the platform mouth, starters at the exit end toward the crossing — lifted off the rail.
+    private func ecmlEntryPt() -> CGPoint { CGPoint(x: station.platL, y: station.yEcml - 26) }
+    private func ecmlStarterPt() -> CGPoint { CGPoint(x: station.platR, y: station.yEcml - 26) }
+    private func castleEntryPt() -> CGPoint { CGPoint(x: station.platL, y: station.yCastle + 26) }
+    private func castleStarterPt() -> CGPoint { CGPoint(x: station.platR, y: station.yCastle + 26) }
 
     // MARK: controls / HUD
 
+    /// A tappable signal halo, centred on the lamp (which draws ~22px above its anchor).
+    private func signalButton(_ action: @escaping () -> Void, at p: CGPoint, _ scale: CGFloat, _ size: CGSize) -> some View {
+        Button(action: { action(); Sound.shared.play(.tap) }) {
+            SignalHalo().frame(width: 58, height: 58).contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .position(project(CGPoint(x: p.x, y: p.y - 22), scale, size))
+    }
+
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         ZStack {
-            // Grant the crossing to one line at a time.
-            Button(action: { station.setGrant(.ecml); Sound.shared.play(.tap) }) {
-                SignalHalo().frame(width: 62, height: 62).contentShape(Rectangle())
-            }
-            .buttonStyle(PressStyle())
-            .position(project(ecmlControlPoint(), scale, size))
-            Button(action: { station.setGrant(.castle); Sound.shared.play(.tap) }) {
-                SignalHalo().frame(width: 62, height: 62).contentShape(Rectangle())
-            }
-            .buttonStyle(PressStyle())
-            .position(project(castleSignalPoint(), scale, size))
+            // Entry admits a train into the platform; the starter sends the loaded train over the crossing.
+            signalButton({ station.toggleEntry(.ecml) }, at: ecmlEntryPt(), scale, size)
+            signalButton({ station.toggleStarter(.ecml) }, at: ecmlStarterPt(), scale, size)
+            signalButton({ station.toggleEntry(.castle) }, at: castleEntryPt(), scale, size)
+            signalButton({ station.toggleStarter(.castle) }, at: castleStarterPt(), scale, size)
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))
