@@ -242,6 +242,10 @@ struct CreweView: View {
         let s = station
         // home signal at the east entrance — trains arrive from the east
         drawSignal(ctx, at: S(CGPoint(x: s.xSR + 470, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
+        // a starter at the west end of each served platform — red holds the boarded train
+        for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
+            drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
+        }
     }
 
     // MARK: controls / HUD
@@ -253,6 +257,15 @@ struct CreweView: View {
             }
             .buttonStyle(PressStyle())
             .position(project(CGPoint(x: station.xSR + 470, y: station.throatY - 26), scale, size))
+
+            ForEach(station.plats.indices.filter { station.throughIds.contains(station.plats[$0].id) }, id: \.self) { i in
+                let pl = station.plats[i]
+                Button(action: { station.toggleStarter(i); Sound.shared.play(.tap) }) {
+                    SignalHalo().frame(width: 50, height: 50).contentShape(Rectangle())
+                }
+                .buttonStyle(PressStyle())
+                .position(project(CGPoint(x: pl.xL + 96, y: pl.y - 40), scale, size))
+            }
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))

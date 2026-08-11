@@ -73,6 +73,7 @@ final class CreweStation: ObservableObject {
     @Published var carried = 0.0
     @Published var passengers: [Double]
     @Published var entranceOpen = true
+    @Published var platformHeld: [Bool]              // each platform's starter: true = red, holds the boarded train
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     @Published var sparkles: [Sparkle] = []
@@ -123,6 +124,7 @@ final class CreweStation: ObservableObject {
             CrewePlat(id: 12, y: 526, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false),  // bottom face of the single line
         ]
         passengers = Array(repeating: 0, count: 12)
+        platformHeld = Array(repeating: true, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
         spawn()
@@ -212,13 +214,14 @@ final class CreweStation: ObservableObject {
         passengers = Array(repeating: 0, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
-        entranceOpen = true; sparkles = []; animT = 0
+        entranceOpen = true; platformHeld = Array(repeating: true, count: 12); sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1
         spawn()
         objectWillChange.send()
     }
 
     func toggleEntrance() { entranceOpen.toggle(); objectWillChange.send() }
+    func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
 
     private func spawn() {
         let len = def.trainLengths.randomElement() ?? 4
@@ -296,8 +299,8 @@ final class CreweStation: ObservableObject {
                     }
                     t.load += take; carried += take
                 }
-                t.railAspect = 0
-                if t.dwell <= 0 { t.phase = .departing; Sound.shared.play(.depart) }
+                t.railAspect = platformHeld[t.target] ? 2 : 0     // starter red holds it; green sends it away
+                if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing; Sound.shared.play(.depart) }
             case .departing:
                 var ceiling = t.path.total + t.spec.carLength
                 for o in roster where o !== t && !o.finished && o.target == t.target && o.dist > t.dist {
