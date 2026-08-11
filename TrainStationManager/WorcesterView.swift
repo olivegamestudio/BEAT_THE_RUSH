@@ -25,7 +25,7 @@ struct WorcesterView: View {
     private let worldW: CGFloat = 1520
     private let contentMinX: CGFloat = -340
     private let contentMaxX: CGFloat = 1840
-    @State private var originX: CGFloat = -150
+    @State private var originX: CGFloat = 40
     @State private var dragStartX: CGFloat? = nil
     private let dcross: CGFloat = 40
 
