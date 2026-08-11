@@ -209,9 +209,9 @@ struct CreweView: View {
         let s = station
         for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
             let feetY = pl.slabAbove ? pl.y - 8 : pl.y + 30
-            pax(ctx, count: s.passengers[i], x0: pl.xR - 190, feetY: feetY, sc: sc,
+            pax(ctx, count: s.passengers[i], x0: pl.xL + 90, feetY: feetY, sc: sc,
                 agitated: s.agitated(i), t: s.animT, S: S)
-            if s.mood(i).shows { drawMood(ctx, s.mood(i).emoji, at: S(CGPoint(x: pl.xR - 170, y: pl.y - 8)), scale: sc) }
+            if s.mood(i).shows { drawMood(ctx, s.mood(i).emoji, at: S(CGPoint(x: pl.xL + 110, y: pl.y - 8)), scale: sc) }
         }
     }
 
@@ -240,7 +240,8 @@ struct CreweView: View {
 
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        drawSignal(ctx, at: S(CGPoint(x: s.xWMouth - 20, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
+        // home signal at the east entrance — trains arrive from the east
+        drawSignal(ctx, at: S(CGPoint(x: s.xSR + 470, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
     }
 
     // MARK: controls / HUD
@@ -251,7 +252,7 @@ struct CreweView: View {
                 SignalHalo().frame(width: 60, height: 60).contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
-            .position(project(CGPoint(x: station.xWMouth - 20, y: station.throatY - 26), scale, size))
+            .position(project(CGPoint(x: station.xSR + 470, y: station.throatY - 26), scale, size))
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
                 Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(Color(white: 0.9))

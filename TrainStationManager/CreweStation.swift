@@ -42,6 +42,7 @@ final class CreweTrain: Identifiable {
     var v: CGFloat = 0
     var stopped = 0.0
     var spawnedNext = false
+    var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
     var railAspect = 0
     var finished = false
     enum Phase { case arriving, berthed, departing }
@@ -66,7 +67,7 @@ final class CreweStation: ObservableObject {
     let xWMouth: CGFloat = -120                      // where the 4 tracks bunch together
     // East throat: 7 tracks (5 + 2 fast) fan over a staircase.
     let xEMouth: CGFloat = 1740
-    let throughIds = [1, 5, 6]                        // served by traffic in this pass (bays/single come next)
+    let throughIds = [1, 5, 6, 7, 8]                  // the through lines traffic uses in this pass (bays/single come next)
 
     @Published var trains: [CreweTrain] = []
     @Published var carried = 0.0
@@ -180,18 +181,16 @@ final class CreweStation: ObservableObject {
     private func westThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: false) }
     private func eastThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: true) }
 
-    /// Through-platform route: west throat in, across the platform, east throat out.
+    /// Through-platform route — trains arrive **from the east**: in down the east throat, along the platform,
+    /// out down the west throat.
     private func buildPath(to i: Int) -> RoutePath {
         let pl = plats[i]
-        var pts = westThroatPoints(pl.y)
-        pts.append(CGPoint(x: pl.xR, y: pl.y))         // run the length of the platform
-        pts.append(contentsOf: eastThroatPoints(pl.y))
+        let pts = Array(eastThroatPoints(pl.y).reversed()) + Array(westThroatPoints(pl.y).reversed())
         return RoutePath(pts)
     }
-    private func throatDist(_ p: RoutePath) -> CGFloat { p.distanceTo(vertex: 2) }
-    private func berthOf(_ p: RoutePath, _ i: Int) -> CGFloat {
-        // berth near the east end of the platform run (vertex 3 is the platform's east end)
-        p.distanceTo(vertex: 3) - Track.carUnit * 1.4
+    /// The east spawn → platform-east-end distance for platform `i`.
+    private func entryLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
+        p.distanceTo(vertex: eastThroatPoints(plats[i].y).count - 1)
     }
 
     // MARK: routing
@@ -199,7 +198,7 @@ final class CreweStation: ObservableObject {
     private func platformTaken(_ i: Int, except t: CreweTrain? = nil) -> Bool {
         trains.contains { o in
             guard o !== t, !o.finished, o.target == i else { return false }
-            return o.phase != .departing || o.dist < berthOf(o.path, i) + o.spec.carLength + Track.carUnit
+            return o.phase != .departing || o.dist < o.berthDist + o.spec.carLength + Track.carUnit
         }
     }
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
@@ -225,8 +224,12 @@ final class CreweStation: ObservableObject {
         let len = def.trainLengths.randomElement() ?? 4
         let spec = Train(length: len, tint: trainPalette.randomElement() ?? .blue, name: "")
         let target = pickPlatform()
-        let t = CreweTrain(spec, target: target, buildPath(to: target))
-        t.berthDist = berthOf(t.path, target)
+        let pl = plats[target]
+        let path = buildPath(to: target)
+        let t = CreweTrain(spec, target: target, path)
+        t.entryLen = entryLenOf(path, target)
+        t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
+        t.committed = true
         trains.append(t)
     }
 
@@ -259,29 +262,22 @@ final class CreweStation: ObservableObject {
             guard !t.finished else { continue }
             switch t.phase {
             case .arriving:
-                if !t.committed {
-                    if t.dist >= throatDist(t.path) - Track.carUnit * 0.3 { t.committed = true }
-                    else {
-                        let tgt = pickPlatform(except: t)
-                        if tgt != t.target { t.target = tgt; t.path = buildPath(to: tgt); t.berthDist = berthOf(t.path, tgt) }
-                    }
-                }
                 var ceiling = t.berthDist
                 if !entranceOpen {
-                    let stop = t.path.distanceTo(vertex: 1) - gap
+                    let stop = t.path.distanceTo(vertex: 1) - gap   // held at the east home signal
                     if stop >= t.dist { ceiling = min(ceiling, stop) }
                 }
                 if idx > 0 {
                     let a = roster[idx - 1]
                     let aTail = a.dist - a.spec.carLength
-                    let aInThroat = aTail < a.path.distanceTo(vertex: 2)
+                    let aInThroat = aTail < a.entryLen              // still gathering down the east throat
                     if a.target == t.target || aInThroat { ceiling = min(ceiling, aTail - gap) }
                 }
                 let next = min(t.dist + step, ceiling)
                 t.stopped = next < t.dist + step - 0.01 && ceiling < t.berthDist ? t.stopped + dt : 0
                 t.dist = max(t.dist, next)
                 t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.berthDist - 1)
-                if !t.spawnedNext && t.dist >= throatDist(t.path) { t.spawnedNext = true; spawnCount += 1 }
+                if !t.spawnedNext && t.dist >= t.entryLen { t.spawnedNext = true; spawnCount += 1 }
                 if t.dist >= t.berthDist {
                     t.dist = t.berthDist; t.phase = .berthed; t.stopped = 0
                     waitClock[t.target] = 0; t.dwell = dwellTime
@@ -296,7 +292,7 @@ final class CreweStation: ObservableObject {
                     passengers[t.target] = max(0, passengers[t.target] - take)
                     if Int(before) != Int(passengers[t.target]) {
                         let k = Int(passengers[t.target])
-                        sparkles.append(Sparkle(x: plats[t.target].xR - 160 + CGFloat(k) * 15, y: plats[t.target].y + 24))
+                        sparkles.append(Sparkle(x: plats[t.target].xL + 120 + CGFloat(k) * 15, y: plats[t.target].y + 24))
                     }
                     t.load += take; carried += take
                 }
@@ -304,10 +300,8 @@ final class CreweStation: ObservableObject {
                 if t.dwell <= 0 { t.phase = .departing; Sound.shared.play(.depart) }
             case .departing:
                 var ceiling = t.path.total + t.spec.carLength
-                for o in roster where o !== t && !o.finished && o.dist > t.dist {
-                    if o.dist - o.spec.carLength < t.path.distanceTo(vertex: 4) + 5 || o.target == t.target {
-                        ceiling = min(ceiling, o.dist - o.spec.carLength - gap)
-                    }
+                for o in roster where o !== t && !o.finished && o.target == t.target && o.dist > t.dist {
+                    ceiling = min(ceiling, o.dist - o.spec.carLength - gap)
                 }
                 t.dist = max(t.dist, min(t.dist + step, ceiling))
                 t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
