@@ -9,6 +9,7 @@ struct BirminghamView: View {
     }
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
+    @State private var started = false
 
     private let worldW: CGFloat = 1500
     private let contentMinX: CGFloat = -840
@@ -57,6 +58,9 @@ struct BirminghamView: View {
                 Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
 
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
+                }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
                                    carried: Int(station.carried), goal: station.def.goal, stars: station.stars,
@@ -69,7 +73,7 @@ struct BirminghamView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in station.tick(0.03) }
+        .onReceive(tick) { _ in if started { station.tick(0.03) } }
         .statusBarHidden()
     }
 

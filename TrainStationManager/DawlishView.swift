@@ -9,18 +9,7 @@ struct DawlishView: View {
     }
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
-    @State private var tutStep = 0        // the tutorial runs every time you play the level
-    @State private var tutClock = 0.0
-    private let tutSteps = [
-        "The little white trains pull into the platforms. The long red and green expresses fly straight through — you can't stop those.",
-        "When a little train has loaded, tap its starter (the light at the end of its platform) to send it on its way.",
-        "Careful: letting one out blocks the main line. Watch for the ⚡ warning and never release one in front of an express.",
-        "Carry 26 people — and don't let a platform overflow."
-    ]
-    private func advanceTut(sound: Bool) {
-        if sound { Sound.shared.play(.ui) }
-        tutStep += 1; tutClock = 0
-    }
+    @State private var started = false
 
     private let designW: CGFloat = 1200
     // The viewport shows a window a little wider than the 1200-unit layout; the content runs well past
@@ -75,10 +64,8 @@ struct DawlishView: View {
                 Vignette(strength: 0.45)
                 controls(scale: scale, size: geo.size)
 
-                if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
-                    TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) {
-                        advanceTut(sound: true)
-                    }
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
                 }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
@@ -93,11 +80,7 @@ struct DawlishView: View {
         }
         .ignoresSafeArea()
         .onReceive(tick) { _ in
-            station.tick(0.03)
-            if tutStep >= 0 && tutStep < tutSteps.count {   // hints step through on their own
-                tutClock += 0.03
-                if tutClock > 6 { advanceTut(sound: false) }
-            }
+            if started { station.tick(0.03) }
         }
         .statusBarHidden()
     }

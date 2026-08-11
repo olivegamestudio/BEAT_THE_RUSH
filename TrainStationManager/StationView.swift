@@ -10,6 +10,7 @@ struct StationView: View {
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
     @State private var confirmExit = false
+    @State private var started = false
     @GestureState private var pinch: CGFloat = 1
     @GestureState private var drag: CGSize = .zero
 
@@ -57,6 +58,9 @@ struct StationView: View {
                 Vignette(strength: 0.5)
                 controls(scale: scale, zoom: z)
 
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
+                }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
                                    carried: Int(station.carried), goal: station.def.goal,
@@ -71,7 +75,7 @@ struct StationView: View {
                 }
             }
         }
-        .onReceive(tick) { _ in station.tick(0.03) }
+        .onReceive(tick) { _ in if started { station.tick(0.03) } }
         .statusBarHidden()
     }
 

@@ -282,6 +282,85 @@ struct IntroZoom: ViewModifier {
 }
 extension View { func introZoom() -> some View { modifier(IntroZoom()) } }
 
+// MARK: - Level briefing — the job for this station, shown before play begins
+
+/// The checklist shown on the briefing card — what the player has to do, ending with the target.
+func levelChecklist(_ def: StationDef) -> [String] {
+    switch def.kind {
+    case .saltash:
+        return ["Only one train fits the single-line bridge",
+                "Clear one direction at a time — they take turns",
+                "Carry \(def.goal) people to clear"]
+    case .dawlish:
+        return ["Little trains pull into the loops to load",
+                "Tap a starter to send one out — but it blocks the main",
+                "Long fast trains run straight through — keep their line clear",
+                "Carry \(def.goal) people to clear"]
+    case .worcester:
+        return ["One train at a time over the single line to Shrub Hill",
+                "Send a loaded Platform 2 out east, or admit London / Bristol in",
+                "Carry \(def.goal) people to clear"]
+    case .newark:
+        return ["Entry signal lets a train into its platform",
+                "Starter sends the loaded train over the crossing",
+                "Only one train fits the crossing — take turns",
+                "Carry \(def.goal) people to clear"]
+    case .birmingham:
+        return ["Route trains across to a free platform",
+                "Load them and send them on their way",
+                "Carry \(def.goal) people to clear"]
+    case .ladder:
+        return ["Send each train to a free platform to load",
+                "Clear the platforms before they fill up",
+                "Carry \(def.goal) people to clear"]
+    }
+}
+
+/// A start-of-level card: station name, the checklist, and a Start button. Play is held until Start.
+struct LevelBriefing: View {
+    let def: StationDef
+    let onStart: () -> Void
+    @State private var pop = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: 16) {
+                VStack(spacing: 2) {
+                    Text(def.name).font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(.white).multilineTextAlignment(.center)
+                    Text("\(def.county) \(def.flag)").font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(white: 0.7))
+                }
+                VStack(alignment: .leading, spacing: 11) {
+                    ForEach(Array(levelChecklist(def).enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "circle").font(.system(size: 8, weight: .black))
+                                .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5)).padding(.top, 6)
+                            Text(item).font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color(white: 0.92)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button(action: { Sound.shared.play(.ui); onStart() }) {
+                    Text("Start").font(.system(size: 20, weight: .black, design: .rounded)).foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Color(red: 0.34, green: 0.86, blue: 0.5), in: Capsule())
+                }
+                .buttonStyle(PressStyle())
+            }
+            .padding(22)
+            .frame(maxWidth: 430)
+            .background(Color(red: 0.13, green: 0.15, blue: 0.20).opacity(0.97), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.12)))
+            .scaleEffect(pop ? 1 : 0.92).opacity(pop ? 1 : 0)
+            .padding(28)
+        }
+        .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) { pop = true } }
+    }
+}
+
 struct RootView: View {
     @State private var screen: Screen = .menu
 

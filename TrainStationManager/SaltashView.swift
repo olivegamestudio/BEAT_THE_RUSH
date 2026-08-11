@@ -22,13 +22,7 @@ struct SaltashView: View {
     @State private var originX: CGFloat = 150     // design x shown at the screen's left edge
     @State private var dragStart: CGFloat? = nil
     @State private var confirmExit = false
-    @State private var tutStep = 0        // the tutorial runs every time you play the level
-    @State private var tutClock = 0.0
-    private let tutSteps = [
-        "Welcome to Saltash! One track crosses the river — trains take turns over the bridge.",
-        "Tap a glowing signal to give that direction the bridge. Green means go.",
-        "Keep both sides moving and carry 24 people to clear the station."
-    ]
+    @State private var started = false
 
     /// The design x at the left edge right now (updated live as you drag).
     private func origin(_ sc: CGFloat) -> CGFloat { originX }
@@ -41,10 +35,6 @@ struct SaltashView: View {
         return CGPoint(x: (p.x - origin(sc)) * sc, y: p.y * sc + vOff)
     }
 
-    private func advanceTut(sound: Bool) {
-        if sound { Sound.shared.play(.ui) }
-        tutStep += 1; tutClock = 0
-    }
 
     var body: some View {
         GeometryReader { geo in
@@ -82,10 +72,8 @@ struct SaltashView: View {
                 Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
 
-                if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
-                    TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) {
-                        advanceTut(sound: true)
-                    }
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
                 }
 
                 if station.outcome != .playing {
@@ -103,13 +91,7 @@ struct SaltashView: View {
             }
         }
         .ignoresSafeArea()      // measure the full screen so the tap targets match the drawn board
-        .onReceive(tick) { _ in
-            station.tick(0.03)
-            if tutStep >= 0 && tutStep < tutSteps.count {   // the hints step through on their own
-                tutClock += 0.03
-                if tutClock > 5.5 { advanceTut(sound: false) }
-            }
-        }
+        .onReceive(tick) { _ in if started { station.tick(0.03) } }
         .statusBarHidden()
     }
 

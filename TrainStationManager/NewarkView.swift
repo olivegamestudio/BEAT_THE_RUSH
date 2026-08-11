@@ -9,15 +9,7 @@ struct NewarkView: View {
     }
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
-    @State private var tutStep = 0
-    @State private var tutClock = 0.0
-    private let tutSteps = [
-        "Newark — the East Coast Main Line crosses the Castle line flat. Only one train fits the crossing at a time.",
-        "Each line has two lights: an entry signal to let a train into its platform, and a starter to send the loaded train over the crossing.",
-        "Send one over the diamond at a time — set both starters green and one has to wait. Keep both platforms flowing.",
-        "Carry 45 people to clear the crossing."
-    ]
-    private func advanceTut(sound: Bool) { if sound { Sound.shared.play(.ui) }; tutStep += 1; tutClock = 0 }
+    @State private var started = false
 
     private let worldW: CGFloat = 1400
     private let contentMinX: CGFloat = -360
@@ -71,8 +63,8 @@ struct NewarkView: View {
                 Vignette(strength: 0.4)
                 controls(scale: scale, size: geo.size)
 
-                if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
-                    TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) { advanceTut(sound: true) }
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
                 }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
@@ -86,10 +78,7 @@ struct NewarkView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in
-            station.tick(0.03)
-            if tutStep >= 0 && tutStep < tutSteps.count { tutClock += 0.03; if tutClock > 6 { advanceTut(sound: false) } }
-        }
+        .onReceive(tick) { _ in if started { station.tick(0.03) } }
         .statusBarHidden()
     }
 

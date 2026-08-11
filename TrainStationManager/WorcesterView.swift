@@ -9,18 +9,7 @@ struct WorcesterView: View {
     }
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
-    @State private var tutStep = 0
-    @State private var tutClock = 0.0
-    private let tutSteps = [
-        "Worcester Foregate Street — east of the platforms the line pinches to a single track out to Shrub Hill.",
-        "Only one train fits the single line. Tap a signal to grant it — send a loaded Platform 2 train out east, or let a Platform 1 train in from the east.",
-        "You choose the order over the single line. Keep both platforms moving and don't let either fill up.",
-        "Carry 40 people to clear the station."
-    ]
-    private func advanceTut(sound: Bool) {
-        if sound { Sound.shared.play(.ui) }
-        tutStep += 1; tutClock = 0
-    }
+    @State private var started = false
 
     private let worldW: CGFloat = 1520
     private let contentMinX: CGFloat = -340
@@ -74,8 +63,8 @@ struct WorcesterView: View {
                 Vignette(strength: 0.4)
                 controls(scale: scale, size: geo.size)
 
-                if tutStep >= 0 && tutStep < tutSteps.count && station.outcome == .playing {
-                    TutorialCard(text: tutSteps[tutStep], isLast: tutStep == tutSteps.count - 1) { advanceTut(sound: true) }
+                if !started && station.outcome == .playing {
+                    LevelBriefing(def: station.def, onStart: { started = true })
                 }
                 if station.outcome != .playing {
                     OutcomeOverlay(won: station.outcome == .won,
@@ -89,10 +78,7 @@ struct WorcesterView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in
-            station.tick(0.03)
-            if tutStep >= 0 && tutStep < tutSteps.count { tutClock += 0.03; if tutClock > 6 { advanceTut(sound: false) } }
-        }
+        .onReceive(tick) { _ in if started { station.tick(0.03) } }
         .statusBarHidden()
     }
 
