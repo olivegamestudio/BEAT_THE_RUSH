@@ -50,7 +50,7 @@ struct WorcesterView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
-                    drawPlatform(ctx, y: station.yP2 - 26, tint: orange, sc: sc, S: S)
+                    drawPlatform(ctx, y: station.yP2 - 40, tint: orange, sc: sc, S: S)
                     drawPlatform(ctx, y: station.yP1 + 26, tint: lime, sc: sc, S: S)
                     let ordered = station.trains.sorted { $0.path.sample($0.dist).p.y < $1.path.sample($1.dist).p.y }
                     for t in ordered { drawTrain(ctx, t, sc, S) }
