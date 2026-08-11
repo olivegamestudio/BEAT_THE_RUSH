@@ -288,31 +288,31 @@ extension View { func introZoom() -> some View { modifier(IntroZoom()) } }
 func levelChecklist(_ def: StationDef) -> [String] {
     switch def.kind {
     case .saltash:
-        return ["Only one train fits the single-line bridge",
-                "Clear one direction at a time — they take turns",
-                "Carry \(def.goal) people to clear"]
+        return ["Only one train fits on the bridge",
+                "Let one side go, then the other — take turns",
+                "Carry \(def.goal) people to win!"]
     case .dawlish:
-        return ["Little trains pull into the loops to load",
-                "Tap a starter to send one out — but it blocks the main",
-                "Long fast trains run straight through — keep their line clear",
-                "Carry \(def.goal) people to clear"]
+        return ["Little trains stop to pick people up",
+                "Tap its light to send it on its way",
+                "Fast trains can't stop — keep their track clear!",
+                "Carry \(def.goal) people to win!"]
     case .worcester:
-        return ["One train at a time over the single line to Shrub Hill",
-                "Send a loaded Platform 2 out east, or admit London / Bristol in",
-                "Carry \(def.goal) people to clear"]
+        return ["Only one train fits the single track",
+                "Send them over one at a time — take turns",
+                "Carry \(def.goal) people to win!"]
     case .newark:
-        return ["Entry signal lets a train into its platform",
-                "Starter sends the loaded train over the crossing",
-                "Only one train fits the crossing — take turns",
-                "Carry \(def.goal) people to clear"]
+        return ["Two train lines cross in the middle",
+                "Only one train can cross at a time",
+                "Tap the lights so they take turns",
+                "Carry \(def.goal) people to win!"]
     case .birmingham:
-        return ["Route trains across to a free platform",
-                "Load them and send them on their way",
-                "Carry \(def.goal) people to clear"]
+        return ["Send each train to an empty platform",
+                "Pick people up, then send it on",
+                "Carry \(def.goal) people to win!"]
     case .ladder:
-        return ["Send each train to a free platform to load",
-                "Clear the platforms before they fill up",
-                "Carry \(def.goal) people to clear"]
+        return ["Send each train to an empty platform",
+                "Pick people up before it gets too full!",
+                "Carry \(def.goal) people to win!"]
     }
 }
 
