@@ -91,23 +91,34 @@ func drawBlockSignal(_ ctx: GraphicsContext, at p: CGPoint, aspect: Int, scale: 
 }
 
 /// A gold sparkle burst at screen point `p`, expanding and fading over its life (`age`/`life`).
-func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: Double, scale: CGFloat) {
+func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: Double, scale: CGFloat,
+                      toward: CGPoint? = nil) {
     let prog = min(age / life, 1)
-    let alpha = 1 - prog
-    let gold = Color(red: 1.0, green: 0.9, blue: 0.5)
-    let flash = (5 - prog * 4) * scale
-    ctx.fill(Path(ellipseIn: CGRect(x: p.x - flash, y: p.y - flash, width: flash * 2, height: flash * 2)),
-             with: .color(.white.opacity(alpha * 0.8)))
-    for k in 0..<7 {
-        let a = Double(k) / 7 * 2 * .pi + age * 3
-        let r = (6 + prog * 26) * scale
-        let sp = CGPoint(x: p.x + CGFloat(cos(a)) * r, y: p.y + CGFloat(sin(a)) * r)
-        let sz = (2.6 - prog * 2) * scale
-        if sz > 0 {
-            ctx.fill(Path(ellipseIn: CGRect(x: sp.x - sz, y: sp.y - sz, width: sz * 2, height: sz * 2)),
-                     with: .color(gold.opacity(alpha)))
-        }
+    let gold = Color(red: 1.0, green: 0.88, blue: 0.46)
+    // A boarded passenger flies to the people counter (bottom-left), so the score visibly ticks up.
+    guard let target = toward else {
+        let alpha = 1 - prog
+        let flash = (5 - prog * 4) * scale
+        ctx.fill(Path(ellipseIn: CGRect(x: p.x - flash, y: p.y - flash, width: flash * 2, height: flash * 2)),
+                 with: .color(.white.opacity(alpha * 0.8)))
+        return
     }
+    let ease = 1 - pow(1 - prog, 2.2)                      // ease-out — quick off the train, settling into the count
+    let pos = CGPoint(x: p.x + (target.x - p.x) * ease, y: p.y + (target.y - p.y) * ease)
+    let alpha = prog < 0.85 ? 1.0 : (1 - (prog - 0.85) / 0.15)   // fade only as it lands
+    ctx.drawLayer { g in
+        g.addFilter(.blur(radius: 3 * scale))
+        g.fill(Path(ellipseIn: CGRect(x: pos.x - 5 * scale, y: pos.y - 5 * scale, width: 10 * scale, height: 10 * scale)),
+               with: .color(gold.opacity(alpha * 0.6)))
+    }
+    let r = 5.5 * scale                                    // a little twinkle: four rays + a bright core
+    for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+        var ray = Path(); ray.move(to: pos)
+        ray.addLine(to: CGPoint(x: pos.x + CGFloat(dx) * r, y: pos.y + CGFloat(dy) * r))
+        ctx.stroke(ray, with: .color(gold.opacity(alpha)), style: .init(lineWidth: 1.7 * scale, lineCap: .round))
+    }
+    ctx.fill(Path(ellipseIn: CGRect(x: pos.x - 2 * scale, y: pos.y - 2 * scale, width: 4 * scale, height: 4 * scale)),
+             with: .color(.white.opacity(alpha)))
 }
 
 /// A little speech bubble with `emoji`, its tail pointing down at the crowd at screen point `p`.

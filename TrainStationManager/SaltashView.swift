@@ -55,7 +55,7 @@ struct SaltashView: View {
                     for t in station.trains { drawTrain(ctx, t, sc, S) }
                     drawPlatformPax(ctx, sc, S)                     // waiting people stand in front
                     for sp in station.sparkles {
-                        drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc)
+                        drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc, toward: CGPoint(x: size.width * 0.07, y: size.height * 0.90))
                     }
                     drawSignals(ctx, sc, S)
                 }
