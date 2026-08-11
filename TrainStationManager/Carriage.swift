@@ -103,7 +103,7 @@ func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: 
                  with: .color(.white.opacity(alpha * 0.8)))
         return
     }
-    let ease = 1 - pow(1 - prog, 2.2)                      // ease-out — quick off the train, settling into the count
+    let ease = 1 - pow(1 - prog, 3.2)                      // ease-out — zips off the train, settling into the count
     let pos = CGPoint(x: p.x + (target.x - p.x) * ease, y: p.y + (target.y - p.y) * ease)
     let alpha = prog < 0.85 ? 1.0 : (1 - (prog - 0.85) / 0.15)   // fade only as it lands
     ctx.drawLayer { g in

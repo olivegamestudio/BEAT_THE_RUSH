@@ -68,7 +68,7 @@ struct Train: Identifiable {
 
 /// A short-lived sparkle burst, spawned where a train collects its passengers.
 struct Sparkle { var x: CGFloat; var y: CGFloat; var age: Double = 0 }
-let sparkleLife = 1.0     // long enough for a boarded passenger to fly to the people counter
+let sparkleLife = 0.55    // a quick zip down to the people counter
 
 final class ActiveTrain: Identifiable {
     let id = UUID()
