@@ -299,6 +299,7 @@ struct RootView: View {
                     case .dawlish: DawlishView(def: def, onExit: { screen = .select })
                     case .worcester: WorcesterView(def: def, onExit: { screen = .select })
                     case .birmingham: BirminghamView(def: def, onExit: { screen = .select })
+                    case .newark: NewarkView(def: def, onExit: { screen = .select })
                     case .ladder:  StationView(def: def, onExit: { screen = .select })
                     }
                 }

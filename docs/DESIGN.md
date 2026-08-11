@@ -20,7 +20,9 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
 ```
 
 - **Bespoke stations:** Saltash (1), Dawlish Warren (2), Worcester Foregate Street (3),
-  Birmingham New Street (19). Each has its own Station/View pair.
+  Newark (4), Birmingham New Street (19). Each has its own Station/View pair.
+- **Planned bespoke:** Reedham (5, swing bridge on a timer), an inland reversing terminus (6, bay
+  platforms — not seaside).
 - **Generic “ladder” stations:** all the rest — one shared `StationView`/`Station` with platforms
   fed by a points ladder; difficulty scales via `StationDef` (spawn rate, speed, goal, express %).
 
@@ -83,6 +85,20 @@ The Malverns sit on the west skyline; a moon above.
   `platR=716`, `branchStep=96`, `branchFan=130`, `spawnR=1740`. Start camera `originX=40` (shifted
   right to reveal the eastern entry). P2 deck drawn at `yP2-40` so its 3-D edge clears the rail.
 - Goal 40.
+
+### Newark (4) — `newark`
+**Flat crossing.** The East Coast Main Line (blue, horizontal) crosses the Nottingham–Lincoln
+**Castle line** (orange — a horizontal platform lead that dives across the main line) on the level, at a
+**diamond**. Only one train fits the crossover at a time; the player **grants the diamond to one line at
+a time** (tap its signal) and the two take turns. Each line has a platform its trains load at *before*
+they reach the diamond. Newark Castle ruin sits on the skyline.
+- Shared-resource pattern like Worcester's single line: `occupant` weak var, `grant: Line?`,
+  `mayTakeDiamond` needs `occupant == nil && grant == line`; a train holds short of `crossDist` until
+  granted, takes the diamond, frees it when its tail is over.
+- Key: `yEcml=252`, `yCastle=132` (Castle platform lead), diamond `xD=980`, `platL=430`/`platR=720`.
+  Two grant signals sit by the diamond, one per line. Goal 45.
+- **Polish TODO:** the two signal circles overlap (separate them); ECML can queue heavily (spawn
+  balance); castle silhouette is blocky.
 
 ### Birmingham New Street (19) — `birmingham`  *(scaffold — auto-routing)*
 12 platforms as **six two-track islands** fanning above/below **two central lanes**. A train shuffles
