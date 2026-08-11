@@ -149,7 +149,7 @@ struct BirminghamView: View {
             guard d >= 0, d <= t.path.total else { continue }
             let smp = t.path.sample(d)
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 8, ch: Track.carHeight - 6, scale: sc, fill: min(1, t.load / (Double(t.spec.length) * 3)))
+                         cw: Track.carUnit - 8, ch: Track.carHeight - 6, scale: sc, seatsFilled: Int(t.load.rounded()) - c * 3)
         }
     }
 

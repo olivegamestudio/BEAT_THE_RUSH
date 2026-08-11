@@ -44,9 +44,9 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
   lift a signal “off the track”, move its anchor up ~24, and move its tappable `SignalHalo` circle to
   match the lamp.
 - **Boarding:** train dwells at `berthDist`, tops up `carried` from the platform’s waiting count while
-  standing; sparkles on each boarded person. `drawCarriage(..., fill:)` fills that car’s three windows
-  with passenger silhouettes as it loads — pass `min(1, load / (length * 3))` (generic train uses
-  `loaded`).
+  standing; sparkles on each boarded person. `drawCarriage(..., seatsFilled:)` fills that car’s three
+  windows with passenger silhouettes — pass `Int(load) - c * 3` (car index `c`), so the train fills
+  seat-by-seat front-to-back rather than one-per-car (generic train uses `loaded`).
 - **Outcome:** win at `carried >= goal` (stars from peak platform fill); lose if a platform stays over
   `platformCap` past `overflowGrace`.
 - **Level briefing + tasks:** every station view holds a `started` flag; while `!started` it shows

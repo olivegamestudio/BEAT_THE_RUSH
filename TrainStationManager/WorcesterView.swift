@@ -170,7 +170,7 @@ struct WorcesterView: View {
             guard d >= 0, d <= t.path.total else { continue }
             let smp = t.path.sample(d)
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, fill: min(1, t.load / (Double(t.spec.length) * 3)))
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, seatsFilled: Int(t.load.rounded()) - c * 3)
         }
         if t.stopped > 3.5, t.dist >= 0, t.dist <= t.path.total {
             let prog = CGFloat((t.stopped - 3.5).truncatingRemainder(dividingBy: 2.4) / 2.4)

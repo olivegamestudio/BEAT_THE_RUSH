@@ -194,7 +194,7 @@ struct DawlishView: View {
             // An express is a power car at each end — rounded, no windows — with coaches between.
             let endCap = t.express && (c == 0 || c == t.spec.length - 1)
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, endCap: endCap, fill: min(1, t.load / (Double(t.spec.length) * 3)))
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, endCap: endCap, seatsFilled: Int(t.load.rounded()) - c * 3)
         }
         // A train sat at a red for a while shows a waiting bubble that floats up and fades, over and over.
         if t.stopped > 3.5, t.dist >= 0, t.dist <= t.path.total {
