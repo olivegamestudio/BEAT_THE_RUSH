@@ -315,6 +315,7 @@ func levelTasks(_ def: StationDef) -> [LevelTask] {
     case .dawlish:    first = "Send a little train on its way"
     case .worcester:  first = "Send a train down the single line"
     case .newark:     first = "Get a train over the crossing"
+    case .crewe:      first = "Send a train through Crewe"
     case .birmingham: first = "Send a train to a platform"
     case .ladder:     first = "Send a train to a platform"
     }
@@ -400,6 +401,7 @@ struct RootView: View {
                     case .worcester: WorcesterView(def: def, onExit: { screen = .select })
                     case .birmingham: BirminghamView(def: def, onExit: { screen = .select })
                     case .newark: NewarkView(def: def, onExit: { screen = .select })
+                    case .crewe: CreweView(def: def, onExit: { screen = .select })
                     case .ladder:  StationView(def: def, onExit: { screen = .select })
                     }
                 }

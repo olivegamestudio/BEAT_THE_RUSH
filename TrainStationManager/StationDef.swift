@@ -43,7 +43,7 @@ struct Layout {
 
 // MARK: - Station definition — one row of numbers per station
 
-enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark }   // ladder = generic; others bespoke
+enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark, crewe }   // ladder = generic; others bespoke
 
 struct StationDef: Identifiable {
     let id: Int
@@ -91,8 +91,8 @@ let allStations: [StationDef] = [
     def(2,  "Dawlish Warren",        "Devon",            platforms: 2, spawn: 5.6...8.6, speed: 66, trains: [2, 3],       goal: 26, express: 0.24, kind: .dawlish),
     def(3,  "Worcester Foregate Street", "Worcestershire", platforms: 2, spawn: 4.4...6.8, speed: 70, trains: [2, 3, 4], goal: 40, kind: .worcester),
     def(4,  "Newark",                "Nottinghamshire",  platforms: 2, spawn: 3.0...5.0, speed: 74, trains: [2, 3, 4],    goal: 45, kind: .newark),
-    // Tier 2 · 3 platforms
-    def(5,  "Scarborough",           "North Yorkshire",  platforms: 3, spawn: 1.9...3.6, speed: 74, trains: [2, 3, 4],    goal: 70),
+    // Tier 2 · a busy junction with a breakdown to manage
+    def(5,  "Crewe",                 "Cheshire",         platforms: 2, spawn: 2.0...3.4, speed: 78, trains: [3, 4],       goal: 55, kind: .crewe),
     def(6,  "Hereford",              "Herefordshire",    platforms: 3, spawn: 1.8...3.4, speed: 76, trains: [3, 4],       goal: 78),
     def(7,  "Lincoln",               "Lincolnshire",     platforms: 3, spawn: 1.7...3.2, speed: 78, trains: [3, 4, 5],    goal: 85),
     def(8,  "Carlisle",              "Cumbria",          platforms: 3, spawn: 1.6...3.0, speed: 80, trains: [3, 4, 5],    goal: 92),
