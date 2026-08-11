@@ -307,7 +307,7 @@ struct LevelTask { let label: String; let need: Int }
 /// on the finish card.
 func levelTasks(_ def: StationDef) -> [LevelTask] {
     let g = def.goal
-    let half = max(2, (g + 1) / 2)
+    let half = max(5, Int((Double(g) / 2 / 5).rounded()) * 5)   // halfway, rounded to a tidy multiple of 5
     let first: String
     switch def.kind {
     case .saltash:    first = "Send a train over the bridge"
