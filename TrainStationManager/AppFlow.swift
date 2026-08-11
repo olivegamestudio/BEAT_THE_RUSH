@@ -179,6 +179,7 @@ struct OutcomeOverlay: View {
     let onRetry: () -> Void
     let onExit: () -> Void
     @State private var pop = false
+    @State private var ready = false      // Continue unlocks once the stars have finished flying in
 
     var body: some View {
         ZStack {
@@ -191,7 +192,7 @@ struct OutcomeOverlay: View {
             }
             VStack(spacing: 14) {
                 if won {
-                    HStack(spacing: 10) { star(48, stars >= 1); star(68, stars >= 2); star(48, stars >= 3) }
+                    HStack(spacing: 10) { star(48, stars >= 1, 0); star(68, stars >= 2, 1); star(48, stars >= 3, 2) }
                         .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.5), radius: 10)
                 }
                 Text(won ? "Station cleared!" : "Too busy!")
@@ -207,6 +208,8 @@ struct OutcomeOverlay: View {
                     }
                     Button(action: onExit) { label(won ? "Continue" : "Stations", filled: won) }
                         .buttonStyle(PressStyle())
+                        .disabled(won && !ready)
+                        .opacity(won && !ready ? 0.4 : 1)
                 }
                 .padding(.top, 6)
             }
@@ -214,15 +217,20 @@ struct OutcomeOverlay: View {
             .background(Color(red: 0.13, green: 0.16, blue: 0.22), in: RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.1)))
         }
-        .onAppear { pop = true }
+        .onAppear {
+            pop = true
+            if won { DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { ready = true } }
+            else { ready = true }
+        }
     }
 
-    /// A rating star that springs up when the card appears — gold if earned, dim if not.
-    private func star(_ size: CGFloat, _ earned: Bool) -> some View {
+    /// A rating star that springs up when the card appears — gold if earned, dim if not. The three stars fly
+    /// in one after another so the result reads as a little reveal.
+    private func star(_ size: CGFloat, _ earned: Bool, _ i: Int) -> some View {
         Image(systemName: earned ? "star.fill" : "star").font(.system(size: size))
             .foregroundStyle(earned ? Color(red: 1.0, green: 0.82, blue: 0.28) : Color(white: 0.38))
             .scaleEffect(pop ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.05), value: pop)
+            .animation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.3 + Double(i) * 0.55), value: pop)
     }
 
     /// A one-shot burst of little stars flying out from the centre.
@@ -263,6 +271,17 @@ enum Screen {
     case play(StationDef)
 }
 
+/// A soft, one-off camera settle when a level opens — a small zoom that eases back to rest.
+struct IntroZoom: ViewModifier {
+    @State private var z: CGFloat = 1.07
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(z)
+            .onAppear { withAnimation(.easeOut(duration: 0.9)) { z = 1.0 } }
+    }
+}
+extension View { func introZoom() -> some View { modifier(IntroZoom()) } }
+
 struct RootView: View {
     @State private var screen: Screen = .menu
 
@@ -274,11 +293,17 @@ struct RootView: View {
             case .select:
                 StationSelectView(onPick: { screen = .play($0) }, onBack: { screen = .menu })
             case .play(let def):
-                switch def.kind {
-                case .saltash: SaltashView(def: def, onExit: { screen = .select }).id(def.id)
-                case .dawlish: DawlishView(def: def, onExit: { screen = .select }).id(def.id)
-                case .ladder:  StationView(def: def, onExit: { screen = .select }).id(def.id)
+                Group {
+                    switch def.kind {
+                    case .saltash: SaltashView(def: def, onExit: { screen = .select })
+                    case .dawlish: DawlishView(def: def, onExit: { screen = .select })
+                    case .worcester: WorcesterView(def: def, onExit: { screen = .select })
+                    case .birmingham: BirminghamView(def: def, onExit: { screen = .select })
+                    case .ladder:  StationView(def: def, onExit: { screen = .select })
+                    }
                 }
+                .id(def.id)
+                .introZoom()
             }
         }
         .statusBarHidden()

@@ -55,6 +55,41 @@ func drawSignal(_ ctx: GraphicsContext, at p: CGPoint, red: Bool, scale: CGFloat
              with: .color(.white.opacity(0.75)))
 }
 
+/// A three-aspect block signal: 0 = green, 1 = amber (caution), 2 = red. Three lamps stacked in the head.
+func drawBlockSignal(_ ctx: GraphicsContext, at p: CGPoint, aspect: Int, scale: CGFloat) {
+    let postH = 13 * scale
+    var post = Path()
+    post.move(to: p); post.addLine(to: CGPoint(x: p.x, y: p.y - postH))
+    ctx.stroke(post, with: .color(Color(white: 0.34)), style: .init(lineWidth: 2.4 * scale, lineCap: .round))
+    ctx.fill(Path(ellipseIn: CGRect(x: p.x - 2.4 * scale, y: p.y - 2 * scale,
+                                    width: 4.8 * scale, height: 4 * scale)), with: .color(Color(white: 0.3)))
+    let hw = 9 * scale, hh = 23 * scale
+    let head = CGRect(x: p.x - hw / 2, y: p.y - postH - hh, width: hw, height: hh)
+    ctx.fill(Path(roundedRect: head, cornerRadius: 3.5 * scale), with: .color(Color(white: 0.13)))
+    ctx.stroke(Path(roundedRect: head, cornerRadius: 3.5 * scale),
+               with: .color(.black.opacity(0.5)), style: .init(lineWidth: 1 * scale))
+    let r = 2.7 * scale
+    let centers = [CGPoint(x: head.midX, y: head.minY + hh * 0.22),   // 0: red (top)
+                   CGPoint(x: head.midX, y: head.minY + hh * 0.50),   // 1: amber (middle)
+                   CGPoint(x: head.midX, y: head.minY + hh * 0.78)]   // 2: green (bottom)
+    let on: [Color] = [Color(red: 1.0, green: 0.24, blue: 0.24), Color(red: 1.0, green: 0.74, blue: 0.14),
+                       Color(red: 0.30, green: 0.95, blue: 0.44)]
+    let off: [Color] = [Color(red: 0.26, green: 0.06, blue: 0.06), Color(red: 0.28, green: 0.20, blue: 0.03),
+                        Color(red: 0.06, green: 0.22, blue: 0.10)]
+    let litLamp = aspect == 2 ? 0 : (aspect == 1 ? 1 : 2)   // red→top, amber→middle, green→bottom
+    ctx.drawLayer { g in
+        g.addFilter(.blur(radius: r * 1.6))
+        g.fill(Path(ellipseIn: CGRect(x: centers[litLamp].x - r * 2.6, y: centers[litLamp].y - r * 2.6,
+                                      width: r * 5.2, height: r * 5.2)), with: .color(on[litLamp].opacity(0.85)))
+    }
+    for i in 0..<3 {
+        ctx.fill(Path(ellipseIn: CGRect(x: centers[i].x - r, y: centers[i].y - r, width: r * 2, height: r * 2)),
+                 with: .color(i == litLamp ? on[i] : off[i]))
+    }
+    ctx.fill(Path(ellipseIn: CGRect(x: centers[litLamp].x - r * 0.45, y: centers[litLamp].y - r * 0.45,
+                                    width: r * 0.9, height: r * 0.9)), with: .color(.white.opacity(0.75)))
+}
+
 /// A gold sparkle burst at screen point `p`, expanding and fading over its life (`age`/`life`).
 func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: Double, scale: CGFloat) {
     let prog = min(age / life, 1)
@@ -96,7 +131,7 @@ func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGF
 /// Shared by the station board and the animated menu. `cw`/`ch` are design-space
 /// dimensions; `scale` maps design units to screen.
 func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
-                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat) {
+                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false) {
     let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
     // Align to the track line but keep the carriage upright — never let it flip over when
     // it's travelling to the left (a carriage looks the same either way along its length).
@@ -107,7 +142,8 @@ func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         l.translateBy(x: p.x, y: p.y)
         l.rotate(by: .radians(a))
         let r = CGRect(x: -cw / 2 * scale, y: -ch / 2 * scale, width: cw * scale, height: ch * scale)
-        let corner = ch * 0.22 * scale
+        // A power car at the nose/tail of an express is a smooth, rounded capsule with no passenger windows.
+        let corner = (endCap ? ch * 0.5 : ch * 0.22) * scale
         let shape = Path(roundedRect: r, cornerRadius: corner)
         // A side face carries the windows and doors — the roof is the lit top.
         let depth = ch * 0.44 * scale
@@ -115,20 +151,28 @@ func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         l.fill(sideShape, with: .color(tint))
         l.fill(sideShape, with: .color(.black.opacity(0.30)))
         let bandTop = r.maxY
-        let winW = cw * 0.15 * scale, winH = depth * 0.48
-        let winY = bandTop + depth * 0.44
-        for k in [-1.0, 0.0, 1.0] {
-            let wx = CGFloat(k) * cw * 0.24 * scale
-            l.fill(Path(roundedRect: CGRect(x: wx - winW / 2, y: winY - winH / 2,
+        if endCap {
+            // just a single cab windscreen, no passenger windows or doors
+            let winW = cw * 0.16 * scale, winH = depth * 0.5
+            l.fill(Path(roundedRect: CGRect(x: -winW / 2, y: bandTop + depth * 0.44 - winH / 2,
                                             width: winW, height: winH), cornerRadius: 2 * scale),
-                   with: .color(glass))
-        }
-        let doorW = cw * 0.08 * scale, doorH = depth * 0.82
-        for dx in [-cw * 0.40, cw * 0.40] {
-            l.fill(Path(roundedRect: CGRect(x: dx * scale - doorW / 2,
-                                            y: bandTop + depth * 0.5 - doorH / 2,
-                                            width: doorW, height: doorH), cornerRadius: 1.5 * scale),
-                   with: .color(.black.opacity(0.38)))
+                   with: .color(glass.opacity(0.7)))
+        } else {
+            let winW = cw * 0.15 * scale, winH = depth * 0.48
+            let winY = bandTop + depth * 0.44
+            for k in [-1.0, 0.0, 1.0] {
+                let wx = CGFloat(k) * cw * 0.24 * scale
+                l.fill(Path(roundedRect: CGRect(x: wx - winW / 2, y: winY - winH / 2,
+                                                width: winW, height: winH), cornerRadius: 2 * scale),
+                       with: .color(glass))
+            }
+            let doorW = cw * 0.08 * scale, doorH = depth * 0.82
+            for dx in [-cw * 0.40, cw * 0.40] {
+                l.fill(Path(roundedRect: CGRect(x: dx * scale - doorW / 2,
+                                                y: bandTop + depth * 0.5 - doorH / 2,
+                                                width: doorW, height: doorH), cornerRadius: 1.5 * scale),
+                       with: .color(.black.opacity(0.38)))
+            }
         }
         // roof (top face), lit from the top-left
         l.fill(shape, with: .color(tint))

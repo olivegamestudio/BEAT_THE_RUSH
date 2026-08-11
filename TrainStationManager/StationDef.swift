@@ -43,7 +43,7 @@ struct Layout {
 
 // MARK: - Station definition — one row of numbers per station
 
-enum StationKind { case ladder, saltash, dawlish }   // ladder = generic throat; others are bespoke
+enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }   // ladder = generic; others bespoke
 
 struct StationDef: Identifiable {
     let id: Int
@@ -66,8 +66,9 @@ struct StationDef: Identifiable {
     }
 }
 
-/// The colour palette arriving trains are painted from.
-let trainPalette: [Color] = [.indigo, .green, .orange, .blue, .pink, .red, .teal, .purple, .mint]
+/// The colour palette arriving trains are painted from. Red is held back for Dawlish's long expresses,
+/// so a short local is never mistaken for a fast train.
+let trainPalette: [Color] = [.indigo, .green, .orange, .blue, .pink, .teal, .purple, .mint]
 
 let flagEngland = "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}"
 let flagScotland = "🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
@@ -86,9 +87,9 @@ private func def(_ id: Int, _ name: String, _ county: String, platforms n: Int,
 /// The 20-station ladder, simplest → hardest.
 let allStations: [StationDef] = [
     // Tier 1 · 2 platforms · gentle
-    def(1,  "Saltash",               "Cornwall",         platforms: 2, spawn: 2.8...4.8, speed: 64, trains: [2, 3],       goal: 24, kind: .saltash),
-    def(2,  "Dawlish Warren",        "Devon",            platforms: 2, spawn: 2.6...4.6, speed: 66, trains: [2, 3],       goal: 30, kind: .dawlish),
-    def(3,  "Windermere",            "Cumbria",          platforms: 2, spawn: 2.2...4.0, speed: 68, trains: [2, 3, 4],    goal: 50),
+    def(1,  "Saltash",               "Cornwall",         platforms: 2, spawn: 2.8...4.8, speed: 64, trains: [2, 3],       goal: 24, express: 0.28, kind: .saltash),
+    def(2,  "Dawlish Warren",        "Devon",            platforms: 2, spawn: 5.6...8.6, speed: 66, trains: [2, 3],       goal: 26, express: 0.24, kind: .dawlish),
+    def(3,  "Worcester Foregate Street", "Worcestershire", platforms: 2, spawn: 4.4...6.8, speed: 70, trains: [2, 3, 4], goal: 40, kind: .worcester),
     def(4,  "Whitby",                "North Yorkshire",  platforms: 2, spawn: 2.0...3.8, speed: 70, trains: [2, 3, 4],    goal: 55),
     // Tier 2 · 3 platforms
     def(5,  "Scarborough",           "North Yorkshire",  platforms: 3, spawn: 1.9...3.6, speed: 74, trains: [2, 3, 4],    goal: 70),
@@ -108,6 +109,6 @@ let allStations: [StationDef] = [
     // Tier 5 · biggest termini · brutal
     def(17, "Edinburgh Waverley",   "Edinburgh",        platforms: 6, spawn: 0.8...1.7, speed: 108, trains: [4, 5, 6],   goal: 220, express: 0.32, flag: flagScotland),
     def(18, "Leeds",                "West Yorkshire",   platforms: 7, spawn: 0.75...1.6, speed: 112, trains: [4, 5, 6, 7], goal: 240, express: 0.34),
-    def(19, "Birmingham New Street","West Midlands",    platforms: 7, spawn: 0.7...1.5, speed: 116, trains: [5, 6, 7],   goal: 265, express: 0.36),
+    def(19, "Birmingham New Street","West Midlands",    platforms: 12, spawn: 1.4...2.8, speed: 116, trains: [4, 5, 6],  goal: 220, kind: .birmingham),
     def(20, "London Paddington",    "Greater London",   platforms: 8, spawn: 0.65...1.4, speed: 120, trains: [5, 6, 7],  goal: 300, express: 0.40),
 ]

@@ -15,11 +15,12 @@ final class SaltTrain: Identifiable {
     var dist: CGFloat = 0
     var boarded = false
     var dwell = 0.0
-    var toBoard = 0.0
+    var load = 0.0               // people already aboard — keeps topping up until the train pulls away
     var started = false
     var hasBridge = false
     var finished = false
     var blocked = false
+    var stopped = 0.0            // seconds sat still at a red — drives the "waiting" bubble
     var carLen: CGFloat { spec.carLength }
 
     init(_ spec: Train, _ dir: SaltashStation.Dir, _ path: RoutePath,
@@ -225,9 +226,46 @@ final class SaltashStation: ObservableObject {
     var topBusy: Bool { platformBusy(.east) }   // eastbound platform (top) occupied
     var botBusy: Bool { platformBusy(.west) }   // westbound platform (bottom) occupied
 
+    // Automatic three-aspect block signals on the two approaches to the bridge: green/amber/red as the queue
+    // builds. A train eases to caution speed at an amber; the queue itself (trains stopping behind each other)
+    // is what turns them red.
+    let blockXsEast: [CGFloat] = [40, 200, 460]      // top line (eastbound), the western approach
+    let blockXsWest: [CGFloat] = [1340, 1160, 1060]  // bottom line (westbound), the eastern approach
+    private let blockLen: CGFloat = 200
+    private func trainXExtent(_ o: SaltTrain) -> (CGFloat, CGFloat) {
+        let fx = o.path.sample(o.dist).p.x
+        let rx = o.path.sample(max(0, o.dist - CGFloat(o.spec.length) * Track.carUnit)).p.x
+        return (min(fx, rx), max(fx, rx))
+    }
+    /// Is the block just ahead of the signal at `x` occupied by a train of that direction?
+    func blockOccupied(_ x: CGFloat, _ dir: Dir) -> Bool {
+        let east = dir == .east
+        let lo = east ? x : x - blockLen
+        let hi = east ? x + blockLen : x
+        return trains.contains { o in
+            guard !o.finished, o.dir == dir else { return false }
+            let (a, b) = trainXExtent(o)
+            return a <= hi && b >= lo
+        }
+    }
+    private func nextBlockX(after x: CGFloat, _ dir: Dir) -> CGFloat? {
+        let xs = dir == .east ? blockXsEast : blockXsWest
+        return dir == .east ? xs.filter { $0 > x + 1 }.min() : xs.filter { $0 < x - 1 }.max()
+    }
+    /// A signal's aspect: 2 = red (block ahead occupied), 1 = amber (next signal red), 0 = green.
+    func blockAspect(_ x: CGFloat, _ dir: Dir) -> Int {
+        if blockOccupied(x, dir) { return 2 }
+        if let nx = nextBlockX(after: x, dir), blockOccupied(nx, dir) { return 1 }
+        return 0
+    }
+
     private func spawn(_ dir: Dir) {
-        let spec = Train(length: def.trainLengths.randomElement() ?? 3,
-                         tint: trainPalette.randomElement() ?? .blue, name: "")
+        // Small locals are green; the occasional longer express is a red or a green operator.
+        let express = Double.random(in: 0...1) < def.expressChance
+        let len = express ? Int.random(in: 5...6) : (def.trainLengths.randomElement() ?? 3)
+        let green = Color(red: 0.16, green: 0.62, blue: 0.32), red = Color(red: 0.85, green: 0.18, blue: 0.22)
+        let tint = express ? (Bool.random() ? red : green) : green
+        let spec = Train(length: len, tint: tint, name: "")
         if dir == .east {
             trains.append(SaltTrain(spec, .east, eastPath, berth: eBerth, enter: eEnter, exit: eExit))
         } else {
@@ -246,7 +284,6 @@ final class SaltashStation: ObservableObject {
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let step = speed * CGFloat(dt)
         let gap = Track.carUnit * 1.15     // keep clear air between queued trains
 
         animT += dt
@@ -290,23 +327,34 @@ final class SaltashStation: ObservableObject {
             }
             if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
 
+            // Ease to caution speed while running up to an amber block signal ahead.
+            var spd = speed
+            let fx = t.path.sample(t.dist).p.x
+            let xs = t.dir == .east ? blockXsEast : blockXsWest
+            for sx in xs where (t.dir == .east ? sx > fx : sx < fx) && blockAspect(sx, t.dir) == 1 {
+                spd = min(spd, speed * 0.5)
+            }
+            let step = spd * CGFloat(dt)
             let next = min(t.dist + step, ceiling)
             t.blocked = next < t.dist + step - 0.01 && next < t.path.total - 1
+            t.stopped = t.blocked ? t.stopped + dt : 0
             t.dist = max(t.dist, next)
 
-            // board at the platform
-            if !t.boarded && t.dist >= t.berthDist - 0.5 {
+            // Board while standing at the platform. It keeps topping up from newly-arrived passengers (up to
+            // its capacity) until it pulls away — once it's moved off the berth, no more can board.
+            if t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
                 if !t.started {
                     t.started = true
                     t.dwell = dwellTime
-                    t.toBoard = min(t.dir == .east ? pTop : pBot, Double(t.spec.length) * perCar)
                     if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
                     Sound.shared.play(.board)
                 }
                 t.dwell -= dt
-                if t.toBoard > 0 {
-                    let take = min(boardOffRate * dt, t.toBoard)
-                    let before = t.dir == .east ? pTop : pBot
+                let cap = Double(t.spec.length) * perCar
+                let plat = t.dir == .east ? pTop : pBot
+                if t.load < cap && plat > 0 {
+                    let take = min(boardOffRate * dt, min(cap - t.load, plat))
+                    let before = plat
                     if t.dir == .east { pTop = max(0, pTop - take) } else { pBot = max(0, pBot - take) }
                     let after = t.dir == .east ? pTop : pBot
                     if Int(before) != Int(after) {        // a whole person boarded — sparkle where they stood
@@ -314,7 +362,7 @@ final class SaltashStation: ObservableObject {
                         sparkles.append(Sparkle(x: platL + 16 + CGFloat(k) * 15,
                                                 y: t.dir == .east ? yTop - 28 : yBot + 38))
                     }
-                    t.toBoard -= take; carried += take
+                    t.load += take; carried += take
                 }
                 if t.dwell <= 0 { t.boarded = true }
             }

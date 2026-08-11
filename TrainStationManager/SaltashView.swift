@@ -298,6 +298,13 @@ struct SaltashView: View {
         // from the west, westbound enters the bottom platform from the east.)
         drawSignal(ctx, at: S(CGPoint(x: s.platL - 10, y: s.yTop)), red: s.topBusy, scale: sc * 1.7)
         drawSignal(ctx, at: S(CGPoint(x: s.platR + 10, y: s.yBot)), red: s.botBusy, scale: sc * 1.7)
+        // Automatic three-aspect block signals along each approach — green/amber/red as the queue builds.
+        for bx in s.blockXsEast {
+            drawBlockSignal(ctx, at: S(CGPoint(x: bx, y: s.yTop - 26)), aspect: s.blockAspect(bx, .east), scale: sc * 1.7)
+        }
+        for bx in s.blockXsWest {
+            drawBlockSignal(ctx, at: S(CGPoint(x: bx, y: s.yBot + 26)), aspect: s.blockAspect(bx, .west), scale: sc * 1.7)
+        }
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: SaltTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -307,6 +314,13 @@ struct SaltashView: View {
             let s = t.path.sample(d)
             drawCarriage(ctx, at: S(s.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
                          cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc)
+        }
+        // A train sat at a red for a while shows a waiting bubble that floats up and fades, over and over.
+        if t.stopped > 3.5, t.dist >= 0, t.dist <= t.path.total {
+            let prog = CGFloat((t.stopped - 3.5).truncatingRemainder(dividingBy: 2.4) / 2.4)
+            var g = ctx; g.opacity = Double(1 - prog)
+            let head = t.path.sample(t.dist).p
+            drawMood(g, "😴", at: S(CGPoint(x: head.x, y: head.y - 28 - prog * 26)), scale: sc)
         }
     }
 
