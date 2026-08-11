@@ -70,7 +70,7 @@ final class DawlishStation: ObservableObject {
     private var boatClock = 0.0, nextBoat = 5.0
     var gullActive = false, gullProgress = 0.0, gullDir = 1.0, gullY = 70.0
     private var gullClock = 0.0, nextGull = 3.5
-    var tankerActive = false, tankerProgress = 0.0, tankerDir = 1.0, tankerY = 101.0   // a distant ship on the horizon
+    var tankerActive = false, tankerProgress = 0.0, tankerDir = 1.0, tankerY = 92.0    // a distant ship on the horizon
     private var tankerClock = 0.0, nextTanker = 2.0
     private var upWait = 0.0, downWait = 0.0
     let agitateAfter = 20.0
@@ -278,13 +278,13 @@ final class DawlishStation: ObservableObject {
             }
         }
         if tankerActive {
-            tankerProgress += 0.017 * dt        // very slow — it's a huge ship far out
+            tankerProgress += 0.008 * dt        // barely creeping — a huge ship a long way off
             if tankerProgress >= 1 { tankerActive = false; tankerClock = 0; nextTanker = Double.random(in: 22...48) }
         } else {
             tankerClock += dt
             if tankerClock >= nextTanker {
                 tankerActive = true; tankerProgress = 0
-                tankerDir = Bool.random() ? 1 : -1; tankerY = Double.random(in: 99...104)   // sit on the far horizon
+                tankerDir = Bool.random() ? 1 : -1; tankerY = Double.random(in: 89...94)    // sit up on the far horizon
             }
         }
         upWait = pUp >= 1 ? upWait + dt : 0
