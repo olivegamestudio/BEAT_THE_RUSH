@@ -210,7 +210,7 @@ func drawSteamPlume(_ ctx: GraphicsContext, at o: CGPoint, back: CGFloat, t: Dou
         // Each puff drifts at its own steady speed — a stable per-particle jitter, seeded by `rate` so
         // different engines chuff differently and the plume never looks like a single rigid stream.
         let hsh = sin(Double(i) * 12.9898 + rate * 7.13) * 43758.5453
-        let speed = 0.6 + 1.1 * (hsh - hsh.rounded(.down))      // stable 0.6…1.7 per particle
+        let speed = 0.42 + 0.78 * (hsh - hsh.rounded(.down))    // stable 0.42…1.2 per particle
         let p = CGFloat(((t * speed) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
         let rise = p * 28 * scale                          // climbs a little
         let drift = p * 155 * scale * back                 // but mostly streams fast back over the train

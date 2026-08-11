@@ -116,7 +116,7 @@ struct DawlishView: View {
         band(ctx, 0, w, y(182), y(386), Color(red: 0.42, green: 0.38, blue: 0.29), Color(red: 0.37, green: 0.33, blue: 0.26)) // sandy ground
         band(ctx, 0, w, y(386), y(420), Color(red: 0.46, green: 0.40, blue: 0.29), Color(red: 0.40, green: 0.35, blue: 0.26)) // beach
         band(ctx, 0, w, y(420), size.height, Color(red: 0.08, green: 0.22, blue: 0.31), Color(red: 0.05, green: 0.15, blue: 0.24)) // sea
-        marram(ctx, y0: y(146), x0: 0, x1: w, sc: sc)          // grass on the dunes
+        marram(ctx, y0: y(146), sc: sc, size: size)            // grass on the dunes (parallax-scrolled)
         for k in 0..<3 {                                        // waves
             let wy = y(430 + CGFloat(k) * 9)
             var wave = Path(); wave.move(to: CGPoint(x: 20, y: wy)); wave.addLine(to: CGPoint(x: w - 20, y: wy))
@@ -126,21 +126,28 @@ struct DawlishView: View {
         ctx.stroke(rip, with: .color(.white.opacity(0.08)), style: .init(lineWidth: 2 * sc, lineCap: .round))
     }
 
-    /// A row of little marram-grass tufts along the dune top.
-    private func marram(_ ctx: GraphicsContext, y0: CGFloat, x0: CGFloat, x1: CGFloat, sc: CGFloat) {
+    /// A row of little marram-grass tufts along the dune top. The tufts are anchored in world space and
+    /// projected at a **parallax** fraction of the camera pan, so the dunes drift with the scene but slower
+    /// than the tracks — giving depth behind the railway.
+    private func marram(_ ctx: GraphicsContext, y0: CGFloat, sc: CGFloat, size: CGSize) {
         let g = Color(red: 0.42, green: 0.52, blue: 0.28)
-        var x = x0 + 12 * sc
+        let parallax: CGFloat = 0.55                          // <1 → the dunes scroll slower than the foreground
+        let pOrigin = originX * parallax
+        var wx = contentMinX
         var seed = 3
-        while x < x1 {
+        while wx < contentMaxX {
             seed = (seed * 7 + 13) % 1000        // bounded pseudo-random, never overflows
-            let h = (10 + CGFloat(seed % 5) * 2) * sc
-            var tuft = Path()
-            for b in -2...2 {
-                tuft.move(to: CGPoint(x: x, y: y0))
-                tuft.addLine(to: CGPoint(x: x + CGFloat(b) * 2.4 * sc, y: y0 - h))
+            let x = (wx - pOrigin) * sc                       // parallax-projected screen x
+            if x > -12 && x < size.width + 12 {
+                let h = (10 + CGFloat(seed % 5) * 2) * sc
+                var tuft = Path()
+                for b in -2...2 {
+                    tuft.move(to: CGPoint(x: x, y: y0))
+                    tuft.addLine(to: CGPoint(x: x + CGFloat(b) * 2.4 * sc, y: y0 - h))
+                }
+                ctx.stroke(tuft, with: .color(g.opacity(0.8)), style: .init(lineWidth: 1.4 * sc, lineCap: .round))
             }
-            ctx.stroke(tuft, with: .color(g.opacity(0.8)), style: .init(lineWidth: 1.4 * sc, lineCap: .round))
-            x += (18 + CGFloat(seed % 4) * 6) * sc
+            wx += 30 + CGFloat(seed % 4) * 10                 // world-space spacing between tufts
         }
     }
 
@@ -195,7 +202,7 @@ struct DawlishView: View {
             if t.steam && c == 0 {
                 // The engine is longer and taller than a coach — it reaches forward past the nose and back
                 // to meet the first carriage, so it reads as a proper locomotive rather than a stubby box.
-                let locoCW = Track.carUnit * 1.38, locoCH = Track.carHeight * 1.22
+                let locoCW = Track.carUnit * 1.26, locoCH = Track.carHeight * 1.12
                 let phase = t.dist / (0.19 * locoCH)         // wheels roll with distance travelled
                 drawSteamLoco(ctx, at: S(smp.p), angle: t.path.smoothAngle(d),
                               cw: locoCW, ch: locoCH, scale: sc, phase: phase)
