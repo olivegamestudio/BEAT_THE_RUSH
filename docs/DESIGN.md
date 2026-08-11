@@ -58,6 +58,10 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
   (`levelStars`), rewarded on win *and* fail — the `OutcomeOverlay` shows the tasks ticked (why you
   won/lost) and the star row on both. New station views must add the `started` gate + briefing, and
   pass `def:` to `OutcomeOverlay`.
+- **Route lighting:** the stretch of track just ahead of each train lights **green / amber / red** so you
+  can read the route it will take and whether it has the road — green = clear run, amber = closing on
+  something, red = held. Driven by each train's movement authority (`railAspect`, from the same `ceiling`
+  the kinematics use). Implemented in Dawlish (`drawRouteLights`); rolls out per-station.
 - **Liveries:** express trains long, red or green; locals white/short. Operator colours used where
   relevant (Worcester: GWR lime `gwrGreen`, West Midlands orange `wmrOrange`).
 

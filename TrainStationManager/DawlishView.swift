@@ -41,6 +41,7 @@ struct DawlishView: View {
                     drawGull(ctx, sc, size)          // a seagull in the sky
                     drawBoat(ctx, sc, size)          // a speed boat on the estuary
                     drawRails(ctx, sc, S)
+                    drawRouteLights(ctx, sc, S)      // colour the track ahead of each train green/amber/red
                     // Depth by screen height: the up platform sits behind its trains, the down platform in
                     // front of its trains, and the trains themselves draw back-to-front (lower = nearer).
                     drawPlatform(ctx, y: 176, occupied: station.pUp > 0, sc: sc, S: S)
@@ -305,6 +306,33 @@ struct DawlishView: View {
                        CGPoint(x: s.xE - d, y: s.upLoopY), CGPoint(x: s.xE, y: s.upMainY)], sc, S)
         railLine(ctx, [CGPoint(x: s.xW, y: s.downMainY), CGPoint(x: s.xW + d, y: s.downLoopY),
                        CGPoint(x: s.xE - d, y: s.downLoopY), CGPoint(x: s.xE, y: s.downMainY)], sc, S)
+    }
+
+    /// Lights the stretch of track a train is about to run over: green when it has a clear road, amber when
+    /// it's closing on something, red when it's held. Lets you read each train's route and priority at a glance.
+    private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let aspectCol: [Color] = [Color(red: 0.30, green: 0.95, blue: 0.44),   // green
+                                  Color(red: 1.0, green: 0.74, blue: 0.14),    // amber
+                                  Color(red: 1.0, green: 0.32, blue: 0.32)]    // red
+        for t in station.trains where !t.finished {
+            let col = aspectCol[min(max(t.railAspect, 0), 2)]
+            let start = max(0, t.dist)
+            let end = min(t.path.total, t.dist + Track.carUnit * 6)   // preview the road just ahead of the nose
+            if end <= start + 1 { continue }
+            var p = Path()
+            var d = start
+            var first = true
+            while d <= end {
+                let pt = S(t.path.sample(d).p)
+                if first { p.move(to: pt); first = false } else { p.addLine(to: pt) }
+                d += 9
+            }
+            ctx.drawLayer { g in                                     // soft glow so it reads as the rail lit up
+                g.addFilter(.blur(radius: 5 * sc))
+                g.stroke(p, with: .color(col.opacity(0.5)), style: .init(lineWidth: 11 * sc, lineCap: .round, lineJoin: .round))
+            }
+            ctx.stroke(p, with: .color(col.opacity(0.72)), style: .init(lineWidth: 4 * sc, lineCap: .round, lineJoin: .round))
+        }
     }
 
     private func drawTrain(_ ctx: GraphicsContext, _ t: DawTrain, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {

@@ -24,6 +24,7 @@ final class DawTrain: Identifiable {
     var departed = false          // has sounded its departure as it left the platform end
     var v: CGFloat = 0            // current speed, eased toward the target so trains glide up to and away from stops
     var stopped = 0.0            // seconds sat still at a red — drives the "waiting" bubble
+    var railAspect = 0           // 0 green / 1 amber / 2 red — lights the track ahead so you can read its route
     var finished = false
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, _ dir: DawlishStation.Dir, express: Bool, _ path: RoutePath, berth: CGFloat, speed: CGFloat) {
@@ -375,6 +376,7 @@ final class DawlishStation: ObservableObject {
             if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
             // Honour the automatic block signals: a through train stops at a red one, and eases off at an amber.
             var speedCap = t.speed
+            var amberAhead = false
             if !t.onLoop {
                 let east = t.dir == .east
                 let fx = mainFrontX(t)
@@ -384,7 +386,7 @@ final class DawlishStation: ObservableObject {
                         let sd = east ? (sx - spawnL) : (spawnR - sx)
                         if t.dist < sd { ceiling = min(ceiling, sd - Track.carUnit * 0.5) }
                     case 1:                                  // amber — run at caution speed
-                        speedCap = min(speedCap, t.speed * 0.45)
+                        speedCap = min(speedCap, t.speed * 0.45); amberAhead = true
                     default: break
                     }
                 }
@@ -399,6 +401,13 @@ final class DawlishStation: ObservableObject {
             else { t.v = max(target, t.v - decel * CGFloat(dt)) }
             t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
             t.stopped = t.v < 5 ? t.stopped + dt : 0   // held at a red — count how long it's been waiting
+            // Route lighting: colour the track ahead by how far the train may run before its next stop.
+            if ceiling >= t.path.total - 1 {
+                t.railAspect = amberAhead ? 1 : 0                        // a clear run to the end of the line
+            } else {
+                let head = ceiling - t.dist
+                t.railAspect = head < Track.carUnit * 0.9 ? 2 : ((head < Track.carUnit * 4 || amberAhead) ? 1 : 0)
+            }
 
             // Board while the train is standing at its berth. It keeps topping up from newly-arrived passengers
             // (up to its capacity) for as long as it hasn't pulled away — once it moves off, no more can board.
