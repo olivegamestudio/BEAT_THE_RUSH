@@ -83,6 +83,7 @@ final class ActiveTrain: Identifiable {
     var spawnedNext = false
     var finished = false        // reached the exit; removed after the tick loop
     var toBoard = 0.0           // passengers still to board while berthed (capped by length)
+    var loaded = 0.0            // passengers aboard so far — drives the filling-windows look
     enum Phase { case arriving, berthed, departing }
     var phase: Phase = .arriving
     var dwell: Double = 0
@@ -328,6 +329,7 @@ final class Station: ObservableObject {
                     let before = passengers[t.target]
                     passengers[t.target] = max(0, passengers[t.target] - take)
                     t.toBoard -= take
+                    t.loaded += take
                     carried += take
                     if Int(before) != Int(passengers[t.target]) {   // sparkle each person as they board
                         let k = Int(passengers[t.target])

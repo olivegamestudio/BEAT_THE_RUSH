@@ -131,8 +131,9 @@ func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGF
 /// Shared by the station board and the animated menu. `cw`/`ch` are design-space
 /// dimensions; `scale` maps design units to screen.
 func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
-                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false) {
+                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false, fill: Double = 0) {
     let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
+    let seated = Color(red: 0.20, green: 0.19, blue: 0.24)   // a passenger, seen as a silhouette through the glass
     // Align to the track line but keep the carriage upright — never let it flip over when
     // it's travelling to the left (a carriage looks the same either way along its length).
     var a = angle
@@ -160,11 +161,20 @@ func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         } else {
             let winW = cw * 0.15 * scale, winH = depth * 0.48
             let winY = bandTop + depth * 0.44
-            for k in [-1.0, 0.0, 1.0] {
+            let occupied = Int((min(1, max(0, fill)) * 3).rounded())    // how many of this car's windows have someone
+            for (i, k) in [-1.0, 0.0, 1.0].enumerated() {
                 let wx = CGFloat(k) * cw * 0.24 * scale
                 l.fill(Path(roundedRect: CGRect(x: wx - winW / 2, y: winY - winH / 2,
                                                 width: winW, height: winH), cornerRadius: 2 * scale),
                        with: .color(glass))
+                if i < occupied {                                        // a passenger silhouette in the window
+                    let hd = winW * 0.52
+                    l.fill(Path(roundedRect: CGRect(x: wx - winW * 0.40, y: winY + winH * 0.04,
+                                                    width: winW * 0.80, height: winH * 0.52),
+                                cornerRadius: winW * 0.24), with: .color(seated))            // shoulders
+                    l.fill(Path(ellipseIn: CGRect(x: wx - hd / 2, y: winY - winH * 0.30, width: hd, height: hd)),
+                           with: .color(seated))                                             // head
+                }
             }
             let doorW = cw * 0.08 * scale, doorH = depth * 0.82
             for dx in [-cw * 0.40, cw * 0.40] {
