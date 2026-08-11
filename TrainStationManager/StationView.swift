@@ -229,7 +229,7 @@ struct StationView: View {
             guard d > -Track.carUnit else { continue }
             let s = t.path.sample(d)
             drawCarriage(ctx, at: S(s.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: scale, seatsFilled: Int(t.loaded.rounded()) - c * 3)
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: scale, fill: min(1, t.loaded / (Double(t.spec.length) * 3)), seed: t.id.hashValue &+ c)
         }
         // A train stuck too long raises a flag — a pulsing warning over its head.
         if t.blockedTime > station.jamAfter {

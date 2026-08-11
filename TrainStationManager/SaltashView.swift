@@ -295,7 +295,7 @@ struct SaltashView: View {
             guard d >= 0 else { continue }        // don't draw carriages that haven't entered yet
             let s = t.path.sample(d)
             drawCarriage(ctx, at: S(s.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, seatsFilled: Int(t.load.rounded()) - c * 3)
+                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, fill: min(1, t.load / (Double(t.spec.length) * 3)), seed: t.id.hashValue &+ c)
         }
         // A train sat at a red for a while shows a waiting bubble that floats up and fades, over and over.
         if t.stopped > 3.5, t.dist >= 0, t.dist <= t.path.total {

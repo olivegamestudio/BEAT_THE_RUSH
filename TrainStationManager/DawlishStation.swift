@@ -222,8 +222,14 @@ final class DawlishStation: ObservableObject {
         let spec = Train(length: len, tint: tint, name: "")
         let east = Bool.random()
         let path = east ? eMain : wMain                // everyone starts on the main; points divert stoppers
-        trains.append(DawTrain(spec, east ? .east : .west, express: express, path,
-                               berth: path.total + 1, speed: express ? baseSpeed * 3.1 : baseSpeed))
+        let t = DawTrain(spec, east ? .east : .west, express: express, path,
+                         berth: path.total + 1, speed: express ? baseSpeed * 3.1 : baseSpeed)
+        if express {   // most through expresses already carry passengers; a few run near-empty (ECS)
+            let cap = Double(len) * perCar
+            t.load = Double.random(in: 0...1) < 0.75 ? Double.random(in: cap * 0.45 ... cap * 0.95)
+                                                     : Double.random(in: 0 ... cap * 0.2)
+        }
+        trains.append(t)
     }
 
     func tick(_ dt: Double) {

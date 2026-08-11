@@ -205,13 +205,14 @@ struct OutcomeOverlay: View {
                     VStack(alignment: .leading, spacing: 9) {
                         ForEach(Array(levelTasks(def).enumerated()), id: \.offset) { _, task in
                             let done = carried >= task.need
+                            let green = Color(red: 0.34, green: 0.86, blue: 0.5)
+                            let red = Color(red: 0.95, green: 0.44, blue: 0.42)
                             HStack(spacing: 10) {
-                                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                                Image(systemName: done ? "checkmark.circle.fill" : "xmark.circle.fill")
                                     .font(.system(size: 17, weight: .bold))
-                                    .foregroundStyle(done ? Color(red: 0.34, green: 0.86, blue: 0.5) : Color(white: 0.4))
+                                    .foregroundStyle(done ? green : red)
                                 Text(task.label).font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(done ? Color(white: 0.95) : Color(white: 0.55))
-                                    .strikethrough(done, color: Color(white: 0.5))
+                                    .foregroundStyle(done ? green : red)
                             }
                         }
                     }

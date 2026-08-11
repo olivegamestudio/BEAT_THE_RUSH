@@ -142,7 +142,8 @@ func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGF
 /// Shared by the station board and the animated menu. `cw`/`ch` are design-space
 /// dimensions; `scale` maps design units to screen.
 func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
-                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false, seatsFilled: Int = 0) {
+                  tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false,
+                  fill: Double = 0, seed: Int = 0) {
     let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
     let seated = Color(red: 0.20, green: 0.19, blue: 0.24)   // a passenger, seen as a silhouette through the glass
     // Align to the track line but keep the carriage upright — never let it flip over when
@@ -172,13 +173,16 @@ func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         } else {
             let winW = cw * 0.15 * scale, winH = depth * 0.48
             let winY = bandTop + depth * 0.44
-            let occupied = min(3, max(0, seatsFilled))                   // how many of this car's three windows have someone
-            for (i, k) in [-1.0, 0.0, 1.0].enumerated() {
+            let f = min(1, max(0, fill))
+            for (w, k) in [-1.0, 0.0, 1.0].enumerated() {
                 let wx = CGFloat(k) * cw * 0.24 * scale
                 l.fill(Path(roundedRect: CGRect(x: wx - winW / 2, y: winY - winH / 2,
                                                 width: winW, height: winH), cornerRadius: 2 * scale),
                        with: .color(glass))
-                if i < occupied {                                        // a passenger silhouette in the window
+                // Each window has a stable pseudo-random threshold; it fills once the train is that full,
+                // so seats populate scattered about (not front-to-back) but the fuller the train the more show.
+                let h = Double(((seed &* 2654435761) &+ (w &* 40503)) & 0xFFFF) / 65535.0
+                if f > h {                                               // a passenger silhouette in the window
                     let hd = winW * 0.52
                     l.fill(Path(roundedRect: CGRect(x: wx - winW * 0.40, y: winY + winH * 0.04,
                                                     width: winW * 0.80, height: winH * 0.52),
