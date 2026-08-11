@@ -391,12 +391,13 @@ final class SaltashStation: ObservableObject {
         peakFill = max(peakFill, max(pTop, pBot) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
-            stars = starsFor(peakFill: peakFill)
+            stars = levelStars(def, carried: Int(carried))
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
             Sound.shared.play(.win)
         } else if overTop > overflowGrace || overBot > overflowGrace {
             outcome = .lost
+            stars = levelStars(def, carried: Int(carried))
             Sound.shared.play(.lose)
         }
         objectWillChange.send()

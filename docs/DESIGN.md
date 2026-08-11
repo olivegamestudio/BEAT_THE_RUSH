@@ -47,10 +47,13 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
   standing; sparkles on each boarded person.
 - **Outcome:** win at `carried >= goal` (stars from peak platform fill); lose if a platform stays over
   `platformCap` past `overflowGrace`.
-- **Level briefing:** every station view holds a `started` flag; while `!started` it shows
-  `LevelBriefing` (name + `levelChecklist(def)` + Start) over the frozen scene and does **not** call
-  `station.tick`. Tapping Start sets `started = true`. This replaced the old auto-advancing
-  `TutorialCard` banners. New station views must add the same `started` gate + briefing overlay.
+- **Level briefing + tasks:** every station view holds a `started` flag; while `!started` it shows
+  `LevelBriefing` (name + task checklist + Start / red **X** = back to list) over the frozen scene and
+  does **not** call `station.tick`. `levelTasks(def)` returns three tickable `LevelTask`s (a first-move
+  task, a halfway target, the finish), each `done` once `carried >= need`. **Stars = completed tasks**
+  (`levelStars`), rewarded on win *and* fail — the `OutcomeOverlay` shows the tasks ticked (why you
+  won/lost) and the star row on both. New station views must add the `started` gate + briefing, and
+  pass `def:` to `OutcomeOverlay`.
 - **Liveries:** express trains long, red or green; locals white/short. Operator colours used where
   relevant (Worcester: GWR lime `gwrGreen`, West Midlands orange `wmrOrange`).
 

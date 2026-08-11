@@ -62,7 +62,7 @@ struct StationView: View {
                     LevelBriefing(def: station.def, onStart: { started = true }, onClose: onExit)
                 }
                 if station.outcome != .playing {
-                    OutcomeOverlay(won: station.outcome == .won,
+                    OutcomeOverlay(won: station.outcome == .won, def: station.def,
                                    carried: Int(station.carried), goal: station.def.goal,
                                    stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
@@ -310,12 +310,12 @@ struct StationView: View {
                 }
                 .buttonStyle(PressStyle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(16)
+                .padding(28)
 
                 // mute — top right
                 MuteButton()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(16)
+                    .padding(28)
 
                 // score — bottom left, big
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -328,7 +328,7 @@ struct StationView: View {
                 }
                 .shadow(color: .black.opacity(0.75), radius: 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.horizontal, 22).padding(.bottom, 14)
+                .padding(.horizontal, 34).padding(.bottom, 26)
 
                 // station name + county — bottom right
                 VStack(alignment: .trailing, spacing: 2) {
@@ -341,7 +341,7 @@ struct StationView: View {
                 }
                 .shadow(color: .black.opacity(0.75), radius: 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.horizontal, 22).padding(.bottom, 16)
+                .padding(.horizontal, 34).padding(.bottom, 26)
             }
         }
     }

@@ -67,7 +67,7 @@ struct WorcesterView: View {
                     LevelBriefing(def: station.def, onStart: { started = true }, onClose: onExit)
                 }
                 if station.outcome != .playing {
-                    OutcomeOverlay(won: station.outcome == .won,
+                    OutcomeOverlay(won: station.outcome == .won, def: station.def,
                                    carried: Int(station.carried), goal: station.def.goal, stars: station.stars,
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
@@ -270,9 +270,9 @@ struct WorcesterView: View {
                     .overlay(Circle().stroke(.white.opacity(0.14)))
             }
             .buttonStyle(PressStyle())
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            MuteButton().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(16)
+            MuteButton().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(Int(station.carried))").font(.system(size: 44, weight: .black, design: .rounded))
@@ -281,7 +281,7 @@ struct WorcesterView: View {
             }
             .shadow(color: .black.opacity(0.75), radius: 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.horizontal, 22).padding(.bottom, 14)
+            .padding(.horizontal, 34).padding(.bottom, 26)
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(station.name).font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(.white)
@@ -290,7 +290,7 @@ struct WorcesterView: View {
             }
             .shadow(color: .black.opacity(0.75), radius: 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.horizontal, 22).padding(.bottom, 16)
+            .padding(.horizontal, 34).padding(.bottom, 26)
         }
     }
 }

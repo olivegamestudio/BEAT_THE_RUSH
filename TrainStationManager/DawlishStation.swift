@@ -384,12 +384,13 @@ final class DawlishStation: ObservableObject {
         peakFill = max(peakFill, max(pUp, pDown) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
-            stars = starsFor(peakFill: peakFill)
+            stars = levelStars(def, carried: Int(carried))
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
             Sound.shared.play(.win)
         } else if overUp > overflowGrace || overDown > overflowGrace {
             outcome = .lost
+            stars = levelStars(def, carried: Int(carried))
             Sound.shared.play(.lose)
         }
         objectWillChange.send()

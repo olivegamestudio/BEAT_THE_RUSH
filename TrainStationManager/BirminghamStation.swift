@@ -265,12 +265,13 @@ final class BirminghamStation: ObservableObject {
         peakFill = max(peakFill, (pax.max() ?? 0) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
-            stars = starsFor(peakFill: peakFill)
+            stars = levelStars(def, carried: Int(carried))
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
             Sound.shared.play(.win)
         } else if (over.max() ?? 0) > overflowGrace {
             outcome = .lost
+            stars = levelStars(def, carried: Int(carried))
             Sound.shared.play(.lose)
         }
         objectWillChange.send()

@@ -220,12 +220,13 @@ final class NewarkStation: ObservableObject {
         peakFill = max(peakFill, max(pEcml, pCastle) / platformCap)
         if carried >= Double(def.goal) {
             outcome = .won
-            stars = starsFor(peakFill: peakFill)
+            stars = levelStars(def, carried: Int(carried))
             Progress.record(stars: stars, at: def.id)
             Progress.clear(def.id)
             Sound.shared.play(.win)
         } else if overE > overflowGrace || overC > overflowGrace {
             outcome = .lost
+            stars = levelStars(def, carried: Int(carried))
             Sound.shared.play(.lose)
         }
         objectWillChange.send()

@@ -173,6 +173,7 @@ func tierColour(_ t: Int) -> Color {
 /// Shown over a station when it's cleared or overwhelmed. Both station types use it.
 struct OutcomeOverlay: View {
     let won: Bool
+    var def: StationDef? = nil          // for the tickable task list
     let carried: Int
     let goal: Int
     var stars: Int = 0
@@ -191,10 +192,8 @@ struct OutcomeOverlay: View {
                 burst
             }
             VStack(spacing: 14) {
-                if won {
-                    HStack(spacing: 10) { star(48, stars >= 1, 0); star(68, stars >= 2, 1); star(48, stars >= 3, 2) }
-                        .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.5), radius: 10)
-                }
+                HStack(spacing: 10) { star(48, stars >= 1, 0); star(68, stars >= 2, 1); star(48, stars >= 3, 2) }
+                    .shadow(color: Color(red: 1, green: 0.7, blue: 0.2).opacity(0.5), radius: 10)
                 Text(won ? "Station cleared!" : "Too busy!")
                     .font(.system(size: 34, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color(red: 0.42, green: 0.9, blue: 0.6)
@@ -202,6 +201,22 @@ struct OutcomeOverlay: View {
                 Text("\(carried) people · goal \(goal)")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.8))
+                if let def {
+                    VStack(alignment: .leading, spacing: 9) {
+                        ForEach(Array(levelTasks(def).enumerated()), id: \.offset) { _, task in
+                            let done = carried >= task.need
+                            HStack(spacing: 10) {
+                                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 17, weight: .bold))
+                                    .foregroundStyle(done ? Color(red: 0.34, green: 0.86, blue: 0.5) : Color(white: 0.4))
+                                Text(task.label).font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(done ? Color(white: 0.95) : Color(white: 0.55))
+                                    .strikethrough(done, color: Color(white: 0.5))
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                }
                 HStack(spacing: 12) {
                     if !won {
                         Button(action: onRetry) { label("Try Again", filled: false) }.buttonStyle(PressStyle())
@@ -284,37 +299,31 @@ extension View { func introZoom() -> some View { modifier(IntroZoom()) } }
 
 // MARK: - Level briefing — the job for this station, shown before play begins
 
-/// The checklist shown on the briefing card — what the player has to do, ending with the target.
-func levelChecklist(_ def: StationDef) -> [String] {
+/// A tickable goal for a level — done once `carried` reaches `need`.
+struct LevelTask { let label: String; let need: Int }
+
+/// The three goals for a station: a first-move task, a halfway target, and the finish. They tick off as
+/// the player carries more people, so the same list reads as a checklist on the briefing and gets ticked
+/// on the finish card.
+func levelTasks(_ def: StationDef) -> [LevelTask] {
+    let g = def.goal
+    let half = max(2, (g + 1) / 2)
+    let first: String
     switch def.kind {
-    case .saltash:
-        return ["Only one train fits on the bridge",
-                "Let one side go, then the other — take turns",
-                "Carry \(def.goal) people to win!"]
-    case .dawlish:
-        return ["Little trains stop to pick people up",
-                "Tap its light to send it on its way",
-                "Fast trains can't stop — keep their track clear!",
-                "Carry \(def.goal) people to win!"]
-    case .worcester:
-        return ["Only one train fits the single track",
-                "Send them over one at a time — take turns",
-                "Carry \(def.goal) people to win!"]
-    case .newark:
-        return ["Two train lines cross in the middle",
-                "Only one train can cross at a time",
-                "Tap the lights so they take turns",
-                "Carry \(def.goal) people to win!"]
-    case .birmingham:
-        return ["Send each train to an empty platform",
-                "Pick people up, then send it on",
-                "Carry \(def.goal) people to win!"]
-    case .ladder:
-        return ["Send each train to an empty platform",
-                "Pick people up before it gets too full!",
-                "Carry \(def.goal) people to win!"]
+    case .saltash:    first = "Send a train over the bridge"
+    case .dawlish:    first = "Send a little train on its way"
+    case .worcester:  first = "Send a train down the single line"
+    case .newark:     first = "Get a train over the crossing"
+    case .birmingham: first = "Send a train to a platform"
+    case .ladder:     first = "Send a train to a platform"
     }
+    return [LevelTask(label: first, need: 1),
+            LevelTask(label: "Carry \(half) people", need: half),
+            LevelTask(label: "Carry \(g) people", need: g)]
 }
+
+/// One star per completed task — so partial progress is rewarded even on a fail.
+func levelStars(_ def: StationDef, carried: Int) -> Int { levelTasks(def).filter { carried >= $0.need }.count }
 
 /// A start-of-level card: station name, the checklist, and a Start button. Play is held until Start.
 struct LevelBriefing: View {
@@ -334,11 +343,11 @@ struct LevelBriefing: View {
                         .foregroundStyle(Color(white: 0.7))
                 }
                 VStack(alignment: .leading, spacing: 11) {
-                    ForEach(Array(levelChecklist(def).enumerated()), id: \.offset) { _, item in
+                    ForEach(Array(levelTasks(def).enumerated()), id: \.offset) { _, task in
                         HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "circle").font(.system(size: 8, weight: .black))
-                                .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5)).padding(.top, 6)
-                            Text(item).font(.system(size: 16, weight: .semibold, design: .rounded))
+                            Image(systemName: "circle").font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Color(white: 0.5)).padding(.top, 1)
+                            Text(task.label).font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Color(white: 0.92)).fixedSize(horizontal: false, vertical: true)
                         }
                     }
