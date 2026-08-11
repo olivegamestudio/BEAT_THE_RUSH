@@ -204,10 +204,14 @@ func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
 
 /// A plume of steam rising from a chimney at screen point `o`, drifting `back` (−1 / +1 in screen x,
 /// opposite the way the engine travels) and thinning as it climbs. `t` drives the loop.
-func drawSteamPlume(_ ctx: GraphicsContext, at o: CGPoint, back: CGFloat, t: Double, scale: CGFloat) {
-    let n = 6
+func drawSteamPlume(_ ctx: GraphicsContext, at o: CGPoint, back: CGFloat, t: Double, scale: CGFloat, rate: Double = 1) {
+    let n = 7
     for i in 0..<n {
-        let p = CGFloat(((t * 1.2) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
+        // Each puff drifts at its own steady speed — a stable per-particle jitter, seeded by `rate` so
+        // different engines chuff differently and the plume never looks like a single rigid stream.
+        let hsh = sin(Double(i) * 12.9898 + rate * 7.13) * 43758.5453
+        let speed = 0.75 + 1.4 * (hsh - hsh.rounded(.down))     // stable 0.75…2.15 per particle
+        let p = CGFloat(((t * speed) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
         let rise = p * 30 * scale                          // climbs a little
         let drift = p * 120 * scale * back                 // but mostly streams fast back over the train
         let wob = CGFloat(sin(t * 3 + Double(i) * 1.3)) * 3 * scale * p

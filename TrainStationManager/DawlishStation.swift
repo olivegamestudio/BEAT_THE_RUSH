@@ -9,6 +9,7 @@ final class DawTrain: Identifiable {
     let dir: DawlishStation.Dir
     let express: Bool
     var steam = false            // a heritage steam special — runs straight through, never diverts
+    let smokeRate = Double.random(in: 0.6...1.55)   // each engine chuffs at its own pace
     var path: RoutePath          // main by default; switched to the loop if the points divert it
     var berthDist: CGFloat
     var onLoop = false
@@ -55,6 +56,8 @@ final class DawlishStation: ObservableObject {
     @Published var pDown = 1.0
     @Published var expressNearUp = false    // an express is approaching on the eastbound main — warn the player
     @Published var expressNearDown = false
+    @Published var steamNearUp = false      // the nearing through train is the steam special — label it "Special"
+    @Published var steamNearDown = false
     @Published var upHold = true      // platform starter: red holds a boarded train, green clears it to depart
     @Published var downHold = true
     @Published var outcome: GameOutcome = .playing
@@ -261,11 +264,12 @@ final class DawlishStation: ObservableObject {
         }
 
         // Warn while an express is still short of the station, so the player can time their release around it.
-        expressNearUp = false; expressNearDown = false
+        expressNearUp = false; expressNearDown = false; steamNearUp = false; steamNearDown = false
         for t in trains where (t.express || t.steam) && !t.finished {
             let togo = pointDist(t.dir) - t.dist
             if togo > -320 && togo < 620 {
-                if t.dir == .east { expressNearUp = true } else { expressNearDown = true }
+                if t.dir == .east { expressNearUp = true; if t.steam { steamNearUp = true } }
+                else { expressNearDown = true; if t.steam { steamNearDown = true } }
             }
         }
 

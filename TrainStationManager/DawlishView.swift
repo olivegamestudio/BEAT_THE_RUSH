@@ -195,7 +195,7 @@ struct DawlishView: View {
             if t.steam && c == 0 {
                 // The engine is longer and taller than a coach — it reaches forward past the nose and back
                 // to meet the first carriage, so it reads as a proper locomotive rather than a stubby box.
-                let locoCW = Track.carUnit * 1.5, locoCH = Track.carHeight * 1.32
+                let locoCW = Track.carUnit * 1.38, locoCH = Track.carHeight * 1.22
                 let phase = t.dist / (0.19 * locoCH)         // wheels roll with distance travelled
                 drawSteamLoco(ctx, at: S(smp.p), angle: t.path.smoothAngle(d),
                               cw: locoCW, ch: locoCH, scale: sc, phase: phase)
@@ -203,7 +203,7 @@ struct DawlishView: View {
                 let base = S(smp.p)
                 let chim = CGPoint(x: base.x + fwd * 0.30 * locoCW * sc,
                                    y: base.y - 0.50 * locoCH * sc)
-                drawSteamPlume(ctx, at: chim, back: -fwd, t: station.animT, scale: sc)
+                drawSteamPlume(ctx, at: chim, back: -fwd, t: station.animT, scale: sc, rate: t.smokeRate)
                 continue
             }
             // An express is a power car at each end — rounded, no windows — with coaches between.
@@ -279,11 +279,11 @@ struct DawlishView: View {
 
     /// A warning pill on the very track a fast train is bearing down, arrow pointing the way it's heading —
     /// clear that line before it arrives.
-    private func expressWarning(eastbound: Bool) -> some View {
+    private func expressWarning(eastbound: Bool, special: Bool = false) -> some View {
         HStack(spacing: 5) {
             if !eastbound { Image(systemName: "arrowtriangle.left.fill").font(.system(size: 11, weight: .black)) }
-            Image(systemName: "bolt.fill").font(.system(size: 12, weight: .black))
-            Text("Fast train").font(.system(size: 13, weight: .heavy, design: .rounded))
+            Image(systemName: special ? "sparkles" : "bolt.fill").font(.system(size: 12, weight: .black))
+            Text(special ? "Special" : "Fast train").font(.system(size: 13, weight: .heavy, design: .rounded))
             if eastbound { Image(systemName: "arrowtriangle.right.fill").font(.system(size: 11, weight: .black)) }
         }
         .foregroundStyle(.black)
@@ -309,11 +309,11 @@ struct DawlishView: View {
             // Warnings pinned to the screen edges (so they stay visible while panning), on the correct main:
             // eastbound trains arrive from the left on the up main; westbound from the right on the down main.
             if station.expressNearUp {
-                expressWarning(eastbound: true)
+                expressWarning(eastbound: true, special: station.steamNearUp)
                     .position(x: 112, y: project(CGPoint(x: 0, y: station.upMainY), scale, size).y - 36)
             }
             if station.expressNearDown {
-                expressWarning(eastbound: false)
+                expressWarning(eastbound: false, special: station.steamNearDown)
                     .position(x: size.width - 112, y: project(CGPoint(x: 0, y: station.downMainY), scale, size).y + 36)
             }
 
