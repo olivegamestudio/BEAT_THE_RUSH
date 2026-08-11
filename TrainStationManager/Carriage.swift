@@ -121,6 +121,89 @@ func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: 
              with: .color(.white.opacity(alpha)))
 }
 
+/// A little steam locomotive centred at screen point `p`. `angle` is the track tangent in the
+/// direction of travel; the engine is drawn upright with its smokebox facing the way it's going,
+/// so it leads the rake either way along the line. GWR-ish: a Brunswick-green boiler with brass
+/// bands, a chimney and dome, a cab, and three driving wheels.
+func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
+                   cw: CGFloat, ch: CGFloat, scale: CGFloat) {
+    let forward: CGFloat = cos(angle) >= 0 ? 1 : -1     // which way the smokebox points on screen
+    var a = angle
+    if cos(a) < 0 { a += .pi }                          // keep the engine upright like the carriages
+    let green = Color(red: 0.09, green: 0.24, blue: 0.16)
+    let dark  = Color(red: 0.09, green: 0.10, blue: 0.11)   // smokebox + chimney (black even on a green loco)
+    let brass = Color(red: 0.82, green: 0.64, blue: 0.26)
+    let frame = Color(red: 0.46, green: 0.12, blue: 0.11)   // red frames / footplate
+    let wheelC = Color(red: 0.14, green: 0.15, blue: 0.17)
+    ctx.drawLayer { l in
+        l.addFilter(.shadow(color: .black.opacity(0.45), radius: 4 * scale, x: 0, y: 4 * scale))
+        l.translateBy(x: p.x, y: p.y)
+        l.rotate(by: .radians(a))
+        l.scaleBy(x: forward, y: 1)                     // mirror so the smokebox leads the way it travels
+        let W = cw * scale, H = ch * scale
+        func R(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> CGRect {
+            CGRect(x: x0 * W, y: y0 * H, width: (x1 - x0) * W, height: (y1 - y0) * H)
+        }
+        // driving wheels (behind the frames), each with a brass rim and hub
+        let wr = 0.23 * H
+        for wx: CGFloat in [-0.28, 0.0, 0.27] {
+            let c = CGPoint(x: wx * W, y: 0.30 * H)
+            l.fill(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)), with: .color(wheelC))
+            l.stroke(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)),
+                     with: .color(brass.opacity(0.8)), style: .init(lineWidth: 1.4 * scale))
+            l.fill(Path(ellipseIn: CGRect(x: c.x - wr * 0.3, y: c.y - wr * 0.3, width: wr * 0.6, height: wr * 0.6)), with: .color(brass))
+        }
+        // footplate / red frames
+        l.fill(Path(roundedRect: R(-0.50, 0.15, 0.48, 0.32), cornerRadius: 2 * scale), with: .color(frame))
+        // chimney (near the front) with a flared cap, then the dome
+        l.fill(Path(roundedRect: R(0.22, -0.52, 0.34, -0.24), cornerRadius: 1.5 * scale), with: .color(dark))
+        l.fill(Path(roundedRect: R(0.19, -0.57, 0.37, -0.49), cornerRadius: 2 * scale), with: .color(dark))
+        l.fill(Path(roundedRect: R(-0.07, -0.45, 0.11, -0.24), cornerRadius: 4 * scale), with: .color(brass))  // brass steam dome
+        // boiler barrel
+        let boiler = Path(roundedRect: R(-0.34, -0.26, 0.30, 0.22), cornerRadius: 0.24 * H)
+        l.fill(boiler, with: .color(green))
+        l.fill(boiler, with: .linearGradient(Gradient(colors: [.white.opacity(0.30), .clear, .black.opacity(0.20)]),
+                                             startPoint: CGPoint(x: 0, y: -0.26 * H), endPoint: CGPoint(x: 0, y: 0.22 * H)))
+        // smokebox at the front, with its round door + dog handles
+        l.fill(Path(roundedRect: R(0.24, -0.27, 0.45, 0.23), cornerRadius: 0.22 * H), with: .color(dark))
+        let doorC = CGPoint(x: 0.35 * W, y: -0.02 * H), dr = 0.17 * H
+        l.fill(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
+               with: .color(Color(red: 0.16, green: 0.17, blue: 0.19)))
+        l.stroke(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
+                 with: .color(brass.opacity(0.7)), style: .init(lineWidth: 1 * scale))
+        // two brass boiler bands + a handrail
+        for by: CGFloat in [-0.10, 0.08] {
+            var band = Path(); band.move(to: CGPoint(x: -0.34 * W, y: by * H)); band.addLine(to: CGPoint(x: 0.24 * W, y: by * H))
+            l.stroke(band, with: .color(brass.opacity(0.85)), style: .init(lineWidth: 1.2 * scale))
+        }
+        // cab at the rear with an overhanging roof and a side window
+        l.fill(Path(roundedRect: R(-0.53, -0.37, -0.22, -0.30), cornerRadius: 1.5 * scale), with: .color(dark))   // roof
+        l.fill(Path(roundedRect: R(-0.51, -0.34, -0.24, 0.22), cornerRadius: 3 * scale), with: .color(green))
+        l.fill(Path(roundedRect: R(-0.46, -0.19, -0.29, 0.01), cornerRadius: 2 * scale),
+               with: .color(Color(red: 0.55, green: 0.72, blue: 0.82)))
+    }
+}
+
+/// A plume of steam rising from a chimney at screen point `o`, drifting `back` (−1 / +1 in screen x,
+/// opposite the way the engine travels) and thinning as it climbs. `t` drives the loop.
+func drawSteamPlume(_ ctx: GraphicsContext, at o: CGPoint, back: CGFloat, t: Double, scale: CGFloat) {
+    let n = 6
+    for i in 0..<n {
+        let p = CGFloat(((t * 0.75) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
+        let rise = p * 34 * scale                          // climbs a little
+        let drift = p * 74 * scale * back                  // but mostly streams back over the train
+        let wob = CGFloat(sin(t * 3 + Double(i) * 1.3)) * 3 * scale * p
+        let r = (3.5 + p * 13) * scale
+        let alpha = Double(1 - p) * 0.5
+        let c = CGPoint(x: o.x + drift + wob, y: o.y - rise)
+        ctx.drawLayer { g in
+            g.addFilter(.blur(radius: 2.2 * scale + r * 0.25))
+            g.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                   with: .color(Color(white: 0.88 - Double(p) * 0.14).opacity(alpha)))
+        }
+    }
+}
+
 /// A little speech bubble with `emoji`, its tail pointing down at the crowd at screen point `p`.
 func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGFloat) {
     let w = 32 * scale, h = 27 * scale

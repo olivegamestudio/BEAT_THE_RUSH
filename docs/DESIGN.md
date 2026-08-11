@@ -71,7 +71,11 @@ signals keep expresses spaced back from locals. Intro to expresses running throu
 Two platform **loops** off the up/down mains. The player controls **platform starters** — tap to
 hold/release a boarded local out of its loop; releasing one throws the interlock and shuts the main
 point signal (`…MainBlocked`) so a through express can’t hit it. Long expresses run straight through
-the mains and **cannot** divert. Automatic 3-aspect block signals down each main; sun in the sky.
+the mains and **cannot** divert. Now and then a **heritage steam special** sweeps through too — a fast
+service that never stops: a bigger Brunswick-green engine (`drawSteamLoco`, ~1.5× a coach long) with a
+chimney streaming smoke backwards (`drawSteamPlume`) and a short rake of cream coaches, already loaded.
+It runs at ~2× local speed and trips the same "Fast train" warning. Automatic 3-aspect block signals
+down each main; sun in the sky.
 - Key: `upLoopY`/`downLoopY` (loops), `upMainY`/`downMainY` (mains), `xW`/`xE` throats, `blockXs`.
 - Signals sit lifted off their tracks: top starter up, bottom starter down-left beside its platform,
   the two point signals up-left / down-right off the mains, halos aligned to lamps.

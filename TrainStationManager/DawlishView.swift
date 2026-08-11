@@ -191,6 +191,20 @@ struct DawlishView: View {
             let d = t.dist - (CGFloat(c) + 0.5) * Track.carUnit
             guard d >= 0, d <= t.path.total else { continue }   // a car off the end has exited — don't draw it
             let smp = t.path.sample(d)
+            // The steam special leads with its engine (car 0), coaches behind; smoke streams off the chimney.
+            if t.steam && c == 0 {
+                // The engine is longer and taller than a coach — it reaches forward past the nose and back
+                // to meet the first carriage, so it reads as a proper locomotive rather than a stubby box.
+                let locoCW = Track.carUnit * 1.5, locoCH = Track.carHeight * 1.32
+                drawSteamLoco(ctx, at: S(smp.p), angle: t.path.smoothAngle(d),
+                              cw: locoCW, ch: locoCH, scale: sc)
+                let fwd: CGFloat = t.dir == .east ? 1 : -1
+                let base = S(smp.p)
+                let chim = CGPoint(x: base.x + fwd * 0.30 * locoCW * sc,
+                                   y: base.y - 0.50 * locoCH * sc)
+                drawSteamPlume(ctx, at: chim, back: -fwd, t: station.animT, scale: sc)
+                continue
+            }
             // An express is a power car at each end — rounded, no windows — with coaches between.
             let endCap = t.express && (c == 0 || c == t.spec.length - 1)
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
