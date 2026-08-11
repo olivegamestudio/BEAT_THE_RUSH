@@ -11,22 +11,31 @@ struct CreweView: View {
     @State private var confirmExit = false
     @State private var started = false
 
-    private let worldW: CGFloat = 1320
+    private let worldW: CGFloat = 1050
     private let contentMinX: CGFloat = -760
     private let contentMaxX: CGFloat = 2360
-    @State private var originX: CGFloat = 150
+    private let contentMinY: CGFloat = -70
+    private let contentMaxY: CGFloat = 560
+    @State private var originX: CGFloat = 300
+    @State private var originY: CGFloat = 250
     @State private var dragStartX: CGFloat? = nil
+    @State private var dragStartY: CGFloat? = nil
     private let railSteel = Color(red: 0.44, green: 0.48, blue: 0.56)
     private let railSheen = Color(red: 0.82, green: 0.86, blue: 0.94)
     private let railEdge = Color(red: 0.10, green: 0.11, blue: 0.15)
     private let fastCol = Color(red: 0.78, green: 0.40, blue: 0.36)
     private let singleCol = Color(red: 0.85, green: 0.66, blue: 0.24)
 
-    private let originY: CGFloat = 244      // centre the view on the platforms, which run past the usual band
     private func project(_ p: CGPoint, _ sc: CGFloat, _ size: CGSize) -> CGPoint {
         return CGPoint(x: (p.x - originX) * sc, y: (p.y - originY) * sc + size.height / 2)
     }
     private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - worldW) }
+    private func clampOriginY(_ y: CGFloat, _ size: CGSize, _ sc: CGFloat) -> CGFloat {
+        let half = (size.height / 2) / sc
+        let lo = contentMinY + half, hi = contentMaxY - half
+        if lo > hi { return (contentMinY + contentMaxY) / 2 }   // content shorter than the view — centre it
+        return min(max(y, lo), hi)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -53,11 +62,12 @@ struct CreweView: View {
                 .gesture(
                     DragGesture(minimumDistance: 14)
                         .onChanged { v in
-                            let start = dragStartX ?? originX
-                            dragStartX = start
-                            originX = clampOrigin(start - v.translation.width / scale)
+                            let sx = dragStartX ?? originX; dragStartX = sx
+                            let sy = dragStartY ?? originY; dragStartY = sy
+                            originX = clampOrigin(sx - v.translation.width / scale)
+                            originY = clampOriginY(sy - v.translation.height / scale, geo.size, scale)
                         }
-                        .onEnded { _ in dragStartX = nil }
+                        .onEnded { _ in dragStartX = nil; dragStartY = nil }
                 )
                 Vignette(strength: 0.45)
                 controls(scale: scale, size: geo.size)
@@ -188,8 +198,8 @@ struct CreweView: View {
     private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         for pl in s.plats {
-            // lift raised slabs clear of the rail so their 3-D edge doesn't drop over the line
-            let top = pl.slabAbove ? pl.y - 32 : pl.y + 9
+            // keep slabs clear of the rail so a berthed train sits beside the platform, not on it
+            let top = pl.slabAbove ? pl.y - 32 : pl.y + 20
             slab(ctx, id: pl.id, xL: pl.sLeft, xR: pl.sRight, top: top, sc: sc, S)
         }
     }
