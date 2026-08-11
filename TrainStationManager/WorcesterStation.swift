@@ -44,21 +44,38 @@ final class WorcesterStation: ObservableObject {
     let platL: CGFloat = 456
     let platR: CGFloat = 716
     let spawnL: CGFloat = -300
-    let spawnR: CGFloat = 1700
-    let branchStep: CGFloat = 84   // how far apart the four junctions are staggered along the single line, west→east
+    let spawnR: CGFloat = 1740
+    let branchStep: CGFloat = 96   // how far apart the four junctions are staggered along the single line, west→east
     let branchFan: CGFloat = 130   // gradual diverge from the single line onto each destination line
     // East of Shrub Hill the four lines peel off the single line one at a time, interleaved in/out/in/out.
     let yLondon: CGFloat = 152, yDroitwich: CGFloat = 216       // in, out
     let yBristol: CGFloat = 336, yBirmingham: CGFloat = 400     // in, out
     var branchYs: [CGFloat] { [yLondon, yDroitwich, yBristol, yBirmingham] }
-    /// Where each destination's junction sits on the single line — staggered, so they don't all meet at one point.
+    /// Where each destination's junction sits on the single line, staggered west→east. Ordered so lines never
+    /// cross: on each side the furthest-out destination peels off first — London (far up), Droitwich (near up),
+    /// Birmingham (far down), Bristol (near down).
     func branchX(_ yDest: CGFloat) -> CGFloat {
         switch yDest {
-        case yLondon:    return xSH
-        case yDroitwich: return xSH + branchStep
-        case yBristol:   return xSH + 2 * branchStep
-        default:         return xSH + 3 * branchStep   // Birmingham, furthest east
+        case yLondon:     return xSH
+        case yDroitwich:  return xSH + branchStep
+        case yBirmingham: return xSH + 2 * branchStep
+        default:          return xSH + 3 * branchStep   // Bristol, furthest east
         }
+    }
+    var eastmostBranchX: CGFloat { xSH + 3 * branchStep }
+    /// Three-aspect for a junction light, reflecting its own road: green when the single line is set that way,
+    /// amber when a train waits on it, red otherwise.
+    func branchAspect(_ yDest: CGFloat) -> Int {
+        let isOut = (yDest == yDroitwich || yDest == yBirmingham)
+        let thisGrant: Grant = isOut ? .east : (yDest == yLondon ? .london : .bristol)
+        if grant == thisGrant { return 0 }
+        let waiting: Bool
+        if isOut {
+            waiting = trains.contains { !$0.finished && $0.line == .blue && $0.boarded && !$0.hasSingle }
+        } else {
+            waiting = trains.contains { !$0.finished && $0.line == .red && !$0.hasSingle && abs($0.path.sample(0).p.y - yDest) < 6 }
+        }
+        return waiting ? 1 : 2
     }
 
     @Published var trains: [WorcTrain] = []

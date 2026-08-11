@@ -24,7 +24,7 @@ struct WorcesterView: View {
 
     private let worldW: CGFloat = 1520
     private let contentMinX: CGFloat = -340
-    private let contentMaxX: CGFloat = 1780
+    private let contentMaxX: CGFloat = 1840
     @State private var originX: CGFloat = -150
     @State private var dragStartX: CGFloat? = nil
     private let dcross: CGFloat = 40
@@ -169,7 +169,7 @@ struct WorcesterView: View {
         // Platform 1 (lime): out west to Malvern, crossing up from the single line
         railLine(ctx, [CGPoint(x: contentMinX, y: s.yP1), CGPoint(x: s.xEJ, y: s.yP1), CGPoint(x: s.xEJ + d, y: s.ySingle)], sc, tint: lime, S)
         // the single Shrub Hill line — the shared bottleneck, running east to the last junction, drawn a touch heavier
-        railLine(ctx, [CGPoint(x: s.xEJ + d, y: s.ySingle), CGPoint(x: s.branchX(s.yBirmingham), y: s.ySingle)], sc, tint: nil, width: 17, S)
+        railLine(ctx, [CGPoint(x: s.xEJ + d, y: s.ySingle), CGPoint(x: s.eastmostBranchX, y: s.ySingle)], sc, tint: nil, width: 17, S)
         // each line peels off the single line at its own staggered junction, gradually (in / out / in / out)
         for y in s.branchYs {
             let bx = s.branchX(y)
@@ -245,9 +245,11 @@ struct WorcesterView: View {
         for x in s.p2QueueXs {
             drawBlockSignal(ctx, at: S(CGPoint(x: x, y: s.yP2 - 24)), aspect: s.p2QueueAspect(x), scale: esig * 0.92)
         }
-        // A light on each eastern junction — green clear, amber granted, red while a train holds the single line.
+        // A light on each eastern junction, lifted off the single line toward its own road — green when the line
+        // is set that way, amber when a train waits on it, red otherwise.
         for y in s.branchYs {
-            drawBlockSignal(ctx, at: S(CGPoint(x: s.branchX(y) + 8, y: s.ySingle - 4)), aspect: s.singleAspect, scale: esig * 0.85)
+            let off: CGFloat = y < s.ySingle ? -28 : 28
+            drawBlockSignal(ctx, at: S(CGPoint(x: s.branchX(y) + 8, y: s.ySingle + off)), aspect: s.branchAspect(y), scale: esig * 0.85)
         }
         // Platform 1 (bottom) starting signal — at its west end, where it berths and departs to Malvern.
         drawSignal(ctx, at: S(CGPoint(x: s.platL - 40, y: s.yP1)), red: s.p1Busy, scale: esig)
