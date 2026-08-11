@@ -222,7 +222,7 @@ final class DawlishStation: ObservableObject {
         let len = express ? Int.random(in: 6...8) : (steam ? 5 : (def.trainLengths.randomElement() ?? 3))
         let tint = express ? (Bool.random() ? Color(red: 0.85, green: 0.18, blue: 0.22)
                                             : Color(red: 0.13, green: 0.60, blue: 0.32))
-                           : (steam ? Color(red: 0.92, green: 0.86, blue: 0.70)
+                           : (steam ? Color(red: 0.38, green: 0.23, blue: 0.14)   // teak/chocolate heritage stock
                                     : Color(red: 0.90, green: 0.92, blue: 0.95))
         let spec = Train(length: len, tint: tint, name: "")
         let east = Bool.random()

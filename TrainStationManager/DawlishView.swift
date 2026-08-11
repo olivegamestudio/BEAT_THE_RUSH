@@ -196,8 +196,9 @@ struct DawlishView: View {
                 // The engine is longer and taller than a coach — it reaches forward past the nose and back
                 // to meet the first carriage, so it reads as a proper locomotive rather than a stubby box.
                 let locoCW = Track.carUnit * 1.5, locoCH = Track.carHeight * 1.32
+                let phase = t.dist / (0.19 * locoCH)         // wheels roll with distance travelled
                 drawSteamLoco(ctx, at: S(smp.p), angle: t.path.smoothAngle(d),
-                              cw: locoCW, ch: locoCH, scale: sc)
+                              cw: locoCW, ch: locoCH, scale: sc, phase: phase)
                 let fwd: CGFloat = t.dir == .east ? 1 : -1
                 let base = S(smp.p)
                 let chim = CGPoint(x: base.x + fwd * 0.30 * locoCW * sc,
@@ -207,8 +208,13 @@ struct DawlishView: View {
             }
             // An express is a power car at each end — rounded, no windows — with coaches between.
             let endCap = t.express && (c == 0 || c == t.spec.length - 1)
+            // Heritage coaches are shorter and skinnier than modern stock, to sit behind the engine.
+            let coachH = t.steam ? Track.carHeight * 0.82 : Track.carHeight
+            let coachW = t.steam ? Track.carUnit - 10 : Track.carUnit - 6
             drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
-                         cw: Track.carUnit - 6, ch: Track.carHeight, scale: sc, endCap: endCap, fill: min(1, t.load / (Double(t.spec.length) * 3)), seed: t.id.hashValue &+ c)
+                         cw: coachW, ch: coachH, scale: sc, endCap: endCap,
+                         fill: min(1, t.load / (Double(t.spec.length) * 3)), seed: t.id.hashValue &+ c,
+                         cornerRadius: t.steam ? 3 : nil)
         }
         // A train sat at a red for a while shows a waiting bubble that floats up and fades, over and over.
         if t.stopped > 3.5, t.dist >= 0, t.dist <= t.path.total {

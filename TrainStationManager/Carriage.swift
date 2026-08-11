@@ -126,7 +126,7 @@ func drawSparkleBurst(_ ctx: GraphicsContext, at p: CGPoint, age: Double, life: 
 /// so it leads the rake either way along the line. GWR-ish: a Brunswick-green boiler with brass
 /// bands, a chimney and dome, a cab, and three driving wheels.
 func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
-                   cw: CGFloat, ch: CGFloat, scale: CGFloat) {
+                   cw: CGFloat, ch: CGFloat, scale: CGFloat, phase: CGFloat = 0) {
     let forward: CGFloat = cos(angle) >= 0 ? 1 : -1     // which way the smokebox points on screen
     var a = angle
     if cos(a) < 0 { a += .pi }                          // keep the engine upright like the carriages
@@ -141,46 +141,64 @@ func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         l.rotate(by: .radians(a))
         l.scaleBy(x: forward, y: 1)                     // mirror so the smokebox leads the way it travels
         let W = cw * scale, H = ch * scale
+        let depth = 0.44 * H                            // the same extrusion the carriages use, for matching volume
         func R(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> CGRect {
             CGRect(x: x0 * W, y: y0 * H, width: (x1 - x0) * W, height: (y1 - y0) * H)
         }
-        // driving wheels (behind the frames), each with a brass rim and hub
-        let wr = 0.23 * H
-        for wx: CGFloat in [-0.28, 0.0, 0.27] {
-            let c = CGPoint(x: wx * W, y: 0.30 * H)
+        // An extruded block: a darker side wall dropped by `depth`, then a lit top face — exactly the
+        // roof-over-side treatment the carriages get, so the engine reads with the same 3-D solidity.
+        func block(_ r: CGRect, _ corner: CGFloat, _ top: Color) {
+            let side = Path(roundedRect: r.offsetBy(dx: 0, dy: depth), cornerRadius: corner)
+            l.fill(side, with: .color(top)); l.fill(side, with: .color(.black.opacity(0.30)))
+            let face = Path(roundedRect: r, cornerRadius: corner)
+            l.fill(face, with: .color(top))
+            l.fill(face, with: .linearGradient(Gradient(colors: [.white.opacity(0.42), .clear, .black.opacity(0.16)]),
+                                               startPoint: CGPoint(x: r.minX, y: r.minY), endPoint: CGPoint(x: r.maxX, y: r.maxY)))
+            l.stroke(face, with: .color(.black.opacity(0.22)), style: .init(lineWidth: 1.1 * scale))
+        }
+        // driving wheels, sitting below the frames so they and their coupling rod are fully in view
+        let wr = 0.19 * H
+        let wheelXs: [CGFloat] = [-0.30, -0.02, 0.26]
+        let wheelY = 0.26 * H + depth
+        for wx in wheelXs {
+            let c = CGPoint(x: wx * W, y: wheelY)
             l.fill(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)), with: .color(wheelC))
             l.stroke(Path(ellipseIn: CGRect(x: c.x - wr, y: c.y - wr, width: wr * 2, height: wr * 2)),
                      with: .color(brass.opacity(0.8)), style: .init(lineWidth: 1.4 * scale))
             l.fill(Path(ellipseIn: CGRect(x: c.x - wr * 0.3, y: c.y - wr * 0.3, width: wr * 0.6, height: wr * 0.6)), with: .color(brass))
         }
-        // footplate / red frames
-        l.fill(Path(roundedRect: R(-0.50, 0.15, 0.48, 0.32), cornerRadius: 2 * scale), with: .color(frame))
-        // chimney (near the front) with a flared cap, then the dome
-        l.fill(Path(roundedRect: R(0.22, -0.52, 0.34, -0.24), cornerRadius: 1.5 * scale), with: .color(dark))
-        l.fill(Path(roundedRect: R(0.19, -0.57, 0.37, -0.49), cornerRadius: 2 * scale), with: .color(dark))
-        l.fill(Path(roundedRect: R(-0.07, -0.45, 0.11, -0.24), cornerRadius: 4 * scale), with: .color(brass))  // brass steam dome
-        // boiler barrel
-        let boiler = Path(roundedRect: R(-0.34, -0.26, 0.30, 0.22), cornerRadius: 0.24 * H)
-        l.fill(boiler, with: .color(green))
-        l.fill(boiler, with: .linearGradient(Gradient(colors: [.white.opacity(0.30), .clear, .black.opacity(0.20)]),
-                                             startPoint: CGPoint(x: 0, y: -0.26 * H), endPoint: CGPoint(x: 0, y: 0.22 * H)))
-        // smokebox at the front, with its round door + dog handles
-        l.fill(Path(roundedRect: R(0.24, -0.27, 0.45, 0.23), cornerRadius: 0.22 * H), with: .color(dark))
-        let doorC = CGPoint(x: 0.35 * W, y: -0.02 * H), dr = 0.17 * H
+        block(R(-0.50, 0.10, 0.48, 0.20), 2 * scale, frame)          // footplate / red frames
+        block(R(-0.34, -0.20, 0.30, 0.18), 0.20 * H, green)          // boiler barrel
+        block(R(0.24, -0.22, 0.46, 0.20), 0.20 * H, dark)            // smokebox at the front
+        block(R(-0.54, -0.32, -0.22, 0.18), 3 * scale, green)       // cab (taller than the boiler)
+        block(R(0.20, -0.50, 0.33, -0.20), 1.5 * scale, dark)        // chimney
+        block(R(-0.07, -0.42, 0.11, -0.20), 4 * scale, brass)       // brass steam dome
+        // details, painted onto the side wall (dropped by depth)
+        let doorC = CGPoint(x: 0.35 * W, y: depth - 0.01 * H), dr = 0.15 * H
         l.fill(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
                with: .color(Color(red: 0.16, green: 0.17, blue: 0.19)))
         l.stroke(Path(ellipseIn: CGRect(x: doorC.x - dr, y: doorC.y - dr, width: dr * 2, height: dr * 2)),
                  with: .color(brass.opacity(0.7)), style: .init(lineWidth: 1 * scale))
-        // two brass boiler bands + a handrail
-        for by: CGFloat in [-0.10, 0.08] {
-            var band = Path(); band.move(to: CGPoint(x: -0.34 * W, y: by * H)); band.addLine(to: CGPoint(x: 0.24 * W, y: by * H))
+        for by: CGFloat in [-0.07, 0.07] {                           // brass boiler bands
+            var band = Path()
+            band.move(to: CGPoint(x: -0.32 * W, y: by * H + depth)); band.addLine(to: CGPoint(x: 0.24 * W, y: by * H + depth))
             l.stroke(band, with: .color(brass.opacity(0.85)), style: .init(lineWidth: 1.2 * scale))
         }
-        // cab at the rear with an overhanging roof and a side window
-        l.fill(Path(roundedRect: R(-0.53, -0.37, -0.22, -0.30), cornerRadius: 1.5 * scale), with: .color(dark))   // roof
-        l.fill(Path(roundedRect: R(-0.51, -0.34, -0.24, 0.22), cornerRadius: 3 * scale), with: .color(green))
-        l.fill(Path(roundedRect: R(-0.46, -0.19, -0.29, 0.01), cornerRadius: 2 * scale),
-               with: .color(Color(red: 0.55, green: 0.72, blue: 0.82)))
+        l.fill(Path(roundedRect: CGRect(x: -0.48 * W, y: depth - 0.14 * H, width: 0.20 * W, height: 0.22 * H),
+                    cornerRadius: 2 * scale), with: .color(Color(red: 0.55, green: 0.72, blue: 0.82)))   // cab window
+        // Coupling rod: the crank pins on every driving wheel share one phase, so the steel side rod stays
+        // level and orbits the wheel centres as the engine rolls — the reciprocating motion of a real loco.
+        let rc = 0.52 * wr                                   // crank throw
+        let crank = CGPoint(x: rc * cos(phase), y: rc * sin(phase))
+        func pin(_ wx: CGFloat) -> CGPoint { CGPoint(x: wx * W + crank.x, y: wheelY + crank.y) }
+        let steel = Color(red: 0.70, green: 0.73, blue: 0.78)
+        var rod = Path(); rod.move(to: pin(wheelXs.first!)); rod.addLine(to: pin(wheelXs.last!))
+        l.stroke(rod, with: .color(.black.opacity(0.5)), style: .init(lineWidth: 0.20 * H, lineCap: .round))
+        l.stroke(rod, with: .color(steel), style: .init(lineWidth: 0.13 * H, lineCap: .round))
+        for wx in wheelXs {                                   // bright crank-pin bosses
+            let c = pin(wx), br = 0.07 * H
+            l.fill(Path(ellipseIn: CGRect(x: c.x - br, y: c.y - br, width: br * 2, height: br * 2)), with: .color(steel))
+        }
     }
 }
 
@@ -189,9 +207,9 @@ func drawSteamLoco(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
 func drawSteamPlume(_ ctx: GraphicsContext, at o: CGPoint, back: CGFloat, t: Double, scale: CGFloat) {
     let n = 6
     for i in 0..<n {
-        let p = CGFloat(((t * 0.75) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
-        let rise = p * 34 * scale                          // climbs a little
-        let drift = p * 74 * scale * back                  // but mostly streams back over the train
+        let p = CGFloat(((t * 1.2) + Double(i) / Double(n)).truncatingRemainder(dividingBy: 1))
+        let rise = p * 30 * scale                          // climbs a little
+        let drift = p * 120 * scale * back                 // but mostly streams fast back over the train
         let wob = CGFloat(sin(t * 3 + Double(i) * 1.3)) * 3 * scale * p
         let r = (3.5 + p * 13) * scale
         let alpha = Double(1 - p) * 0.5
@@ -226,7 +244,7 @@ func drawMood(_ ctx: GraphicsContext, _ emoji: String, at p: CGPoint, scale: CGF
 /// dimensions; `scale` maps design units to screen.
 func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
                   tint: Color, cw: CGFloat, ch: CGFloat, scale: CGFloat, endCap: Bool = false,
-                  fill: Double = 0, seed: Int = 0) {
+                  fill: Double = 0, seed: Int = 0, cornerRadius: CGFloat? = nil) {
     let glass = Color(red: 0.66, green: 0.84, blue: 0.96)
     let seated = Color(red: 0.20, green: 0.19, blue: 0.24)   // a passenger, seen as a silhouette through the glass
     // Align to the track line but keep the carriage upright — never let it flip over when
@@ -239,7 +257,8 @@ func drawCarriage(_ ctx: GraphicsContext, at p: CGPoint, angle: CGFloat,
         l.rotate(by: .radians(a))
         let r = CGRect(x: -cw / 2 * scale, y: -ch / 2 * scale, width: cw * scale, height: ch * scale)
         // A power car at the nose/tail of an express is a smooth, rounded capsule with no passenger windows.
-        let corner = (endCap ? ch * 0.5 : ch * 0.22) * scale
+        // Heritage coaches pass a small `cornerRadius` so they read as squarer, more rectangular boxes.
+        let corner = (cornerRadius ?? (endCap ? ch * 0.5 : ch * 0.22)) * scale
         let shape = Path(roundedRect: r, cornerRadius: corner)
         // A side face carries the windows and doors — the roof is the lit top.
         let depth = ch * 0.44 * scale
