@@ -36,7 +36,7 @@ final class WorcesterStation: ObservableObject {
     var name: String { def.name }
 
     // Geometry (design space W = 1200, H = 452), all on the ground clear of the sky.
-    let yP2: CGFloat = 234     // Platform 2 — orange, eastbound to Droitwich & Birmingham
+    let yP2: CGFloat = 210     // Platform 2 — orange, eastbound to Droitwich & Birmingham
     let yP1: CGFloat = 344     // Platform 1 — green, westbound from London & Bristol
     let ySingle: CGFloat = 276 // the single Shrub Hill line, between the platforms
     let xEJ: CGFloat = 800     // east throat — platforms converge to the single line
