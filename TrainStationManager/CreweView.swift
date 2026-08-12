@@ -20,6 +20,9 @@ struct CreweView: View {
     @State private var originY: CGFloat = 310
     @State private var dragStartX: CGFloat? = nil
     @State private var dragStartY: CGFloat? = nil
+    @State private var zoom: CGFloat = 1
+    @State private var zoomStart: CGFloat? = nil
+    private let zoomMin: CGFloat = 0.55, zoomMax: CGFloat = 2.2
     private let railSteel = Color(red: 0.44, green: 0.48, blue: 0.56)
     private let railSheen = Color(red: 0.82, green: 0.86, blue: 0.94)
     private let railEdge = Color(red: 0.10, green: 0.11, blue: 0.15)
@@ -29,7 +32,11 @@ struct CreweView: View {
     private func project(_ p: CGPoint, _ sc: CGFloat, _ size: CGSize) -> CGPoint {
         return CGPoint(x: (p.x - originX) * sc, y: (p.y - originY) * sc + size.height / 2)
     }
-    private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - worldW) }
+    private func clampOrigin(_ x: CGFloat, _ visibleW: CGFloat) -> CGFloat {
+        let hi = contentMaxX - visibleW
+        if hi <= contentMinX { return (contentMinX + contentMaxX - visibleW) / 2 }   // world narrower than view — centre
+        return min(max(x, contentMinX), hi)
+    }
     private func clampOriginY(_ y: CGFloat, _ size: CGSize, _ sc: CGFloat) -> CGFloat {
         let half = (size.height / 2) / sc
         let lo = contentMinY + half, hi = contentMaxY - half
@@ -39,10 +46,10 @@ struct CreweView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let scale = geo.size.width / worldW
+            let scale = geo.size.width / worldW * zoom
             ZStack {
                 Canvas { ctx, size in
-                    let sc = size.width / worldW
+                    let sc = size.width / worldW * zoom
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
@@ -64,10 +71,21 @@ struct CreweView: View {
                         .onChanged { v in
                             let sx = dragStartX ?? originX; dragStartX = sx
                             let sy = dragStartY ?? originY; dragStartY = sy
-                            originX = clampOrigin(sx - v.translation.width / scale)
+                            originX = clampOrigin(sx - v.translation.width / scale, worldW / zoom)
                             originY = clampOriginY(sy - v.translation.height / scale, geo.size, scale)
                         }
                         .onEnded { _ in dragStartX = nil; dragStartY = nil }
+                        .simultaneously(with:
+                            MagnificationGesture()
+                                .onChanged { v in
+                                    let z0 = zoomStart ?? zoom; zoomStart = z0
+                                    zoom = min(zoomMax, max(zoomMin, z0 * v))
+                                    let s = geo.size.width / worldW * zoom
+                                    originX = clampOrigin(originX, worldW / zoom)
+                                    originY = clampOriginY(originY, geo.size, s)
+                                }
+                                .onEnded { _ in zoomStart = nil }
+                        )
                 )
                 Vignette(strength: 0.45)
                 controls(scale: scale, size: geo.size)
@@ -251,7 +269,7 @@ struct CreweView: View {
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         // home signal at the east entrance — trains arrive from the east
-        drawSignal(ctx, at: S(CGPoint(x: s.xSR + 470, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
+        drawSignal(ctx, at: S(CGPoint(x: s.homeSignalX, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
         for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
             // starter at the west (departure) end — red holds the boarded train
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
@@ -271,7 +289,7 @@ struct CreweView: View {
                 SignalHalo().frame(width: 60, height: 60).contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
-            .position(project(CGPoint(x: station.xSR + 470, y: station.throatY - 26), scale, size))
+            .position(project(CGPoint(x: station.homeSignalX, y: station.throatY - 26), scale, size))
 
             ForEach(station.plats.indices.filter { station.throughIds.contains(station.plats[$0].id) }, id: \.self) { i in
                 let pl = station.plats[i]

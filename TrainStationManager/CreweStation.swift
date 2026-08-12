@@ -44,6 +44,7 @@ final class CreweTrain: Identifiable {
     var spawnedNext = false
     var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
     var entryFast: CGFloat = 0      // which fast line it runs in through the throat
+    var homeStop: CGFloat = 0       // path distance at which the nose reaches the home signal
     var railAspect = 0
     var finished = false
     enum Phase { case arriving, berthed, departing }
@@ -69,6 +70,7 @@ final class CreweStation: ObservableObject {
     // East throat: 7 tracks (5 + 2 fast) fan over a staircase.
     let xEMouth: CGFloat = 1740
     let throughIds = [1, 5, 6, 7, 8]                  // the through lines traffic uses in this pass (bays/single come next)
+    var homeSignalX: CGFloat { xSR + 470 }            // the east home signal — trains hold here when it's red
 
     @Published var trains: [CreweTrain] = []
     @Published var carried = 0.0
@@ -289,8 +291,20 @@ final class CreweStation: ObservableObject {
         t.entryLen = platEntryLen[target]
         t.entryFast = fastLineFor(pl.y)
         t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
+        t.homeStop = homeStopDist(path)
         t.committed = true
         trains.append(t)
+    }
+
+    /// The distance along an arriving path at which the nose first reaches the home signal, coming from the
+    /// east. Trains hold here — at the signal the player actually sees — when the entrance is red.
+    private func homeStopDist(_ p: RoutePath) -> CGFloat {
+        var d: CGFloat = 0
+        while d <= p.total {
+            if p.sample(d).p.x <= homeSignalX { return d }
+            d += 12
+        }
+        return 0
     }
 
     // MARK: simulation
@@ -323,9 +337,10 @@ final class CreweStation: ObservableObject {
             switch t.phase {
             case .arriving:
                 var ceiling = t.berthDist
-                if !entranceOpen {
-                    let stop = t.path.distanceTo(vertex: 1) - gap   // held at the east home signal
-                    if stop >= t.dist { ceiling = min(ceiling, stop) }
+                // Held at the east home signal when it's red — every train that hasn't yet passed it, so a
+                // train following another still stops at the light instead of chasing its leader through.
+                if !entranceOpen && t.dist < t.homeStop {
+                    ceiling = min(ceiling, t.homeStop - gap)
                 }
                 // Hold clear of any train physically ahead — wherever its body crosses our path, whatever
                 // its target. "Ahead" is decided by progress so a merge always has a clear winner (never a
