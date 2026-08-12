@@ -20,7 +20,7 @@ struct CreweView: View {
     @State private var originY: CGFloat = 310
     @State private var dragStartX: CGFloat? = nil
     @State private var dragStartY: CGFloat? = nil
-    @State private var zoom: CGFloat = 1
+    @State private var zoom: CGFloat = 0.8      // start pulled back a little so more of the station is in view
     @State private var zoomStart: CGFloat? = nil
     private let zoomMin: CGFloat = 0.55, zoomMax: CGFloat = 2.2
     private let railSteel = Color(red: 0.44, green: 0.48, blue: 0.56)
