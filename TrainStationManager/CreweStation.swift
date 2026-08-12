@@ -101,6 +101,7 @@ final class CreweStation: ObservableObject {
     private var paxClock = 0.0, nextPax = 1.0
     private var overflowClock: [Double]
     private var peakFill = 0.0
+    private var routeCursor = 0                        // rotates platform choice so arrivals fan out
     private var platEntryLen: [CGFloat] = []          // east-spawn → platform-east-end distance, per platform
 
     /// The through-platform indices (0-based) actually served this pass.
@@ -240,11 +241,18 @@ final class CreweStation: ObservableObject {
         return false
     }
 
+    /// Pick a road for an arriving train. Prefer a clear platform with people waiting so passengers keep
+    /// moving; among equally-good clear roads, rotate so trains fan out across the station instead of all
+    /// piling onto the same one. If every road is taken, head for the one that will clear soonest.
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
         let free = throughIdx.filter { !platformTaken($0, except: t) }
-        if let best = free.max(by: { passengers[$0] < passengers[$1] }) { return best }
-        // Everything's taken — target whichever road's train is furthest along (nearest to leaving).
-        return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
+        guard !free.isEmpty else {
+            return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
+        }
+        let mostWaiting = free.map { passengers[$0] }.max() ?? 0
+        let best = free.filter { passengers[$0] >= mostWaiting - 0.5 }   // the fullest clear roads (ties included)
+        routeCursor &+= 1
+        return best[routeCursor % best.count]                            // rotate through them so they fan out
     }
 
     /// How far the train currently on road `i` has run — bigger means nearer to clearing it.
@@ -258,7 +266,7 @@ final class CreweStation: ObservableObject {
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
         entranceOpen = true; platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
-        spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1
+        spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1; routeCursor = 0
         spawn()
         objectWillChange.send()
     }
