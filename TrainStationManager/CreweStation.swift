@@ -241,18 +241,18 @@ final class CreweStation: ObservableObject {
         return false
     }
 
-    /// Pick a road for an arriving train. Prefer a clear platform with people waiting so passengers keep
-    /// moving; among equally-good clear roads, rotate so trains fan out across the station instead of all
-    /// piling onto the same one. If every road is taken, head for the one that will clear soonest.
+    /// Pick a road for an arriving train by rotating round-robin to the next clear platform, so arrivals
+    /// fan evenly across the whole station. (Chasing the fullest platform instead feeds back on itself under
+    /// load — the busiest road can't clear fast enough, so it stays busiest and swallows every train.)
+    /// Passengers arrive evenly across the platforms, so even service keeps them all moving. If every road
+    /// is taken, head for the one that will clear soonest.
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
-        let free = throughIdx.filter { !platformTaken($0, except: t) }
-        guard !free.isEmpty else {
-            return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
+        let n = throughIdx.count
+        for k in 1...n {
+            let i = throughIdx[(routeCursor + k) % n]
+            if !platformTaken(i, except: t) { routeCursor = (routeCursor + k) % n; return i }
         }
-        let mostWaiting = free.map { passengers[$0] }.max() ?? 0
-        let best = free.filter { passengers[$0] >= mostWaiting - 0.5 }   // the fullest clear roads (ties included)
-        routeCursor &+= 1
-        return best[routeCursor % best.count]                            // rotate through them so they fan out
+        return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
     }
 
     /// How far the train currently on road `i` has run — bigger means nearer to clearing it.
