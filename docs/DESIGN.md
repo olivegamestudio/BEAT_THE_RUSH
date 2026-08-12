@@ -335,6 +335,10 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
+- **Polish phase (after the twelve cores exist):** the **station-select screen** is a plain card grid —
+  make it characterful. Leading idea: a **split-flap departure board** (railway-station style, big legible
+  rows — good for partial sight — animated flaps, destination + county + stars). Alternatives: a journey/
+  metro line you progress down, or cards with a live mini-scene of each layout. Build cores first.
 
 ## Future level ideas
 - **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the
