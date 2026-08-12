@@ -78,21 +78,54 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark,
 - **Liveries:** express trains long, red or green; locals white/short. Operator colours used where
   relevant (Worcester: GWR lime `gwrGreen`, West Midlands orange `wmrOrange`).
 
+### Feel — the small behaviours
+The little touches that make it read as a living station. These are behaviours, not just constants —
+keep them true as the code changes.
+
+- **Passengers fill the train at random until it's full.** Each carriage window has its own stable
+  random threshold (`seed = train.id ⊕ car`), so as a train boards, seats light up **scattered about**,
+  not left-to-right — the carriages just look fuller and fuller until the whole train is full. Amount lit
+  = `fill = load / (length·3)`. Dawlish's through expresses arrive **pre-loaded ~75%** so a fast train
+  already looks busy.
+- **People wait, and get impatient.** A person stands on the platform per arrival. They start happy; the
+  longer they wait the crosser they get — a mood bubble climbs **happy → waiting → cross** (`mood`), and
+  once past `agitateAfter` they **fidget/pace** and wear an angry red coat. Let a platform stay jammed at
+  `platformCap` past `overflowGrace` and you lose.
+- **Each boarding throws a sparkle** that flies from the platform to the people counter, so you *see*
+  the number tick up. (Crewe's passenger figures are drawn larger, with a dark outline, to stay legible
+  when zoomed out.)
+- **Trains ease, don't teleport.** They accelerate away and brake smoothly toward whatever's stopping
+  them (`sqrt(2·decel·headroom)`), so a train **screeches to a stand** at a red rather than snapping to
+  it, and pulls away again when it clears. A long train **overruns the exit** so it doesn't vanish while
+  its tail is still on screen.
+- **You can read a train's intent** from the coloured road just ahead of it (green/amber/red route
+  lighting) before it gets there.
+
 ## Stations
 
 ### Saltash (1) — `saltash`
 Two platforms with green small + green/red **express** trains (`express: 0.28`). 3-aspect block
 signals keep expresses spaced back from locals. Intro to expresses running through.
+- The **Royal Albert Bridge is drawn in front of (over) the trains** — trains pass *under* its spans, so
+  the drawing order puts the bridge last.
 
 ### Dawlish Warren (2) — `dawlish`
 Two platform **loops** off the up/down mains. The player controls **platform starters** — tap to
 hold/release a boarded local out of its loop; releasing one throws the interlock and shuts the main
 point signal (`…MainBlocked`) so a through express can’t hit it. Long expresses run straight through
-the mains and **cannot** divert. Now and then a **heritage steam special** sweeps through too — a fast
-service that never stops: a bigger Brunswick-green engine (`drawSteamLoco`, ~1.5× a coach long) with a
-chimney streaming smoke backwards (`drawSteamPlume`) and a short rake of cream coaches, already loaded.
-It runs at ~2× local speed and trips the same "Fast train" warning. Automatic 3-aspect block signals
-down each main; sun in the sky.
+the mains and **cannot** divert.
+- **Heritage steam special** (occasional, same rarity as the speedboat): a fast service that **never
+  stops**. A 3-D–extruded Brunswick-green engine matching the coaches' depth (`drawSteamLoco`), a
+  **single central yellow dome and one funnel**, an **animated coupling rod**, and a short rake of
+  brown, squarer, non-overlapping coaches — already ~75% loaded. It runs at ~2× local speed and, while
+  approaching, shows a **"Special"** warning pill (not "Fast").
+- **Smoke** (`drawSteamPlume`): streams **backwards** from the funnel, moving fast then slowing, with a
+  **per-particle random speed** and a short fade so there's plenty of it.
+- **Ambient life** (all occasional / parallax so the scene lives without clutter): dune **grass** and the
+  **sun** scroll with a **parallax** offset; a **speedboat** crosses the front with an **animated
+  rippling wake** and is **affected by the panning**; a lighter, **animated seagull** in the sky; and a
+  slow **tanker on the horizon**, high up and distant.
+- Automatic 3-aspect block signals down each main.
 - Key: `upLoopY`/`downLoopY` (loops), `upMainY`/`downMainY` (mains), `xW`/`xE` throats, `blockXs`.
 - Signals sit lifted off their tracks: top starter up, bottom starter down-left beside its platform,
   the two point signals up-left / down-right off the mains, halos aligned to lamps.
