@@ -265,7 +265,7 @@ struct CreweView: View {
 
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
+        for (i, pl) in s.plats.enumerated() where s.servedIds.contains(pl.id) {
             let feetY = pl.slabAbove ? pl.y - 8 : pl.y + 30
             pax(ctx, count: s.passengers[i], x0: pl.xL + 90, feetY: feetY, sc: sc,
                 agitated: s.agitated(i), t: s.animT, S: S)
@@ -300,14 +300,15 @@ struct CreweView: View {
         let s = station
         // home signal at the east entrance — trains arrive from the east
         drawSignal(ctx, at: S(CGPoint(x: s.homeSignalX, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
-        for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
-            // starter at the west (departure) end — red holds the boarded train
+        for (i, pl) in s.plats.enumerated() where s.servedIds.contains(pl.id) {
+            // starter at the west (departure) end — red holds the boarded train (a bay's is its reverse release)
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
             // entry signal at the east (arrival) end — red while the platform is occupied
             drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
-            // point light out at the throat turnout, where this platform's road steps onto its slow line
+            // point light out at the throat turnout — red when the platform is occupied or the top throat is
+            // reserved for a bay reversing out across it
             let turn = s.eastThroat(pl.y)
-            if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i), scale: sc * 1.9) }
+            if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i) || s.topReserved(i), scale: sc * 1.9) }
         }
     }
 
@@ -327,7 +328,7 @@ struct CreweView: View {
             }
         }
         tag("H", at: CGPoint(x: s.homeSignalX, y: s.throatY - 4), .cyan)
-        for pl in s.plats where s.throughIds.contains(pl.id) {
+        for pl in s.plats where s.servedIds.contains(pl.id) {
             tag("S\(pl.id)", at: CGPoint(x: pl.xL + 96, y: pl.y - 18), .yellow)
             tag("E\(pl.id)", at: CGPoint(x: pl.xR - 70, y: pl.y - 18), .yellow)
             let turn = s.eastThroat(pl.y)
@@ -346,7 +347,7 @@ struct CreweView: View {
             .buttonStyle(PressStyle())
             .position(project(CGPoint(x: station.homeSignalX, y: station.throatY - 26), scale, size))
 
-            ForEach(station.plats.indices.filter { station.throughIds.contains(station.plats[$0].id) }, id: \.self) { i in
+            ForEach(station.plats.indices.filter { station.servedIds.contains(station.plats[$0].id) }, id: \.self) { i in
                 let pl = station.plats[i]
                 Button(action: { station.toggleStarter(i); Sound.shared.play(.tap) }) {
                     SignalHalo().frame(width: 50, height: 50).contentShape(Rectangle())

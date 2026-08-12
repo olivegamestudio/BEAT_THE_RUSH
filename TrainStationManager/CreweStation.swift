@@ -47,7 +47,9 @@ final class CreweTrain: Identifiable {
     var homeStop: CGFloat = 0       // path distance at which the nose reaches the home signal
     var railAspect = 0
     var finished = false
-    enum Phase { case arriving, berthed, departing }
+    var isBay = false               // a terminating bay service: it reverses back out the way it came in
+    var owningReverse = false       // holds the top-throat reservation while it backs out
+    enum Phase { case arriving, berthed, departing, reversing }
     var phase: Phase = .arriving
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, target: Int, _ path: RoutePath) { self.spec = spec; self.target = target; self.path = path }
@@ -83,7 +85,9 @@ final class CreweStation: ObservableObject {
     let xWMouth: CGFloat = -120                      // where the 4 tracks bunch together
     // East throat: 7 tracks (5 + 2 fast) fan over a staircase.
     let xEMouth: CGFloat = 1740
-    let throughIds = [1, 5, 6, 7, 8]                  // the through lines traffic uses in this pass (bays/single come next)
+    let throughIds = [1, 5, 6, 7, 8]                  // the through platforms — trains run right across them
+    let bayIds = [2, 3, 4]                            // east-facing terminating bays — trains reverse back out
+    var servedIds: Set<Int> { Set(throughIds + bayIds) }
     var homeSignalX: CGFloat { xSR + 470 }            // the east home signal — trains hold here when it's red
 
     @Published var trains: [CreweTrain] = []
@@ -124,9 +128,20 @@ final class CreweStation: ObservableObject {
     private var routeCursor = 0                        // rotates platform choice so arrivals fan out
     private var platEntryLen: [CGFloat] = []          // east-spawn → platform-east-end distance, per platform
     private var platTurnoutLen: [CGFloat] = []         // east-spawn → entry-turnout (point light) distance, per platform
+    /// A bay reversing out runs the top slow line against the arriving flow. While it does, the top throat is
+    /// signalled against — its point lights go red and no arrival is routed onto it — so the line is its own.
+    @Published private(set) var reverseActive = false
 
     /// The through-platform indices (0-based) actually served this pass.
     private var throughIdx: [Int] { plats.indices.filter { throughIds.contains(plats[$0].id) } }
+    private var bayIdx: [Int] { plats.indices.filter { bayIds.contains(plats[$0].id) } }
+    var servedIdx: [Int] { plats.indices.filter { servedIds.contains(plats[$0].id) } }
+    /// Platforms that share the top slow line (the bays and the through platforms above the expresses).
+    private func isTopSlow(_ i: Int) -> Bool { plats[i].kind == .bayEast || slowLineFor(plats[i].y) == slowY[0] }
+    /// The top slow line is clear to reverse onto once no other train is still arriving across it.
+    private func topSlowClear(except t: CreweTrain) -> Bool {
+        !trains.contains { $0 !== t && !$0.finished && $0.phase == .arriving && isTopSlow($0.target) }
+    }
 
     init(_ def: StationDef) {
         self.def = def
@@ -151,8 +166,8 @@ final class CreweStation: ObservableObject {
         platformHeld = Array(repeating: false, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
-        platEntryLen = plats.indices.map { entryLenOf(buildPath(to: $0), $0) }
-        platTurnoutLen = plats.indices.map { turnoutLenOf(buildPath(to: $0), $0) }
+        platEntryLen = plats.indices.map { entryLenOf(routeInto($0), $0) }
+        platTurnoutLen = plats.indices.map { turnoutLenOf(routeInto($0), $0) }
         spawn()
     }
 
@@ -215,6 +230,17 @@ final class CreweStation: ObservableObject {
         let pts = Array(eastThroatPoints(pl.y).reversed()) + Array(westThroatPoints(pl.y).reversed())
         return RoutePath(pts)
     }
+    /// Bay route — in from the east down the throat to the bay's east end, then along the bay to a stand
+    /// short of the buffer. There is no west exit: the train reverses back out along this same road.
+    private func buildBayPath(to i: Int) -> RoutePath {
+        let pl = plats[i]
+        let pts = Array(eastThroatPoints(pl.y).reversed()) + [CGPoint(x: pl.xL + 180, y: pl.y)]
+        return RoutePath(pts)
+    }
+    /// The road a train takes into platform `i` — a through route, or a terminating bay route.
+    private func routeInto(_ i: Int) -> RoutePath {
+        plats[i].kind == .bayEast ? buildBayPath(to: i) : buildPath(to: i)
+    }
     /// The east spawn → platform-east-end distance for platform `i`.
     private func entryLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
         p.distanceTo(vertex: eastThroatPoints(plats[i].y).count - 1)
@@ -228,8 +254,12 @@ final class CreweStation: ObservableObject {
     // MARK: routing
 
     /// A platform is taken until the train on it has run its whole length clear of the platform's west end.
+    /// A bay stays taken for its whole occupant's visit — arrival, dwell and the reverse back out.
     private func platformTaken(_ i: Int, except t: CreweTrain? = nil) -> Bool {
-        trains.contains { o in
+        if plats[i].kind == .bayEast {
+            return trains.contains { $0 !== t && !$0.finished && $0.target == i }
+        }
+        return trains.contains { o in
             guard o !== t, !o.finished, o.target == i else { return false }
             return (o.dist - o.spec.carLength) < platWestDist(i)
         }
@@ -270,15 +300,18 @@ final class CreweStation: ObservableObject {
     /// Passengers arrive evenly across the platforms, so even service keeps them all moving. If every road
     /// is taken, head for the one that will clear soonest.
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
-        let n = throughIdx.count
+        // While a bay is reversing, keep new arrivals off the top slow line it needs.
+        let pool = reverseActive ? throughIdx.filter { !isTopSlow($0) } : throughIdx
+        let n = pool.count
+        guard n > 0 else { return throughIdx.first ?? 0 }
         for k in 1...n {
-            let i = throughIdx[(routeCursor + k) % n]
+            let i = pool[(routeCursor + k) % n]
             if !platformTaken(i, except: t) { routeCursor = (routeCursor + k) % n; return i }
         }
         // Every road is taken — still step to the next one so queued trains spread across the station
         // rather than all stacking behind the same platform.
         routeCursor = (routeCursor + 1) % n
-        return throughIdx[routeCursor]
+        return pool[routeCursor]
     }
 
     func reset() {
@@ -288,7 +321,7 @@ final class CreweStation: ObservableObject {
         overflowClock = Array(repeating: 0, count: 12)
         entranceOpen = true; platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1; routeCursor = 0
-        expressClock = 0; nextExpress = 3; expressOnTop = true
+        expressClock = 0; nextExpress = 3; expressOnTop = true; reverseActive = false
         spawn()
         objectWillChange.send()
     }
@@ -296,21 +329,32 @@ final class CreweStation: ObservableObject {
     func toggleEntrance() { entranceOpen.toggle(); objectWillChange.send() }
     func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
 
-    /// A platform is occupied (its entry signal red) while a train is berthing or berthed on it.
+    /// The top throat is signalled against (point lights red) while a bay reverses out over its slow line.
+    func topReserved(_ i: Int) -> Bool { reverseActive && isTopSlow(i) }
+
+    /// A platform is occupied (its entry signal red) while a train is berthing, berthed, or backing out.
     func platformOccupied(_ i: Int) -> Bool {
-        trains.contains { !$0.finished && $0.target == i && ($0.phase == .berthed || ($0.phase == .arriving && $0.dist >= $0.entryLen)) }
+        trains.contains { !$0.finished && $0.target == i &&
+            ($0.phase == .berthed || $0.phase == .reversing || ($0.phase == .arriving && $0.dist >= $0.entryLen)) }
     }
 
     private func spawn() {
-        let target = pickPlatform()
+        // Occasionally send a terminating service into a bay — but only one bay at a time (they share the
+        // cascade and a reverse holds the top throat), and never while a reverse is already under way.
+        let anyBayBusy = trains.contains { !$0.finished && plats[$0.target].kind == .bayEast }
+        let bays = (reverseActive || anyBayBusy) ? [] : bayIdx.filter { !platformTaken($0) }
+        let target = (Double.random(in: 0..<1) < 0.30 ? bays.randomElement() : nil) ?? pickPlatform()
+        let pl = plats[target]
+        let isBay = pl.kind == .bayEast
         let len = def.trainLengths.randomElement() ?? 4
         let spec = Train(length: len, tint: trainPalette.randomElement() ?? .blue, name: "")
-        let pl = plats[target]
-        let path = buildPath(to: target)
+        let path = routeInto(target)
         let t = CreweTrain(spec, target: target, path)
+        t.isBay = isBay
         t.entryLen = platEntryLen[target]
         t.turnoutDist = platTurnoutLen[target]
-        t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
+        // A through train pulls in along the platform; a bay runs right up to its buffer stand (path end).
+        t.berthDist = isBay ? path.total : t.entryLen + (xSR - (pl.xL + 180))
         t.homeStop = homeStopDist(path)
         t.committed = true
         trains.append(t)
@@ -350,7 +394,7 @@ final class CreweStation: ObservableObject {
         paxClock += dt
         if paxClock >= nextPax {
             paxClock = 0
-            if let p = throughIdx.randomElement(), passengers[p] < platformCap { passengers[p] += 1 }
+            if let p = servedIdx.randomElement(), passengers[p] < platformCap { passengers[p] += 1 }
             nextPax = Double.random(in: def.spawnRange)
         }
         spawnClock += dt
@@ -423,7 +467,16 @@ final class CreweStation: ObservableObject {
                     t.load += take; carried += take
                 }
                 t.railAspect = platformHeld[t.target] ? 2 : 0     // starter red holds it; green sends it away
-                if t.dwell <= 0 && !platformHeld[t.target] { t.phase = .departing; Sound.shared.play(.depart) }
+                if t.dwell <= 0 && !platformHeld[t.target] {
+                    if t.isBay {
+                        // Claim the top throat, then reverse once the line ahead is clear — the point lights
+                        // hold the arriving trains off while it backs out.
+                        if !reverseActive { reverseActive = true; t.owningReverse = true }
+                        if t.owningReverse && topSlowClear(except: t) { t.phase = .reversing; Sound.shared.play(.depart) }
+                    } else {
+                        t.phase = .departing; Sound.shared.play(.depart)
+                    }
+                }
             case .departing:
                 var ceiling = t.path.total + t.spec.carLength
                 for o in roster where o !== t && !o.finished && o.target == t.target && o.dist > t.dist {
@@ -432,6 +485,15 @@ final class CreweStation: ObservableObject {
                 t.dist = max(t.dist, min(t.dist + step, ceiling))
                 t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
                 if t.dist >= t.path.total + t.spec.carLength { t.finished = true }
+            case .reversing:
+                // Back out east, the way it came, down to the spawn. The reservation keeps the road its own,
+                // so run it out briskly to give the throat back.
+                t.dist = max(0, t.dist - step * 1.35)
+                t.railAspect = 0
+                if t.dist <= 0 {
+                    t.finished = true
+                    if t.owningReverse { reverseActive = false; t.owningReverse = false }
+                }
             }
         }
         if roster.contains(where: { $0.finished }) { trains.removeAll { $0.finished } }
