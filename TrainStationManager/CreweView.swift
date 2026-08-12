@@ -257,6 +257,9 @@ struct CreweView: View {
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
             // entry signal at the east (arrival) end — red while the platform is occupied
             drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
+            // point light out at the throat turnout, where this platform's road leaves the fast line
+            let turn = s.eastThroat(pl.y)
+            if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i), scale: sc * 1.9) }
         }
     }
 

@@ -43,6 +43,7 @@ final class CreweTrain: Identifiable {
     var stopped = 0.0
     var spawnedNext = false
     var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
+    var entryFast: CGFloat = 0      // which fast line it runs in through the throat
     var railAspect = 0
     var finished = false
     enum Phase { case arriving, berthed, departing }
@@ -236,6 +237,7 @@ final class CreweStation: ObservableObject {
         let path = buildPath(to: target)
         let t = CreweTrain(spec, target: target, path)
         t.entryLen = entryLenOf(path, target)
+        t.entryFast = fastLineFor(pl.y)
         t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
         t.committed = true
         trains.append(t)
@@ -275,12 +277,16 @@ final class CreweStation: ObservableObject {
                     let stop = t.path.distanceTo(vertex: 1) - gap   // held at the east home signal
                     if stop >= t.dist { ceiling = min(ceiling, stop) }
                 }
-                if idx > 0 {
-                    let a = roster[idx - 1]
-                    let aTail = a.dist - a.spec.carLength
-                    let aInThroat = aTail < a.entryLen              // still gathering down the east throat
-                    if a.target == t.target || aInThroat { ceiling = min(ceiling, aTail - gap) }
+                // Hold behind any train genuinely ahead: on the same platform road, or ahead in the same
+                // fast line while both are still gathering down the east throat.
+                var aheadTail = CGFloat.infinity
+                for o in roster where o !== t && !o.finished && o.dist > t.dist {
+                    let sameFastInThroat = t.dist < t.entryLen && o.dist < o.entryLen && o.entryFast == t.entryFast
+                    if o.target == t.target || sameFastInThroat {
+                        aheadTail = min(aheadTail, o.dist - o.spec.carLength)
+                    }
                 }
+                if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
                 let next = min(t.dist + step, ceiling)
                 t.stopped = next < t.dist + step - 0.01 && ceiling < t.berthDist ? t.stopped + dt : 0
                 t.dist = max(t.dist, next)
