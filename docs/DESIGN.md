@@ -340,4 +340,24 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the
   clay freight fails, up-line traffic diverts and takes turns over the down lane, and a rescue loco is
   called out of its siding to drag the casualty into the refuge. (Was first mooted for Crewe.)
-- **L6 snow**, **L7 UK freight** (long trains) — logged themes.
+### The road to twelve levels
+Seven are built (Saltash, Dawlish Warren, Worcester, Newark, Crewe, Lostwithiel, Birmingham). The plan is
+**twelve total**, each hanging on a *distinct* mechanic — a new level earns its place by teaching something
+the others don't. The next five, agreed with Simon:
+
+- **US freight — the long-train "meet."** A mile-long double-stack freight ties up a single-track section
+  for ages; you're the dispatcher deciding who takes the siding and who waits. Add a **grade crossing** with
+  road traffic queuing. The lever is *length and priority*, not failure — deliberately unlike Lostwithiel.
+  Prairie/desert.
+- **Norway snow (one or two levels) — weather changes the physics.** Snow lengthens braking and trains slip
+  on the steep Bergen/Flåm gradients, so timing gets harder; a **recurring snowplough** must clear drifts
+  blocking a section (a rhythmic cousin of Lostwithiel's rescue). Fjords, tunnels, snow sheds. Possibly a
+  gentle "falling snow" level and a brutal "blizzard + plough" one.
+- **London Underground — headway & flat-junction interleaving.** Keep a dense service **evenly spaced** so it
+  doesn't bunch (new scoring: "keep it even", not just throughput), and **interleave two lines at a flat
+  junction** (Camden Town). Tunnels = limited sightlines.
+- **India — Darjeeling spiral loops.** The unique-geometry level: a train climbs **over itself** round the
+  Batasia loop. (Mumbai suburban was the alternative — dropped to avoid repeating the Tube's frequency idea.)
+
+Differentiation is the watch-point: breakdown/rescue is spoken for (Lostwithiel), and frequency should appear
+once (the Tube, not also Mumbai). That's 7 + 5 ≈ 12; a spare snow level or a second world station rounds it out.
