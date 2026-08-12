@@ -335,10 +335,15 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
-- **Polish phase (after the twelve cores exist):** the **station-select screen** is a plain card grid —
-  make it characterful. Leading idea: a **split-flap departure board** (railway-station style, big legible
-  rows — good for partial sight — animated flaps, destination + county + stars). Alternatives: a journey/
-  metro line you progress down, or cards with a live mini-scene of each layout. Build cores first.
+- **Polish phase (after the twelve cores exist):** rebuild the **station-select screen** as a **split-flap
+  departure board** — *chosen and approved* (web feel-prototype signed off). Railway-station board: big
+  legible mono rows (good for partial sight), columns `TIME · DESTINATION · REGION · EXPECTED`, semantic
+  status colour (green on-time / amber delayed), tap a row to pick a level. **The feel that sold it, to
+  reproduce in Canvas:** each cell **riffles through the character set** (space→A→B…) and settles — never a
+  single cut to the final glyph; a two-leaf **fold** with a centre seam + the shadow the upper leaf casts;
+  a small overshoot "slap" as it lands; letters **staggered** across a word (~40ms/cell) so it ripples in;
+  ~64ms per flip; a soft per-flap **tick** (synth, mute-able) that thins as cells settle. Reveal-from-blank
+  on entry is the money shot. Ports straight onto the existing `Canvas` + 0.03s tick.
 
 ## Future level ideas
 - **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the
