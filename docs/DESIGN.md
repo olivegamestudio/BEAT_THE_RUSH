@@ -344,6 +344,11 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
   a small overshoot "slap" as it lands; letters **staggered** across a word (~40ms/cell) so it ripples in;
   ~64ms per flip; a soft per-flap **tick** (synth, mute-able) that thins as cells settle. Reveal-from-blank
   on entry is the money shot. Ports straight onto the existing `Canvas` + 0.03s tick.
+  Refinements agreed on the prototype: **one mini board per station** (a grid of small boards, not a single
+  list) — an **unlocked** station flaps in its name/region/status + stars; a **locked** one stays **blank**
+  ("not in service"), and *clearing* the level before it flaps that station **into service** (nicer than a
+  padlock). The **menu title "BEAT THE RUSH" is itself split-flap and reveals** on load, tying menu and
+  select together. Prototype: `scratchpad/departure-board.html` → the published Artifact.
 
 ## Future level ideas
 - **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the
