@@ -175,6 +175,12 @@ struct CreweView: View {
             railLine(ctx, [CGPoint(x: s.xW, y: ry), CGPoint(x: s.xSL, y: ry)], sc, S, width: 8)
             railLine(ctx, [CGPoint(x: s.xSR, y: ry), CGPoint(x: s.xE, y: ry)], sc, S, width: 8)
         }
+        // each slow line feeds across into its fast line at both throat mouths, so the sides run into the
+        // fast tracks rather than dead-ending
+        for (ry, fy) in zip(s.slowY, s.fastY) {
+            railLine(ctx, [CGPoint(x: s.xEMouth, y: ry), CGPoint(x: s.xE, y: fy)], sc, S, width: 7)
+            railLine(ctx, [CGPoint(x: s.xWMouth, y: ry), CGPoint(x: s.xW, y: fy)], sc, S, width: 7)
+        }
         // the two fast lines between 5 and 6 — expresses fly straight through, right out both ends
         for fy in s.fastY {
             railLine(ctx, [CGPoint(x: s.xW, y: fy), CGPoint(x: s.xE, y: fy)], sc, S, width: 8, sheen: fastCol)
@@ -321,6 +327,15 @@ struct CreweView: View {
             // reserved for a bay reversing out across it
             let turn = s.eastThroat(ly)
             if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i) || s.topReserved(i), scale: sc * 1.9) }
+            // matching point light out in the west throat, protecting trains as they leave (bays reverse east,
+            // so they have none)
+            if pl.kind != .bayEast {
+                let wturn = s.westThroat(ly)
+                if wturn.count > 1 {
+                    let w = wturn[wturn.count - 2]
+                    drawSignal(ctx, at: S(CGPoint(x: w.x, y: w.y - 16)), red: s.platformOccupied(i), scale: sc * 1.9)
+                }
+            }
         }
     }
 
@@ -346,6 +361,10 @@ struct CreweView: View {
             tag("E\(pl.id)", at: CGPoint(x: pl.xR - 70, y: ly - 18), .yellow)
             let turn = s.eastThroat(ly)
             if turn.count > 1 { tag("Pt\(pl.id)", at: CGPoint(x: turn[1].x, y: turn[1].y - 16), .orange) }
+            if pl.kind != .bayEast {
+                let wturn = s.westThroat(ly)
+                if wturn.count > 1 { let w = wturn[wturn.count - 2]; tag("WPt\(pl.id)", at: CGPoint(x: w.x, y: w.y - 16), .orange) }
+            }
         }
     }
     #endif
