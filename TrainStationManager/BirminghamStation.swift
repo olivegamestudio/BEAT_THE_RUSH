@@ -139,6 +139,7 @@ final class BirminghamStation: ObservableObject {
     private var paxClock = 0.0, nextPax = 0.9
     private var over: [Double]
     private var peakFill = 0.0
+    private var routeCursor = 0        // rotates platform choice so arrivals fan evenly across the station
 
     init(_ def: StationDef) {
         self.def = def
@@ -153,9 +154,44 @@ final class BirminghamStation: ObservableObject {
         !trains.contains { !$0.finished && $0.platform == i }
     }
 
+    /// The furthest `t` may advance before its nose closes within a car's clearance of any train physically
+    /// ahead of it — anywhere its body crosses `t`'s road, whatever platform it's for. "Ahead" is decided by
+    /// progress (ties broken by id) so a crossing move always has a clear winner and never freezes. Comparing
+    /// real positions is what stops trains overlapping where the throat roads weave across each other.
+    private func aheadCeiling(_ t: BirmTrain, _ roster: [BirmTrain], reach: CGFloat) -> CGFloat {
+        let clear = Track.carUnit * 0.8
+        var d = t.dist + 7
+        let end = t.dist + reach
+        while d <= end {
+            let p = t.path.sample(d).p
+            for o in roster where o !== t && !o.finished {
+                let oAhead = o.dist > t.dist || (o.dist == t.dist && o.id.hashValue > t.id.hashValue)
+                if oAhead && bodyNear(o, p, within: clear) { return d - 7 }
+            }
+            d += 7
+        }
+        return .infinity
+    }
+    /// True if any point along `o`'s body (nose back to tail) lies within `r` of `p`.
+    private func bodyNear(_ o: BirmTrain, _ p: CGPoint, within r: CGFloat) -> Bool {
+        var d = o.dist
+        let tail = o.dist - o.carLen
+        while d >= tail {
+            let q = o.path.sample(d).p
+            if hypot(q.x - p.x, q.y - p.y) < r { return true }
+            d -= 18
+        }
+        return false
+    }
+
     private func spawn() {
-        let free = (0..<platformCount).filter { platformFree($0) }
-        guard let plat = free.randomElement() else { return }
+        // Rotate round-robin to the next free platform so arrivals spread across the whole station.
+        var plat: Int? = nil
+        for k in 1...platformCount {
+            let i = (routeCursor + k) % platformCount
+            if platformFree(i) { routeCursor = i; plat = i; break }
+        }
+        guard let plat else { return }
         let spec = Train(length: def.trainLengths.randomElement() ?? 4,
                          tint: trainPalette.randomElement() ?? .blue, name: "")
         // Approach along the platform's lane, up the staircase onto its road; berth; back down to the lane and away.
@@ -192,7 +228,7 @@ final class BirminghamStation: ObservableObject {
         pax = Array(repeating: 1, count: platformCount)
         wait = Array(repeating: 0, count: platformCount)
         over = Array(repeating: 0, count: platformCount)
-        spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 0.9
+        spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 0.9; routeCursor = 0
         spawn()
         objectWillChange.send()
     }
@@ -223,11 +259,10 @@ final class BirminghamStation: ObservableObject {
             let overrun = CGFloat(t.spec.length) * Track.carUnit
             var ceiling = t.path.total + overrun
             if !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            var aheadTail = CGFloat.infinity
-            for o in roster where o !== t && !o.finished && o.dist > t.dist {
-                if o.platform == t.platform { aheadTail = min(aheadTail, o.dist - o.carLen) }
-            }
-            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+            // Hold clear of any train whose body lies across the road ahead — wherever the throat roads weave,
+            // not just on the same platform — so crossing moves never overlap.
+            let block = aheadCeiling(t, roster, reach: 110)
+            if block.isFinite { ceiling = min(ceiling, block - gap) }
 
             let headroom = max(0, ceiling - t.dist)
             let accel: CGFloat = 100, decel: CGFloat = 170

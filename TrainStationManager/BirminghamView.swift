@@ -14,25 +14,41 @@ struct BirminghamView: View {
     private let worldW: CGFloat = 1500
     private let contentMinX: CGFloat = -840
     private let contentMaxX: CGFloat = 2280
+    private let contentMinY: CGFloat = -110
+    private let contentMaxY: CGFloat = 560
     @State private var originX: CGFloat = -60
+    @State private var originY: CGFloat = 225
     @State private var dragStartX: CGFloat? = nil
+    @State private var dragStartY: CGFloat? = nil
+    @State private var zoom: CGFloat = 1
+    @State private var zoomStart: CGFloat? = nil
+    private let zoomMin: CGFloat = 0.75, zoomMax: CGFloat = 2.6
 
     private let railSteel = Color(red: 0.42, green: 0.46, blue: 0.54)
     private let railSheen = Color(red: 0.80, green: 0.84, blue: 0.92)
     private let railEdge = Color(red: 0.09, green: 0.10, blue: 0.14)
 
     private func project(_ p: CGPoint, _ sc: CGFloat, _ size: CGSize) -> CGPoint {
-        let vOff = (size.height - Track.H * sc) / 2
-        return CGPoint(x: (p.x - originX) * sc, y: p.y * sc + vOff)
+        CGPoint(x: (p.x - originX) * sc, y: (p.y - originY) * sc + size.height / 2)
     }
-    private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - worldW) }
+    private func clampOrigin(_ x: CGFloat, _ visibleW: CGFloat) -> CGFloat {
+        let hi = contentMaxX - visibleW
+        if hi <= contentMinX { return (contentMinX + contentMaxX - visibleW) / 2 }
+        return min(max(x, contentMinX), hi)
+    }
+    private func clampOriginY(_ y: CGFloat, _ size: CGSize, _ sc: CGFloat) -> CGFloat {
+        let half = (size.height / 2) / sc
+        let lo = contentMinY + half, hi = contentMaxY - half
+        if lo > hi { return (contentMinY + contentMaxY) / 2 }
+        return min(max(y, lo), hi)
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let scale = geo.size.width / worldW
+            let scale = geo.size.width / worldW * zoom
             ZStack {
                 Canvas { ctx, size in
-                    let sc = size.width / worldW
+                    let sc = size.width / worldW * zoom
                     func S(_ p: CGPoint) -> CGPoint { project(p, sc, size) }
                     drawScene(ctx, sc, size)
                     drawRails(ctx, sc, S)
@@ -44,17 +60,32 @@ struct BirminghamView: View {
                     for sp in station.sparkles {
                         drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc, toward: CGPoint(x: size.width * 0.07, y: size.height * 0.90))
                     }
+                    #if targetEnvironment(simulator)
+                    drawDebugTags(ctx, sc, S)
+                    #endif
                 }
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 14)
                         .onChanged { v in
-                            let start = dragStartX ?? originX
-                            dragStartX = start
-                            originX = clampOrigin(start - v.translation.width / scale)
+                            let sx = dragStartX ?? originX; dragStartX = sx
+                            let sy = dragStartY ?? originY; dragStartY = sy
+                            originX = clampOrigin(sx - v.translation.width / scale, worldW / zoom)
+                            originY = clampOriginY(sy - v.translation.height / scale, geo.size, scale)
                         }
-                        .onEnded { _ in dragStartX = nil }
+                        .onEnded { _ in dragStartX = nil; dragStartY = nil }
+                        .simultaneously(with:
+                            MagnificationGesture()
+                                .onChanged { v in
+                                    let z0 = zoomStart ?? zoom; zoomStart = z0
+                                    zoom = min(zoomMax, max(zoomMin, z0 * v))
+                                    let s = geo.size.width / worldW * zoom
+                                    originX = clampOrigin(originX, worldW / zoom)
+                                    originY = clampOriginY(originY, geo.size, s)
+                                }
+                                .onEnded { _ in zoomStart = nil }
+                        )
                 )
                 Vignette(strength: 0.5)
                 controls(scale: scale, size: geo.size)
@@ -129,6 +160,29 @@ struct BirminghamView: View {
             drawSignal(ctx, at: S(CGPoint(x: s.platR + 20, y: y)), red: red, scale: sc * 0.85)
         }
     }
+
+    #if targetEnvironment(simulator)
+    /// Simulator-only: tag every platform and lane with its number and design coordinates, so the layout can
+    /// be nudged into place by name. Compiled out entirely for device builds.
+    private func drawDebugTags(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        func tag(_ str: String, at p: CGPoint, _ colour: Color, size: CGFloat = 14) {
+            let text = Text(str).font(.system(size: size * sc, weight: .black, design: .rounded)).foregroundColor(colour)
+            ctx.drawLayer { l in
+                l.addFilter(.shadow(color: .black, radius: 2.2 * sc))
+                l.draw(text, at: S(p)); l.draw(text, at: S(p))   // doubled: shadow reads as an outline
+            }
+        }
+        for p in 0..<s.platformCount {
+            let y = s.platformY(p)
+            tag("P\(p + 1)", at: CGPoint(x: s.platL - 66, y: y), .cyan)             // 1-indexed for the player
+            tag("y\(Int(y))", at: CGPoint(x: s.platL - 66, y: y - 17), .white, size: 8)
+        }
+        for l in s.laneLevels {
+            tag(s.laneIsIn(l) ? "IN" : "OUT", at: CGPoint(x: 200, y: s.levelY(l) - 2), .orange)
+        }
+    }
+    #endif
 
     private func drawPlatforms(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
