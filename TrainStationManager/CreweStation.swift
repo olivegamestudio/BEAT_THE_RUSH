@@ -43,7 +43,7 @@ final class CreweTrain: Identifiable {
     var stopped = 0.0
     var spawnedNext = false
     var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
-    var entryFast: CGFloat = 0      // which fast line it runs in through the throat
+    var turnoutDist: CGFloat = 0    // distance to the entry turnout, where a red platform signal holds it
     var homeStop: CGFloat = 0       // path distance at which the nose reaches the home signal
     var railAspect = 0
     var finished = false
@@ -106,6 +106,7 @@ final class CreweStation: ObservableObject {
     private var peakFill = 0.0
     private var routeCursor = 0                        // rotates platform choice so arrivals fan out
     private var platEntryLen: [CGFloat] = []          // east-spawn → platform-east-end distance, per platform
+    private var platTurnoutLen: [CGFloat] = []         // east-spawn → entry-turnout (point light) distance, per platform
 
     /// The through-platform indices (0-based) actually served this pass.
     private var throughIdx: [Int] { plats.indices.filter { throughIds.contains(plats[$0].id) } }
@@ -134,6 +135,7 @@ final class CreweStation: ObservableObject {
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
         platEntryLen = plats.indices.map { entryLenOf(buildPath(to: $0), $0) }
+        platTurnoutLen = plats.indices.map { turnoutLenOf(buildPath(to: $0), $0) }
         spawn()
     }
 
@@ -199,6 +201,11 @@ final class CreweStation: ObservableObject {
     /// The east spawn → platform-east-end distance for platform `i`.
     private func entryLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
         p.distanceTo(vertex: eastThroatPoints(plats[i].y).count - 1)
+    }
+    /// The east spawn → entry-turnout distance for platform `i` — where its point light sits. A train held
+    /// by a red platform signal stops here rather than running on to the occupied platform.
+    private func turnoutLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
+        p.distanceTo(vertex: max(1, eastThroatPoints(plats[i].y).count - 2))
     }
 
     // MARK: routing
@@ -284,6 +291,7 @@ final class CreweStation: ObservableObject {
         let path = buildPath(to: target)
         let t = CreweTrain(spec, target: target, path)
         t.entryLen = platEntryLen[target]
+        t.turnoutDist = platTurnoutLen[target]
         t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
         t.homeStop = homeStopDist(path)
         t.committed = true
@@ -335,6 +343,11 @@ final class CreweStation: ObservableObject {
                 // train following another still stops at the light instead of chasing its leader through.
                 if !entranceOpen && t.dist < t.homeStop {
                     ceiling = min(ceiling, t.homeStop - gap)
+                }
+                // Obey the platform's own signal: if its road is occupied, hold at the red point light out
+                // at the entry turnout instead of running on past it onto the platform.
+                if t.dist < t.turnoutDist && platformOccupied(t.target) {
+                    ceiling = min(ceiling, t.turnoutDist - gap)
                 }
                 // Hold clear of any train physically ahead — wherever its body crosses our path, whatever
                 // its target. "Ahead" is decided by progress so a merge always has a clear winner (never a
