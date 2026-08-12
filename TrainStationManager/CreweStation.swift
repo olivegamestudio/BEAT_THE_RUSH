@@ -53,6 +53,19 @@ final class CreweTrain: Identifiable {
     init(_ spec: Train, target: Int, _ path: RoutePath) { self.spec = spec; self.target = target; self.path = path }
 }
 
+/// A fly-through express — it runs the full length of one of the two fast lines and never stops. It shares
+/// no track with the platform traffic, so it just streaks across the middle at speed.
+final class CreweExpress: Identifiable {
+    let id = UUID()
+    var spec: Train
+    let line: CGFloat
+    var path: RoutePath
+    var dist: CGFloat = 0
+    var finished = false
+    var carLen: CGFloat { spec.carLength }
+    init(_ spec: Train, line: CGFloat, _ path: RoutePath) { self.spec = spec; self.line = line; self.path = path }
+}
+
 @MainActor
 final class CreweStation: ObservableObject {
     let def: StationDef
@@ -74,6 +87,7 @@ final class CreweStation: ObservableObject {
     var homeSignalX: CGFloat { xSR + 470 }            // the east home signal — trains hold here when it's red
 
     @Published var trains: [CreweTrain] = []
+    @Published var expresses: [CreweExpress] = []
     @Published var carried = 0.0
     @Published var passengers: [Double]
     @Published var entranceOpen = true
@@ -94,6 +108,9 @@ final class CreweStation: ObservableObject {
     }
 
     let baseSpeed: CGFloat = 86
+    let expressSpeed: CGFloat = 220          // fly-throughs streak across far faster than the stoppers
+    private var expressClock = 0.0, nextExpress = 3.0
+    private var expressOnTop = true          // alternate the two fast lines — up and down fasts
     let dwellTime = 2.4
     let perCar = 3.0
     let boardOffRate = 6.5
@@ -265,12 +282,13 @@ final class CreweStation: ObservableObject {
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
+        trains = []; expresses = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
         passengers = Array(repeating: 0, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
         entranceOpen = true; platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1; routeCursor = 0
+        expressClock = 0; nextExpress = 3; expressOnTop = true
         spawn()
         objectWillChange.send()
     }
@@ -296,6 +314,17 @@ final class CreweStation: ObservableObject {
         t.homeStop = homeStopDist(path)
         t.committed = true
         trains.append(t)
+    }
+
+    /// Send a fly-through express down one of the fast lines — the top line runs east→west, the bottom
+    /// west→east, so they read as the up and down fasts. A power car sits at each end of a long rake.
+    private func spawnExpress() {
+        let onTop = expressOnTop; expressOnTop.toggle()
+        let line = onTop ? fastY[0] : fastY[1]
+        let pts = onTop ? [CGPoint(x: xE, y: line), CGPoint(x: xW, y: line)]
+                        : [CGPoint(x: xW, y: line), CGPoint(x: xE, y: line)]
+        let spec = Train(length: Int.random(in: 6...8), tint: Color(red: 0.84, green: 0.86, blue: 0.92), name: "")
+        expresses.append(CreweExpress(spec, line: line, RoutePath(pts)))
     }
 
     /// The distance along an arriving path at which the nose first reaches the home signal, coming from the
@@ -330,6 +359,20 @@ final class CreweStation: ObservableObject {
             if trains.count < 10 { spawn() }   // spawn() self-limits to a clear platform; this is just a backstop
             nextSpawn = Double.random(in: def.spawnRange.lowerBound...(def.spawnRange.upperBound * 1.3))
         }
+        // Fly-through expresses on the fast lines — they share no track with the stoppers, so just run them
+        // full length and clear them off the far end.
+        expressClock += dt
+        if expressClock >= nextExpress {
+            expressClock = 0
+            spawnExpress()
+            nextExpress = Double.random(in: 4.0...9.0)
+        }
+        let expStep = expressSpeed * CGFloat(dt)
+        for e in expresses where !e.finished {
+            e.dist += expStep
+            if e.dist >= e.path.total + e.carLen { e.finished = true }
+        }
+        if expresses.contains(where: { $0.finished }) { expresses.removeAll { $0.finished } }
 
         let roster = trains
         var spawnCount = 0

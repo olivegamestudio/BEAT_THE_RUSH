@@ -57,12 +57,16 @@ struct CreweView: View {
                     drawPlatforms(ctx, sc, S)
                     let ordered = station.trains.sorted { $0.path.sample($0.dist).p.y < $1.path.sample($1.dist).p.y }
                     for t in ordered { drawTrain(ctx, t, sc, S) }
+                    for e in station.expresses { drawExpress(ctx, e, sc, S) }
                     drawPeople(ctx, sc, S)
                     for sp in station.sparkles {
                         drawSparkleBurst(ctx, at: S(CGPoint(x: sp.x, y: sp.y)), age: sp.age, life: sparkleLife, scale: sc,
                                          toward: CGPoint(x: size.width * 0.07, y: size.height * 0.90))
                     }
                     drawSignals(ctx, sc, S)
+                    #if targetEnvironment(simulator)
+                    drawDebugTags(ctx, sc, S)
+                    #endif
                 }
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
@@ -239,6 +243,26 @@ struct CreweView: View {
         }
     }
 
+    /// A fly-through express — a long silver rake with a smooth power car at each end, streaking down a
+    /// fast line. A soft headlight glow at the nose sells the speed.
+    private func drawExpress(_ ctx: GraphicsContext, _ e: CreweExpress, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let nose = e.path.sample(min(e.dist, e.path.total))
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 7 * sc))
+            l.fill(Path(ellipseIn: CGRect(x: S(nose.p).x - 12 * sc, y: S(nose.p).y - 12 * sc, width: 24 * sc, height: 24 * sc)),
+                   with: .color(Color(red: 1, green: 0.96, blue: 0.8).opacity(0.7)))
+        }
+        for c in 0..<e.spec.length {
+            let d = e.dist - (CGFloat(c) + 0.5) * Track.carUnit
+            guard d >= 0, d <= e.path.total else { continue }
+            let smp = e.path.sample(d)
+            let power = (c == 0 || c == e.spec.length - 1)   // a power car at each end
+            drawCarriage(ctx, at: S(smp.p), angle: e.path.smoothAngle(d), tint: e.spec.tint,
+                         cw: Track.carUnit - 3, ch: Track.carHeight - 2, scale: sc, endCap: power,
+                         seed: e.id.hashValue &+ c)
+        }
+    }
+
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
@@ -286,6 +310,33 @@ struct CreweView: View {
             if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i), scale: sc * 1.9) }
         }
     }
+
+    #if targetEnvironment(simulator)
+    /// Simulator-only: tag every platform and signal with its id and design-space coordinates, so the layout
+    /// can be nudged into place by name. Compiled out entirely for device builds.
+    private func drawDebugTags(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        func tag(_ str: String, _ p: CGPoint, _ colour: Color) {
+            let at = S(p)
+            let text = Text(str).font(.system(size: 9 * sc, weight: .heavy, design: .monospaced)).foregroundColor(colour)
+            ctx.drawLayer { l in
+                l.addFilter(.shadow(color: .black, radius: 1.6 * sc))
+                l.draw(text, at: at)
+                l.draw(text, at: at)   // doubled so the shadow reads as an outline
+            }
+        }
+        func xy(_ x: CGFloat, _ y: CGFloat) -> String { "\(Int(x)),\(Int(y))" }
+        // home signal
+        tag("HOME \(xy(s.homeSignalX, s.throatY - 4))", CGPoint(x: s.homeSignalX, y: s.throatY - 44), .cyan)
+        for pl in s.plats where s.throughIds.contains(pl.id) {
+            tag("PLAT \(pl.id) · y\(Int(pl.y)) · x\(Int(pl.xL))–\(Int(pl.xR))", CGPoint(x: pl.xL + 260, y: pl.y - 4), .white)
+            tag("S\(pl.id) \(xy(pl.xL + 96, pl.y - 18))", CGPoint(x: pl.xL + 96, y: pl.y - 42), .yellow)
+            tag("E\(pl.id) \(xy(pl.xR - 70, pl.y - 18))", CGPoint(x: pl.xR - 70, y: pl.y - 42), .yellow)
+            let turn = s.eastThroat(pl.y)
+            if turn.count > 1 { tag("Pt\(pl.id) \(xy(turn[1].x, turn[1].y - 16))", CGPoint(x: turn[1].x, y: turn[1].y - 38), .orange) }
+        }
+    }
+    #endif
 
     // MARK: controls / HUD
 
