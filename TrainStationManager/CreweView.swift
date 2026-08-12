@@ -315,8 +315,6 @@ struct CreweView: View {
 
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        // home signal at the east entrance — trains arrive from the east
-        drawSignal(ctx, at: S(CGPoint(x: s.homeSignalX, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
         for (i, pl) in s.plats.enumerated() where s.servedIds.contains(pl.id) {
             let ly = pl.lineY
             // starter at the west (departure) end — red holds the boarded train (a bay's is its reverse release)
@@ -358,7 +356,6 @@ struct CreweView: View {
                 l.draw(posText, at: S(CGPoint(x: sig.x, y: sig.y - 26)))
             }
         }
-        tag("H", at: CGPoint(x: s.homeSignalX, y: s.throatY - 4), .cyan)
         for pl in s.plats where s.servedIds.contains(pl.id) {
             let ly = pl.lineY
             tag("S\(pl.id)", at: CGPoint(x: pl.xL + 96, y: ly - 18), .yellow)
@@ -379,12 +376,6 @@ struct CreweView: View {
 
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         ZStack {
-            Button(action: { station.toggleEntrance(); Sound.shared.play(.tap) }) {
-                SignalHalo().frame(width: 60, height: 60).contentShape(Rectangle())
-            }
-            .buttonStyle(PressStyle())
-            .position(project(CGPoint(x: station.homeSignalX, y: station.throatY - 26), scale, size))
-
             ForEach(station.plats.indices.filter { station.servedIds.contains(station.plats[$0].id) }, id: \.self) { i in
                 let pl = station.plats[i]
                 Button(action: { station.toggleStarter(i); Sound.shared.play(.tap) }) {

@@ -46,7 +46,6 @@ final class CreweTrain: Identifiable {
     var spawnedNext = false
     var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
     var turnoutDist: CGFloat = 0    // distance to the entry turnout, where a red platform signal holds it
-    var homeStop: CGFloat = 0       // path distance at which the nose reaches the home signal
     var railAspect = 0
     var finished = false
     var isBay = false               // a terminating bay service: it reverses back out the way it came in
@@ -95,13 +94,11 @@ final class CreweStation: ObservableObject {
     /// The roads trains route onto and that carry signals. Faces that share a road (9, 10, 12) aren't routed to
     /// directly — their people board the train standing on the shared line.
     var servedIds: Set<Int> { Set(throughIds + bayIds) }
-    var homeSignalX: CGFloat { xSR + 470 }            // the east home signal — trains hold here when it's red
 
     @Published var trains: [CreweTrain] = []
     @Published var expresses: [CreweExpress] = []
     @Published var carried = 0.0
     @Published var passengers: [Double]
-    @Published var entranceOpen = true
     @Published var platformHeld: [Bool]              // each platform's starter: true = red, holds the boarded train
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
@@ -328,14 +325,13 @@ final class CreweStation: ObservableObject {
         passengers = Array(repeating: 0, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
-        entranceOpen = true; platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
+        platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1; routeCursor = 0
         expressClock = 0; nextExpress = 3; expressOnTop = true; reverseActive = false
         spawn()
         objectWillChange.send()
     }
 
-    func toggleEntrance() { entranceOpen.toggle(); objectWillChange.send() }
     func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
 
     /// The top throat is signalled against (point lights red) while a bay reverses out over its slow line.
@@ -364,7 +360,6 @@ final class CreweStation: ObservableObject {
         t.turnoutDist = platTurnoutLen[target]
         // A through train pulls in along the platform; a bay runs right up to its buffer stand (path end).
         t.berthDist = isBay ? path.total : t.entryLen + (xSR - (pl.xL + 180))
-        t.homeStop = homeStopDist(path)
         t.committed = true
         trains.append(t)
     }
@@ -395,17 +390,6 @@ final class CreweStation: ObservableObject {
             let p = t.path.sample(t.dist).p
             return abs(p.y - sy) < 45 && p.x > lo && p.x < hi
         }
-    }
-
-    /// The distance along an arriving path at which the nose first reaches the home signal, coming from the
-    /// east. Trains hold here — at the signal the player actually sees — when the entrance is red.
-    private func homeStopDist(_ p: RoutePath) -> CGFloat {
-        var d: CGFloat = 0
-        while d <= p.total {
-            if p.sample(d).p.x <= homeSignalX { return d }
-            d += 12
-        }
-        return 0
     }
 
     // MARK: simulation
@@ -461,11 +445,6 @@ final class CreweStation: ObservableObject {
             switch t.phase {
             case .arriving:
                 var ceiling = t.berthDist
-                // Held at the east home signal when it's red — every train that hasn't yet passed it, so a
-                // train following another still stops at the light instead of chasing its leader through.
-                if !entranceOpen && t.dist < t.homeStop {
-                    ceiling = min(ceiling, t.homeStop - gap)
-                }
                 // Obey the platform's own signal: if its road is occupied, hold at the red point light out
                 // at the entry turnout instead of running on past it onto the platform.
                 if t.dist < t.turnoutDist && platformOccupied(t.target) {
