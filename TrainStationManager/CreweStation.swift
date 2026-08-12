@@ -116,7 +116,7 @@ final class CreweStation: ObservableObject {
     }
 
     let baseSpeed: CGFloat = 86
-    let expressSpeed: CGFloat = 220          // fly-throughs streak across far faster than the stoppers
+    let expressSpeed: CGFloat = 550          // fly-throughs really streak across — several times a stopper's pace
     private var expressClock = 0.0, nextExpress = 3.0
     private var expressOnTop = true          // alternate the two fast lines — up and down fasts
     let dwellTime = 2.4
@@ -366,13 +366,13 @@ final class CreweStation: ObservableObject {
         trains.append(t)
     }
 
-    /// Send a fly-through express down one of the fast lines — the top line runs east→west, the bottom
-    /// west→east, so they read as the up and down fasts. A power car sits at each end of a long rake.
+    /// Send a fly-through express down one of the fast lines. UK trains keep to the left, so the top line
+    /// runs west→east and the bottom east→west — the up and down fasts. A power car sits at each end.
     private func spawnExpress() {
         let onTop = expressOnTop; expressOnTop.toggle()
         let line = onTop ? fastY[0] : fastY[1]
-        let pts = onTop ? [CGPoint(x: xE, y: line), CGPoint(x: xW, y: line)]
-                        : [CGPoint(x: xW, y: line), CGPoint(x: xE, y: line)]
+        let pts = onTop ? [CGPoint(x: xW, y: line), CGPoint(x: xE, y: line)]
+                        : [CGPoint(x: xE, y: line), CGPoint(x: xW, y: line)]
         let spec = Train(length: Int.random(in: 6...8), tint: Color(red: 0.84, green: 0.86, blue: 0.92), name: "")
         expresses.append(CreweExpress(spec, line: line, RoutePath(pts)))
     }

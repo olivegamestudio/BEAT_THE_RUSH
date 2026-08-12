@@ -244,14 +244,8 @@ struct CreweView: View {
     }
 
     /// A fly-through express — a long silver rake with a smooth power car at each end, streaking down a
-    /// fast line. A soft headlight glow at the nose sells the speed.
+    /// fast line, a bright headlight at its nose.
     private func drawExpress(_ ctx: GraphicsContext, _ e: CreweExpress, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
-        let nose = e.path.sample(min(e.dist, e.path.total))
-        ctx.drawLayer { l in
-            l.addFilter(.blur(radius: 7 * sc))
-            l.fill(Path(ellipseIn: CGRect(x: S(nose.p).x - 12 * sc, y: S(nose.p).y - 12 * sc, width: 24 * sc, height: 24 * sc)),
-                   with: .color(Color(red: 1, green: 0.96, blue: 0.8).opacity(0.7)))
-        }
         for c in 0..<e.spec.length {
             let d = e.dist - (CGFloat(c) + 0.5) * Track.carUnit
             guard d >= 0, d <= e.path.total else { continue }
@@ -261,6 +255,16 @@ struct CreweView: View {
                          cw: Track.carUnit - 3, ch: Track.carHeight - 2, scale: sc, endCap: power,
                          seed: e.id.hashValue &+ c)
         }
+        // headlight at the very front — a tight warm glow around a white-hot core, so it reads as a light,
+        // not a smudge
+        let np = S(e.path.sample(min(e.dist, e.path.total)).p)
+        ctx.drawLayer { l in
+            l.addFilter(.blur(radius: 4 * sc))
+            l.fill(Path(ellipseIn: CGRect(x: np.x - 8 * sc, y: np.y - 8 * sc, width: 16 * sc, height: 16 * sc)),
+                   with: .color(Color(red: 1, green: 0.94, blue: 0.7).opacity(0.85)))
+        }
+        ctx.fill(Path(ellipseIn: CGRect(x: np.x - 3.5 * sc, y: np.y - 3.5 * sc, width: 7 * sc, height: 7 * sc)),
+                 with: .color(Color(red: 1, green: 0.99, blue: 0.92)))
     }
 
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -278,21 +282,28 @@ struct CreweView: View {
         let clothes: [Color] = [Color(red: 0.30, green: 0.55, blue: 0.85), Color(red: 0.86, green: 0.45, blue: 0.38),
                                 Color(red: 0.40, green: 0.70, blue: 0.52), Color(red: 0.78, green: 0.62, blue: 0.30)]
         let skin = Color(red: 0.97, green: 0.83, blue: 0.70)
-        let n = min(Int(count), 12)
+        let n = min(Int(count), 10)
         for k in 0..<max(n, 0) {
-            let pace = agitated ? CGFloat(sin(t * 2.0 + Double(k) * 1.7)) * 6 : 0
-            let base = S(CGPoint(x: x0 + CGFloat(k) * 13 + pace, y: feetY))
+            let pace = agitated ? CGFloat(sin(t * 2.0 + Double(k) * 1.7)) * 9 : 0
+            let base = S(CGPoint(x: x0 + CGFloat(k) * 22 + pace, y: feetY))
             let px = base.x, feet = base.y
             let coat = agitated ? Color(red: 0.90, green: 0.36, blue: 0.32) : clothes[k % clothes.count]
-            let bw = 10 * sc, bh = 12 * sc, top = feet - bh
+            let bw = 18 * sc, bh = 22 * sc, top = feet - bh
             var torso = Path()
             torso.move(to: CGPoint(x: px - bw * 0.32, y: top + bw * 0.28))
             torso.addQuadCurve(to: CGPoint(x: px + bw * 0.32, y: top + bw * 0.28), control: CGPoint(x: px, y: top - bw * 0.05))
             torso.addLine(to: CGPoint(x: px + bw * 0.42, y: feet)); torso.addLine(to: CGPoint(x: px - bw * 0.42, y: feet))
             torso.closeSubpath()
+            let hd = 13 * sc
+            let head = Path(ellipseIn: CGRect(x: px - hd / 2, y: top - hd * 0.72, width: hd, height: hd))
+            // a dark rim behind body + head so they stand out against the platform
+            ctx.drawLayer { l in
+                l.addFilter(.shadow(color: .black.opacity(0.65), radius: 2.5 * sc, y: 1.5 * sc))
+                l.stroke(torso, with: .color(.black.opacity(0.55)), lineWidth: 2 * sc)
+                l.stroke(head, with: .color(.black.opacity(0.55)), lineWidth: 2 * sc)
+            }
             ctx.fill(torso, with: .color(coat))
-            let hd = 7 * sc
-            ctx.fill(Path(ellipseIn: CGRect(x: px - hd / 2, y: top - hd * 0.72, width: hd, height: hd)), with: .color(skin))
+            ctx.fill(head, with: .color(skin))
         }
     }
 
