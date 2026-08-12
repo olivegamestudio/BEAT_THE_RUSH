@@ -3,8 +3,11 @@
 A landscape iOS SwiftUI signal-box puzzle. Trains self-navigate; the player controls only the
 signals/points. Clear each station by carrying its goal number of people before a platform overflows.
 
-> **Living document.** Kept in sync with the code by Claude as changes land. If something here
-> disagrees with the code, the code wins — and this file should be corrected.
+> **Living document — keep it current at all times.** This file is the design canon and **must be kept
+> up to date at all times**. Any change to a behaviour, mechanic, layout, control, signal, or constant is
+> updated here **in the same change** that touches the code — never left to drift, never deferred to
+> "later". Every working session that changes the game corrects this doc before it's done. If anything
+> here ever disagrees with the code, the code wins and this file is fixed on the spot.
 
 - Bundle id: `com.ogs.signalbox` · Display name: **Beat the Rush**
 - Remote: `github.com/olivegamestudio/TrainStationManager`, work lands on `main`.
