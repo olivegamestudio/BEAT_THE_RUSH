@@ -131,16 +131,16 @@ struct CreweView: View {
         }
     }
 
-    /// A track at `y` running `xL…xR`, carried straight out to the throat mouth at each connected end —
-    /// its own road, clear of the express lines.
+    /// A track at `y` running `xL…xR`, with a staggered staircase throat at whichever end connects out.
     private func drawTrack(_ ctx: GraphicsContext, y: CGFloat, xL: CGFloat, xR: CGFloat,
                            west: Bool, east: Bool, sc: CGFloat, _ S: (CGPoint) -> CGPoint,
                            width: CGFloat = 8, sheen: Color? = nil) {
+        let s = station
         var pts: [CGPoint] = []
-        if west { pts.append(CGPoint(x: station.xW, y: y)) }
+        if west { pts.append(contentsOf: s.westThroat(y).dropFirst()) }   // skip the run along the slow line
         pts.append(CGPoint(x: xL, y: y))
         pts.append(CGPoint(x: xR, y: y))
-        if east { pts.append(CGPoint(x: station.xE, y: y)) }
+        if east { pts.append(contentsOf: s.eastThroat(y).dropLast()) }
         railLine(ctx, pts, sc, S, width: width, sheen: sheen)
     }
 
@@ -164,6 +164,12 @@ struct CreweView: View {
         // through lines (each drawn once by the platform that owns it; faces like 9/10/12 share it)
         for pl in s.plats where pl.through && pl.ownsLine {
             drawTrack(ctx, y: pl.y, xL: pl.xL, xR: pl.xR, west: true, east: true, sc: sc, S, width: 9)
+        }
+        // the slow lines the platforms gather onto in each throat (drawn only in the throats, clear of the
+        // platform area) so the express pair between them stays visibly empty
+        for ry in s.slowY {
+            railLine(ctx, [CGPoint(x: s.xW, y: ry), CGPoint(x: s.xSL, y: ry)], sc, S, width: 8)
+            railLine(ctx, [CGPoint(x: s.xSR, y: ry), CGPoint(x: s.xE, y: ry)], sc, S, width: 8)
         }
         // the two fast lines between 5 and 6 — expresses fly straight through, right out both ends
         for fy in s.fastY {
@@ -275,8 +281,9 @@ struct CreweView: View {
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
             // entry signal at the east (arrival) end — red while the platform is occupied
             drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
-            // approach signal out on this platform's road — red while the platform is occupied
-            drawSignal(ctx, at: S(CGPoint(x: pl.xR + 300, y: pl.y - 16)), red: s.platformOccupied(i), scale: sc * 1.9)
+            // point light out at the throat turnout, where this platform's road steps onto its slow line
+            let turn = s.eastThroat(pl.y)
+            if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i), scale: sc * 1.9) }
         }
     }
 

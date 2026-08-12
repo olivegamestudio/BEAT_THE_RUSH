@@ -60,7 +60,8 @@ final class CreweStation: ObservableObject {
 
     // Platform / track geometry (design space; wide and pannable). West = small x, East = large x.
     let plats: [CrewePlat]
-    let fastY: [CGFloat] = [262, 316]     // the two fast lines between P5 and P6
+    let fastY: [CGFloat] = [262, 316]     // the two express lines between P5 and P6 — kept clear for fly-throughs
+    let slowY: [CGFloat] = [200, 380]     // the throat slow lines the platforms gather onto, flanking the expresses
     let singleY: CGFloat = 606            // the single line, faced by P11 (above) and P12 (below)
     let throatY: CGFloat = 289            // where the running lines bunch together in the throats
     let xSL: CGFloat = 300, xSR: CGFloat = 1300      // platform west / east ends
@@ -139,15 +140,51 @@ final class CreweStation: ObservableObject {
     /// The path-distance to a platform's west end — a train has cleared the platform once its tail passes here.
     private func platWestDist(_ i: Int) -> CGFloat { platEntryLen[i] + (xSR - plats[i].xL) }
 
-    // MARK: geometry — approach roads
+    // MARK: geometry — the staircase throats
 
-    /// Every platform keeps its **own** road straight out to the throat mouth, so regular trains never run
-    /// on the two express lines between P5 and P6 — those stay clear for fly-through expresses. A train
-    /// arrives from the east on its platform's road, runs along the platform, and departs west on the same
-    /// road. Because the roads sit at the platforms' own heights, none of them ever crosses the express pair.
+    /// Which slow line a platform gathers onto — upper platforms onto the top slow line, lower onto the
+    /// bottom one. The two express lines run clear between them, so no platform road ever touches them.
+    func slowLineFor(_ y: CGFloat) -> CGFloat { y < throatY ? slowY[0] : slowY[1] }
+    func throatOrder(_ y: CGFloat) -> Int { min(9, Int((abs(y - slowLineFor(y)) / 34).rounded())) }
+
+    /// The east top group cascades onto the top slow line: 1 and 2 merge, then into 3, then 4 — each merge
+    /// staggered further out than the last, so the points step in one at a time.
+    private func topCascade(from y: CGFloat) -> [CGPoint] {
+        let ys = [plats[0].y, plats[1].y, plats[2].y, plats[3].y, slowY[0]]
+        let r = ys.firstIndex(where: { abs($0 - y) < 6 }) ?? 0
+        var pts = [CGPoint(x: xSR, y: y)]
+        for m in (r + 1)...4 {
+            let xm = xSR + 150 + CGFloat(m - 1) * 190     // each successive merge is further east
+            pts.append(CGPoint(x: xm - 95, y: ys[m - 1])) // run along the current line
+            pts.append(CGPoint(x: xm, y: ys[m]))          // then merge onto the next
+        }
+        pts.append(CGPoint(x: xE, y: slowY[0]))
+        return pts
+    }
+
+    /// Throat geometry at one end. A platform road holds its height to a staggered turnout, then steps onto
+    /// its slow line and runs out to the mouth — the further a platform sits from its slow line, the earlier
+    /// it peels away, so the points open one at a time. The express pair between them is left untouched.
     private func throatPoints(_ y: CGFloat, east: Bool) -> [CGPoint] {
-        east ? [CGPoint(x: xSR, y: y), CGPoint(x: xE, y: y)]
-             : [CGPoint(x: xW, y: y), CGPoint(x: xSL, y: y)]
+        if east && y < plats[4].y - 20 { return topCascade(from: y) }   // 1→2→3→4→slow on the east
+        let edge: CGFloat = east ? xSR : xSL
+        let dir: CGFloat = east ? 1 : -1
+        let far: CGFloat = east ? xE : xW
+        let ord = CGFloat(min(6, throatOrder(y)))
+        var pts: [CGPoint]
+        if y < plats[4].y - 20 {                 // top group (P1 on the west): gather onto the top slow line
+            let gy: CGFloat = 150
+            pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
+                   CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: slowY[0]), CGPoint(x: far, y: slowY[0])]
+        } else if y > plats[5].y + 20 {          // bottom group: gather along one line, then onto the bottom slow line
+            let gy: CGFloat = 486
+            pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
+                   CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: slowY[1]), CGPoint(x: far, y: slowY[1])]
+        } else {                                  // P5 / P6: step straight onto their slow line
+            let mergeX = edge + dir * (40 + ord * 120)
+            pts = [CGPoint(x: edge, y: y), CGPoint(x: mergeX, y: slowLineFor(y)), CGPoint(x: far, y: slowLineFor(y))]
+        }
+        return east ? pts : pts.reversed()        // west runs far → platform
     }
     private func westThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: false) }
     private func eastThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: true) }
