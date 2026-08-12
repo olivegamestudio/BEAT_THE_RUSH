@@ -16,13 +16,11 @@ and a `…View` (SwiftUI `Canvas` that draws it). `StationDef.swift` lists every
 ids 1–20) and a `StationKind` picks which view/model to use.
 
 ```
-enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
+enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark, crewe }
 ```
 
 - **Bespoke stations:** Saltash (1), Dawlish Warren (2), Worcester Foregate Street (3),
-  Newark (4), Birmingham New Street (19). Each has its own Station/View pair.
-- **Planned bespoke:** Reedham (5, swing bridge on a timer), an inland reversing terminus (6, bay
-  platforms — not seaside).
+  Newark (4), **Crewe (5)**, Birmingham New Street (19). Each has its own Station/View pair.
 - **Generic “ladder” stations:** all the rest — one shared `StationView`/`Station` with platforms
   fed by a points ladder; difficulty scales via `StationDef` (spawn rate, speed, goal, express %).
 
@@ -34,11 +32,26 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
   is roughly `[-119, 571]` on the widest phones).
 - Pannable stations hold an `originX` (`@State`) with `clampOrigin`; a `DragGesture(minimumDistance:14)`
   scrolls. The **start** camera is the initial `originX`.
+- **Pinch-to-zoom + 2-axis pan** (Crewe, Birmingham): the view also holds `originY` and a `zoom`
+  (`@State`), `sc = size.width/worldW * zoom`, and combines the drag with a `MagnificationGesture`
+  (`.simultaneously`). `clampOrigin(_, visibleW)` / `clampOriginY(_, size, sc)` keep the content in view
+  at any zoom (centre when the content is narrower/shorter than the viewport). Crewe **starts at
+  `zoom = 0.8`** so more of the wide layout is in view; range ~`0.55…2.2`.
 
 ### Shared systems
 - **Kinematics:** ease `v` toward `target = min(speedCap, sqrt(2*decel*headroom))`; `ceiling` is the
   min of all constraints (berth, signal holds, train-ahead tail − gap). Overrun ceiling so long trains
   don’t vanish while their tail is still on-screen.
+- **Position-based following** (Crewe, Birmingham): a train holds clear of any train whose *body* lies
+  across the road ahead — sampled from real `(x,y)` positions, not just same-platform/same-target — so
+  crossing moves through a throat's merges and splits never overlap. "Ahead" is decided by progress
+  (`o.dist > t.dist`, ties by id) so a merge always has a clear winner and never deadlocks. Crewe uses
+  `blockedAhead`/`bodyNear` (hard stop); Birmingham uses `aheadCeiling` (a distance, for smooth decel).
+  This replaced the older "hold behind the train ahead on the same platform/fast-line" check, which let
+  a follower overrun a leader the moment it peeled off toward its platform.
+- **Sim-only debug tags:** bespoke views can draw a `#if targetEnvironment(simulator)` overlay
+  (`drawDebugTags`) labelling every platform/signal with its id and design coordinates, so the layout
+  can be nudged by name. Compiled out of device builds entirely.
 - **Signals** (`Carriage.swift`): `drawSignal(at:red:scale:)` = 2-aspect red/green; `drawBlockSignal(at:aspect:scale:)`
   = 3-aspect (0 green, 1 amber, 2 red). Both render the head ~22px *above* the anchor point — so to
   lift a signal “off the track”, move its anchor up ~24, and move its tappable `SignalHalo` circle to
@@ -61,7 +74,7 @@ enum StationKind { case ladder, saltash, dawlish, worcester, birmingham }
 - **Route lighting:** the stretch of track just ahead of each train lights **green / amber / red** so you
   can read the route it will take and whether it has the road — green = clear run, amber = closing on
   something, red = held. Driven by each train's movement authority (`railAspect`, from the same `ceiling`
-  the kinematics use). Implemented in Dawlish (`drawRouteLights`); rolls out per-station.
+  the kinematics use). `drawRouteLights` — rolled out across the stations.
 - **Liveries:** express trains long, red or green; locals white/short. Operator colours used where
   relevant (Worcester: GWR lime `gwrGreen`, West Midlands orange `wmrOrange`).
 
@@ -121,14 +134,69 @@ clouds, a subtly-graded green.
 - **Polish TODO:** entry/starter halos still touch a little; ECML can queue heavily (spawn balance);
   castle silhouette is blocky.
 
-### Birmingham New Street (19) — `birmingham`  *(scaffold — auto-routing)*
-12 platforms as **six two-track islands** fanning above/below **two central lanes**. A train shuffles
-**one track at a time** (a staggered crossover **staircase**, never a diagonal across the stack) out to
-its platform and back to a lane to leave. Throats stretched wide (pannable) so each shuffle plays out
-over a long run.
+### Crewe (5) — `crewe`
+A big twelve-platform through junction. Trains **arrive from the east**, self-navigate, and the player
+controls the lights. Wide and tall — **pinch-to-zoom + 2-axis pan**, starts at `zoom = 0.8`.
+
+**Platforms (`CrewePlat`, `plats`):**
+- **Through** (arrive east → berth → leave west): P1 (`y=-30`, across the top), P5 (`220`), P6 (`360`),
+  P7 (`424`), P8 (`488`). `throughIds = [1,5,6,7,8,11]`.
+- **East-facing bays** (buffer at the west end `xL=820`, open east — a train pulls up to the buffer,
+  boards, then **reverses back out east**; no west exit): P2 (`34`), P3 (`88`), P4 (`142`).
+  `bayIds = [2,3,4]`.
+- **Two express "fast" lines** between P5 and P6, `fastY=[262,316]` — non-stop fly-throughs, kept clear
+  of stopping traffic.
+- **Two "slow" lines** the platforms gather onto in the throats, `slowY=[200,380]`, flanking the express
+  pair. Top slow carries P1/P5 + the bays; bottom slow carries P6/7/8 + the single line.
+- **Single line** `singleY=606`, faced by **P11** (above) and **P12** (below). A platform's *running
+  line* can differ from its slab: `CrewePlat.lineY` (= `lineOverride ?? y`); P11/P12 both
+  `lineOverride: 606`. **Island faces** share a line too — P7+P9 (`424`), P8+P10 (`488`).
+- A berthed train boards **every face standing on its line** (`facesOnLine`, matched on `lineY`), so the
+  far island faces and the single line's two faces all get cleared. Passengers wait on **all 12**.
+
+**Throat & feed-in:** each platform gathers onto its slow line via a **staggered staircase** of points
+(one turnout at a time); the top group (P1 + bays) cascades `1→2→3→4→slow` (`topCascade`). Each slow
+line then **feeds into its fast line** at both mouths via a turnout spur, so the sides run into the fast
+tracks rather than dead-ending. Geometry: `xSL=300`/`xSR=1300` (platform ends), `xW=-760`/`xE=2360`
+(spawn/exit), `xWMouth=-120`/`xEMouth=1740` (throat mouths), `throatY=289`, concourse gap `720…900`.
+
+**Signals** (all lifted off the line; `S` are the only player controls):
+- **E** (entry, east end) — red while the platform is occupied.
+- **S** (starter, west end) — **tappable**: holds/releases the berthed train (`platformHeld`); a bay's is
+  its reverse release.
+- **Pt** (east point light, at the throat turnout) — red when the platform is occupied *or* the top
+  throat is reserved for a reversing bay.
+- **WPt** (west point light) — mirror of Pt for departing trains (bays reverse east, so have none).
+- **FJ** (join signals where the slow lines feed the fast) — `FJe` (east mouth / top fast), `FJw` (west
+  mouth / bottom fast): red while a stopper is in that mouth on the paired slow line. An **express
+  reaching a red join brakes hard to a stand** (`joinOccupied`, `eDecel=520`), then accelerates away.
+- *(There is no home signal — one used to sit across the expresses and was removed as confusing.)*
+
+**Routing (`pickPlatform`, round-robin):** rotate to the next clear through platform so arrivals fan
+evenly; keep rotating even when all are taken (spread the queue rather than stack one road). The
+**single line (11) is on-demand** — only routed to once its two faces have `8+` waiting. **Bays** are
+occasional (~30% when a bay is free) and **one at a time**. A **reversing bay** reserves the top slow
+line (`reverseActive`): it runs against the arriving flow, so top-slow arrivals are held off (their point
+lights go red) until the throat clears, then it backs out briskly.
+
+**Expresses:** long silver rakes, a power car (`endCap`) at each end and a headlight at the nose; top
+fast runs west→east, bottom east→west (up/down fasts); `expressSpeed=550`, spawned every 4–9s.
+
+Constants: `baseSpeed=86`, `dwellTime=2.4`, `platformCap=16`, goal 55. **Bay-and-reverse** and the
+express/junction conflict are the level's texture; the **breakdown-and-rescue** mechanic is still to
+build here.
+
+### Birmingham New Street (19) — `birmingham`  *(auto-routing)*
+12 long through platforms as **six two-track islands** fanning above/below **two central lanes**. A
+train shuffles **one track at a time** (a staggered crossover **staircase**, never a diagonal across the
+stack) out to its platform and back to a lane to leave. Throats stretched wide (pannable) so each
+shuffle plays out over a long run.
 - Key: `trackLevels=14`, central `laneLevels=[6,7]`, `platformLevel(p)` maps 0–5 above / 6–11 below,
   `platL=520`/`platR=860`, throats `xWT=-260`/`xET=1640`, per-platform starting signals red when
   berthed.
+- Tidied with the Crewe learnings: **position-based following** (`aheadCeiling`/`bodyNear`) so crossing
+  moves don't overlap, **round-robin routing** (`routeCursor`) so arrivals fan evenly, **pinch-to-zoom +
+  vertical pan**, and sim-only debug tags.
 - **Not yet built:** player-controlled points (currently trains auto-route to a free platform).
 
 ### Generic ladder stations (4–18, 20) — `ladder`
@@ -162,6 +230,10 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - Progress key: `btr.unlockedThrough` (station 1 always open; clearing N unlocks N+1).
 
 ## Open threads
+- **Crewe:** verify the **PL11 (single line) signal** — Simon reported trains ignoring it (may have been
+  a symptom of the earlier over-routing, now on-demand). Build the **breakdown-and-rescue** mechanic here
+  (Crewe has the alternates for it). Consider whether the join signals should be player-tappable rather
+  than auto. Rebalance the bottom slow line (P6/7/8/11) vs the top (P1/P5) if it feels lopsided.
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
@@ -169,7 +241,6 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 ## Future level ideas
 - **Breakdown & rescue** (Simon): a train fails and sits blocking a track; the player keeps the rest
   flowing by routing around the blockage until a **rescue/recovery train** arrives, couples, and drags
-  it clear. A dynamic obstacle + countdown. Needs a layout with alternates (a ladder station or a
-  passing loop) so there's somewhere to divert.
-- **L5 Reedham** — swing bridge on a timer (planned). **L6** — inland reversing terminus, bay
-  platforms, trains reverse out (planned; not seaside).
+  it clear. A dynamic obstacle + countdown. Crewe is the intended home (it has the alternates to divert
+  around a blockage).
+- **L6 snow**, **L7 UK freight** (long trains) — logged themes.
