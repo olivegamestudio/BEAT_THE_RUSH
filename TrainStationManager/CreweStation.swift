@@ -210,10 +210,46 @@ final class CreweStation: ObservableObject {
             return (o.dist - o.spec.carLength) < platWestDist(i)
         }
     }
+    /// Pick a road for an arriving train. A clear platform first (the fullest, so passengers keep moving);
+    /// if every road is taken it heads for the one that will clear soonest, so the queue never backs a train
+    /// onto a road that stays blocked while another frees.
+    /// Would `t`'s nose at distance `d` come within a car's clearance of a train that's ahead of it?
+    /// Ahead = further along its own road (ties broken by id), so two trains meeting at a merge always
+    /// have one clear winner and never freeze each other. Bodies are compared as real positions, so the
+    /// rule holds across different roads — exactly where the throat's merges and splits are.
+    private func blockedAhead(_ t: CreweTrain, at d: CGFloat, roster: [CreweTrain]) -> Bool {
+        let nose = t.path.sample(d).p
+        let clear = Track.carUnit * 0.8
+        for o in roster where o !== t && !o.finished {
+            let oAhead = o.dist > t.dist || (o.dist == t.dist && o.id.hashValue > t.id.hashValue)
+            guard oAhead else { continue }
+            if bodyNear(o, nose, within: clear) { return true }
+        }
+        return false
+    }
+
+    /// True if any point along train `o`'s body (nose back to tail) lies within `r` of `p`.
+    private func bodyNear(_ o: CreweTrain, _ p: CGPoint, within r: CGFloat) -> Bool {
+        var d = o.dist
+        let tail = o.dist - o.carLen
+        while d >= tail {
+            let q = o.path.sample(d).p
+            if hypot(q.x - p.x, q.y - p.y) < r { return true }
+            d -= 18
+        }
+        return false
+    }
+
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
         let free = throughIdx.filter { !platformTaken($0, except: t) }
         if let best = free.max(by: { passengers[$0] < passengers[$1] }) { return best }
-        return throughIdx.min(by: { passengers[$0] < passengers[$1] }) ?? throughIdx.first ?? 0
+        // Everything's taken — target whichever road's train is furthest along (nearest to leaving).
+        return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
+    }
+
+    /// How far the train currently on road `i` has run — bigger means nearer to clearing it.
+    private func progress(_ i: Int) -> CGFloat {
+        trains.filter { !$0.finished && $0.target == i }.map(\.dist).max() ?? 0
     }
 
     func reset() {
@@ -236,9 +272,9 @@ final class CreweStation: ObservableObject {
     }
 
     private func spawn() {
+        let target = pickPlatform()
         let len = def.trainLengths.randomElement() ?? 4
         let spec = Train(length: len, tint: trainPalette.randomElement() ?? .blue, name: "")
-        let target = pickPlatform()
         let pl = plats[target]
         let path = buildPath(to: target)
         let t = CreweTrain(spec, target: target, path)
@@ -267,7 +303,7 @@ final class CreweStation: ObservableObject {
         spawnClock += dt
         if spawnClock >= nextSpawn {
             spawnClock = 0
-            if trains.count < 6 { spawn() }
+            if trains.count < 10 { spawn() }   // spawn() self-limits to a clear platform; this is just a backstop
             nextSpawn = Double.random(in: def.spawnRange.lowerBound...(def.spawnRange.upperBound * 1.3))
         }
 
@@ -283,19 +319,12 @@ final class CreweStation: ObservableObject {
                     let stop = t.path.distanceTo(vertex: 1) - gap   // held at the east home signal
                     if stop >= t.dist { ceiling = min(ceiling, stop) }
                 }
-                // Hold behind any train genuinely ahead: on the same platform road, or ahead in the same
-                // fast line while both are still gathering down the east throat.
-                var aheadTail = CGFloat.infinity
-                for o in roster where o !== t && !o.finished && o.dist > t.dist {
-                    let sameFastInThroat = t.dist < t.entryLen && o.dist < o.entryLen && o.entryFast == t.entryFast
-                    if o.target == t.target || sameFastInThroat {
-                        aheadTail = min(aheadTail, o.dist - o.spec.carLength)
-                    }
-                }
-                if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
-                // Don't enter the platform until it's clear of the previous train — hold out at the entry.
-                if t.dist < t.entryLen && platformTaken(t.target, except: t) {
-                    ceiling = min(ceiling, t.entryLen - gap)
+                // Hold clear of any train physically ahead — wherever its body crosses our path, whatever
+                // its target. "Ahead" is decided by progress so a merge always has a clear winner (never a
+                // stand-off), and the check is on real positions so a train peeling off to its platform can't
+                // be overrun by the one behind it.
+                if blockedAhead(t, at: min(t.dist + step, ceiling), roster: roster) {
+                    ceiling = min(ceiling, t.dist)
                 }
                 let next = min(t.dist + step, ceiling)
                 t.stopped = next < t.dist + step - 0.01 && ceiling < t.berthDist ? t.stopped + dt : 0
