@@ -252,9 +252,11 @@ struct CreweView: View {
         let s = station
         // home signal at the east entrance — trains arrive from the east
         drawSignal(ctx, at: S(CGPoint(x: s.xSR + 470, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
-        // a starter at the west end of each served platform — red holds the boarded train
         for (i, pl) in s.plats.enumerated() where s.throughIds.contains(pl.id) {
+            // starter at the west (departure) end — red holds the boarded train
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
+            // entry signal at the east (arrival) end — red while the platform is occupied
+            drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
         }
     }
 

@@ -223,6 +223,11 @@ final class CreweStation: ObservableObject {
     func toggleEntrance() { entranceOpen.toggle(); objectWillChange.send() }
     func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
 
+    /// A platform is occupied (its entry signal red) while a train is berthing or berthed on it.
+    func platformOccupied(_ i: Int) -> Bool {
+        trains.contains { !$0.finished && $0.target == i && ($0.phase == .berthed || ($0.phase == .arriving && $0.dist >= $0.entryLen)) }
+    }
+
     private func spawn() {
         let len = def.trainLengths.randomElement() ?? 4
         let spec = Train(length: len, tint: trainPalette.randomElement() ?? .blue, name: "")
