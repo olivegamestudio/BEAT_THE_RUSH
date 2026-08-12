@@ -101,6 +101,7 @@ final class CreweStation: ObservableObject {
     private var paxClock = 0.0, nextPax = 1.0
     private var overflowClock: [Double]
     private var peakFill = 0.0
+    private var platEntryLen: [CGFloat] = []          // east-spawn → platform-east-end distance, per platform
 
     /// The through-platform indices (0-based) actually served this pass.
     private var throughIdx: [Int] { plats.indices.filter { throughIds.contains(plats[$0].id) } }
@@ -125,11 +126,15 @@ final class CreweStation: ObservableObject {
             CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false),  // bottom face of the single line
         ]
         passengers = Array(repeating: 0, count: 12)
-        platformHeld = Array(repeating: true, count: 12)
+        platformHeld = Array(repeating: false, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
+        platEntryLen = plats.indices.map { entryLenOf(buildPath(to: $0), $0) }
         spawn()
     }
+
+    /// The path-distance to a platform's west end — a train has cleared the platform once its tail passes here.
+    private func platWestDist(_ i: Int) -> CGFloat { platEntryLen[i] + (xSR - plats[i].xL) }
 
     // MARK: geometry — the staircase throats
 
@@ -198,10 +203,11 @@ final class CreweStation: ObservableObject {
 
     // MARK: routing
 
+    /// A platform is taken until the train on it has run its whole length clear of the platform's west end.
     private func platformTaken(_ i: Int, except t: CreweTrain? = nil) -> Bool {
         trains.contains { o in
             guard o !== t, !o.finished, o.target == i else { return false }
-            return o.phase != .departing || o.dist < o.berthDist + o.spec.carLength + Track.carUnit
+            return (o.dist - o.spec.carLength) < platWestDist(i)
         }
     }
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
@@ -215,7 +221,7 @@ final class CreweStation: ObservableObject {
         passengers = Array(repeating: 0, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
-        entranceOpen = true; platformHeld = Array(repeating: true, count: 12); sparkles = []; animT = 0
+        entranceOpen = true; platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1
         spawn()
         objectWillChange.send()
@@ -236,7 +242,7 @@ final class CreweStation: ObservableObject {
         let pl = plats[target]
         let path = buildPath(to: target)
         let t = CreweTrain(spec, target: target, path)
-        t.entryLen = entryLenOf(path, target)
+        t.entryLen = platEntryLen[target]
         t.entryFast = fastLineFor(pl.y)
         t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
         t.committed = true
@@ -287,6 +293,10 @@ final class CreweStation: ObservableObject {
                     }
                 }
                 if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+                // Don't enter the platform until it's clear of the previous train — hold out at the entry.
+                if t.dist < t.entryLen && platformTaken(t.target, except: t) {
+                    ceiling = min(ceiling, t.entryLen - gap)
+                }
                 let next = min(t.dist + step, ceiling)
                 t.stopped = next < t.dist + step - 0.01 && ceiling < t.berthDist ? t.stopped + dt : 0
                 t.dist = max(t.dist, next)
