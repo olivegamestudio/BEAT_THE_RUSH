@@ -19,11 +19,12 @@ and a `…View` (SwiftUI `Canvas` that draws it). `StationDef.swift` lists every
 ids 1–20) and a `StationKind` picks which view/model to use.
 
 ```
-enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark, crewe }
+enum StationKind { case ladder, saltash, dawlish, worcester, birmingham, newark, crewe, lostwithiel }
 ```
 
 - **Bespoke stations:** Saltash (1), Dawlish Warren (2), Worcester Foregate Street (3),
-  Newark (4), **Crewe (5)**, Birmingham New Street (19). Each has its own Station/View pair.
+  Newark (4), **Crewe (5)**, **Lostwithiel (6)**, Birmingham New Street (19). Each has its own
+  Station/View pair.
 - **Generic “ladder” stations:** all the rest — one shared `StationView`/`Station` with platforms
   fed by a points ladder; difficulty scales via `StationDef` (spawn rate, speed, goal, express %).
 
@@ -219,8 +220,38 @@ lights go red) until the throat clears, then it backs out briskly.
 fast runs west→east, bottom east→west (up/down fasts); `expressSpeed=550`, spawned every 4–9s.
 
 Constants: `baseSpeed=86`, `dwellTime=2.4`, `platformCap=16`, goal 55. **Bay-and-reverse** and the
-express/junction conflict are the level's texture; the **breakdown-and-rescue** mechanic is still to
-build here.
+express/junction conflict are the level's texture. (Breakdown-and-rescue was considered here but built at
+**[[Lostwithiel (6)]]** instead — Crewe already carries enough.)
+- **Passengers seed a crowd.** Twelve platforms fed one arrival at a time left trains berthing and leaving
+  almost empty, so each platform starts with `Int.random(3...7)` waiting (`seededCrowd`) and arrivals top up
+  **two** platforms per tick — otherwise the carriages never visibly fill.
+
+### Lostwithiel (6) — `lostwithiel`  *(breakdown & rescue)*
+A **double-track** section in the Fowey valley — **no platforms**, a pure congestion level. Trains run
+left↔right on their own lane (up lane `yTop=196` eastbound, down lane `yBot=300` westbound), so normally
+it just flows — two independent lanes, no head-on possible. `carried` counts **trains sent through**, not
+people. Goal 22.
+
+- **The event:** once three services are through, a slow, **steam-hauled china-clay freight** (an engine
+  drawn with `drawSteamLoco` + **ten short clay hoods** at `wagonUnit=34` spacing, smoke off the chimney
+  via `drawSteamPlume` while it moves) plods up the **up lane** and **fails** at `xFreight=780`. It sits
+  dead, a wall on the up lane, wearing a ⚠️ flash.
+- **After the block:** up-line services **divert** — across the **west crossover** (`xCW=380`) onto the
+  down lane, along the shared stretch, back up the **east crossover** (`xCE=900`). That stretch of the down
+  lane (`[contestL, contestR]`) is now shared by both directions, so they **take turns**: one **Saltash-style
+  route light** (`passGreen: Dir?`, tap a signal to clear that way) grants it one direction at a time; a
+  train holds at its crossover until granted **and** the stretch is clear of the other way. Up-trains already
+  past `xCW` when it fails are stuck behind the freight until the rescue (realistic).
+- **The rescue:** a **visible siding** each side of the running lines (`casualtyStub` up, `rescueStub` down,
+  both drawn with buffer stops). When the freight fails, `rescueReady` turns the **siding starter** green;
+  tapping it sends the **orange rescue loco** out — up onto the up lane at the east crossover, west to the
+  casualty, **couples**, then **hauls it east into the refuge siding**. Once it's away, `broken` clears, the
+  road reopens, and you clear the backlog.
+- **Win:** `carried >= goal` **and** `rescued`. **Lose:** a portal backlog (`eastBacklog`/`westBacklog`)
+  over `maxBacklog=5` for longer than `overflowGrace`.
+- Replaced the generic Hereford at slot 6. **Still to tune by feel:** breakdown timing, backlog balance,
+  the rescue choreography, and whether the freight should stop *fully* on-screen (currently mid-loop of the
+  view). Rescue loco also puffs smoke while running.
 
 ### Birmingham New Street (19) — `birmingham`  *(auto-routing)*
 12 long through platforms as **six two-track islands** fanning above/below **two central lanes**. A
@@ -238,6 +269,36 @@ shuffle plays out over a long run.
 ### Generic ladder stations (4–18, 20) — `ladder`
 Shared `StationView`. Platforms fed from mains via a points ladder; the player toggles the platform
 signals. Difficulty ramps through `StationDef` (spawn/speed/goal/express).
+
+### Building a new bespoke station — the recipe (so you needn't re-scan)
+A station is a `…Station` model (`ObservableObject`) + a `…View` (`Canvas`). Copy Saltash as the
+template; it is the closest pattern (bespoke, route-light, pannable).
+
+**Shared helpers you can rely on (don't reinvent):**
+- `RoutePath([CGPoint])` → `.sample(d) -> (p, angle)`, `.smoothAngle(d)`, `.total`,
+  `.distanceTo(vertex: i)`. A train's `dist` is arc-length along its path.
+- `Train(length:tint:name:)`, `.carLength`; `Track.carUnit = 50`, `Track.carHeight = 34`, `Track.H = 452`.
+- Drawing (`Carriage.swift`): `drawCarriage(ctx, at:, angle:, tint:, cw:, ch:, scale:, endCap:, fill:, seed:, cornerRadius:)`,
+  `drawSignal(ctx, at:, red:, scale:)`, `drawBlockSignal(ctx, at:, aspect:, scale:)`,
+  `drawRouteAhead(ctx, pts, aspect:, scale:)`, `drawSparkleBurst(...)`, `drawMood(ctx, emoji, at:, scale:)`,
+  `drawSteamLoco(...)`. Movement authority → aspect: `railAspect(headroom:, clearToEnd:, amber:)`.
+- Flow/UI (`AppFlow.swift`): `GameOutcome`, `Mood`, `Progress`, `levelStars`, `levelTasks`,
+  `OutcomeOverlay`, `LevelBriefing`, `SignalHalo`, `PressStyle`, `Vignette`, `MuteButton`, `ConfirmDialog`.
+- `Sound.shared.play(.board/.depart/.ding/.win/.lose/.ui/.tap)`; `Sparkle`, `sparkleLife`.
+
+**View scaffolding (from Saltash):** `@StateObject` the model; a `Timer.publish(every: 0.03)` that
+calls `station.tick(0.03)` only while `started`; `designW` + `originX`/`clampOrigin` + `project(p,scale,size)`
+for the panned window; a `Canvas` drawing relief → rails → route-lights → trains → signals; a `controls`
+`ZStack` (signal `Button`s over `SignalHalo`, back, mute, score, name); the `started`-gated `LevelBriefing`;
+the `OutcomeOverlay` on `outcome != .playing`; a `ConfirmDialog` for exit.
+
+**Model tick pattern:** iterate a `let roster = trains` snapshot; compute a `ceiling` (min of every
+constraint — berth, held signal, train-ahead tail − gap), `t.dist = max(t.dist, min(t.dist+step, ceiling))`;
+set `t.railAspect`; never mutate `trains` inside the loop (defer spawns/removals).
+
+**Wiring a new station (five touch-points):** add the `StationKind` case (`StationDef.swift`); give it a
+row in `allStations` with `kind:`; add its first-move label in `levelTasks` (`AppFlow.swift`); add the
+`case` in `RootView`'s play switch; and (bespoke) add the `started` gate + `OutcomeOverlay(def:)`.
 
 ## Build, run, deploy
 
@@ -267,16 +328,16 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 
 ## Open threads
 - **Crewe:** verify the **PL11 (single line) signal** — Simon reported trains ignoring it (may have been
-  a symptom of the earlier over-routing, now on-demand). Build the **breakdown-and-rescue** mechanic here
-  (Crewe has the alternates for it). Consider whether the join signals should be player-tappable rather
-  than auto. Rebalance the bottom slow line (P6/7/8/11) vs the top (P1/P5) if it feels lopsided.
+  a symptom of the earlier over-routing, now on-demand). Consider whether the join signals should be
+  player-tappable rather than auto. Rebalance the bottom slow line (P6/7/8/11) vs the top (P1/P5) if lopsided.
+- **Lostwithiel:** tune by feel — breakdown timing, backlog balance, the rescue choreography; confirm the
+  two lanes flow cleanly and both sidings read clearly. (Breakdown & rescue now lives here, not Crewe.)
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
 
 ## Future level ideas
-- **Breakdown & rescue** (Simon): a train fails and sits blocking a track; the player keeps the rest
-  flowing by routing around the blockage until a **rescue/recovery train** arrives, couples, and drags
-  it clear. A dynamic obstacle + countdown. Crewe is the intended home (it has the alternates to divert
-  around a blockage).
+- **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the
+  clay freight fails, up-line traffic diverts and takes turns over the down lane, and a rescue loco is
+  called out of its siding to drag the casualty into the refuge. (Was first mooted for Crewe.)
 - **L6 snow**, **L7 UK freight** (long trains) — logged themes.

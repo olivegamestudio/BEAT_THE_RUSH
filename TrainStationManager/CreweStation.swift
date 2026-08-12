@@ -149,6 +149,11 @@ final class CreweStation: ObservableObject {
         !trains.contains { $0 !== t && !$0.finished && $0.phase == .arriving && isTopSlow($0.target) }
     }
 
+    /// A starting crowd on every platform. Spread thin across twelve platforms, single arrivals never
+    /// build a queue a stopping train could clear — trains berthed and left almost empty. Seeding a few
+    /// on each face means the first trains through already have people to carry, and the windows fill.
+    private static func seededCrowd() -> [Double] { (0..<12).map { _ in Double(Int.random(in: 3...7)) } }
+
     init(_ def: StationDef) {
         self.def = def
         let L = 300.0, R = 1300.0
@@ -168,7 +173,7 @@ final class CreweStation: ObservableObject {
             CrewePlat(id: 11, y: 566, xL: L,    xR: R,    kind: .through, slabAbove: true,  ownsLine: false, lineOverride: 606),   // top face of the single line (606)
             CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false, lineOverride: 606),  // bottom face of the single line
         ]
-        passengers = Array(repeating: 0, count: 12)
+        passengers = Self.seededCrowd()
         platformHeld = Array(repeating: false, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
@@ -328,7 +333,7 @@ final class CreweStation: ObservableObject {
 
     func reset() {
         trains = []; expresses = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
-        passengers = Array(repeating: 0, count: 12)
+        passengers = Self.seededCrowd()
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
         platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
@@ -410,7 +415,8 @@ final class CreweStation: ObservableObject {
         paxClock += dt
         if paxClock >= nextPax {
             paxClock = 0
-            if let p = plats.indices.randomElement(), passengers[p] < platformCap { passengers[p] += 1 }   // people wait on every platform
+            // Top up a couple of platforms each time — one at a time across twelve never kept the queues up.
+            for p in plats.indices.shuffled().prefix(2) where passengers[p] < platformCap { passengers[p] += 1 }
             nextPax = Double.random(in: def.spawnRange)
         }
         spawnClock += dt

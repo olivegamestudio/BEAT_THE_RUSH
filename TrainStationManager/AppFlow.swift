@@ -309,6 +309,12 @@ struct LevelTask { let label: String; let need: Int }
 func levelTasks(_ def: StationDef) -> [LevelTask] {
     let g = def.goal
     let half = max(5, Int((Double(g) / 2 / 5).rounded()) * 5)   // halfway, rounded to a tidy multiple of 5
+    // Lostwithiel scores trains sent safely through, not people carried, and turns on the rescue.
+    if def.kind == .lostwithiel {
+        return [LevelTask(label: "Send a train through the loop", need: 1),
+                LevelTask(label: "Keep it moving past the breakdown", need: half),
+                LevelTask(label: "Clear the casualty and \(g) trains", need: g)]
+    }
     let first: String
     switch def.kind {
     case .saltash:    first = "Send a train over the bridge"
@@ -317,6 +323,7 @@ func levelTasks(_ def: StationDef) -> [LevelTask] {
     case .newark:     first = "Get a train over the crossing"
     case .crewe:      first = "Send a train through Crewe"
     case .birmingham: first = "Send a train to a platform"
+    case .lostwithiel: first = "Send a train through the loop"
     case .ladder:     first = "Send a train to a platform"
     }
     return [LevelTask(label: first, need: 1),
@@ -402,6 +409,7 @@ struct RootView: View {
                     case .birmingham: BirminghamView(def: def, onExit: { screen = .select })
                     case .newark: NewarkView(def: def, onExit: { screen = .select })
                     case .crewe: CreweView(def: def, onExit: { screen = .select })
+                    case .lostwithiel: LostwithielView(def: def, onExit: { screen = .select })
                     case .ladder:  StationView(def: def, onExit: { screen = .select })
                     }
                 }
