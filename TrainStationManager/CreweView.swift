@@ -312,28 +312,26 @@ struct CreweView: View {
     }
 
     #if targetEnvironment(simulator)
-    /// Simulator-only: tag every platform and signal with its id and design-space coordinates, so the layout
-    /// can be nudged into place by name. Compiled out entirely for device builds.
+    /// Simulator-only: label every signal with its id, right on the signal, plus its design coordinates so
+    /// the layout can be nudged into place by name. Compiled out entirely for device builds.
     private func drawDebugTags(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        func tag(_ str: String, _ p: CGPoint, _ colour: Color) {
-            let at = S(p)
-            let text = Text(str).font(.system(size: 9 * sc, weight: .heavy, design: .monospaced)).foregroundColor(colour)
+        /// The id sits on the signal itself (big); the coordinates trail just past it (smaller).
+        func tag(_ id: String, at sig: CGPoint, _ colour: Color) {
+            let idText = Text(id).font(.system(size: 15 * sc, weight: .black, design: .rounded)).foregroundColor(colour)
+            let posText = Text("\(Int(sig.x)),\(Int(sig.y))").font(.system(size: 9 * sc, weight: .bold, design: .monospaced)).foregroundColor(.white)
             ctx.drawLayer { l in
-                l.addFilter(.shadow(color: .black, radius: 1.6 * sc))
-                l.draw(text, at: at)
-                l.draw(text, at: at)   // doubled so the shadow reads as an outline
+                l.addFilter(.shadow(color: .black, radius: 2.4 * sc))
+                l.draw(idText, at: S(sig)); l.draw(idText, at: S(sig))          // doubled: shadow reads as an outline
+                l.draw(posText, at: S(CGPoint(x: sig.x, y: sig.y - 26)))
             }
         }
-        func xy(_ x: CGFloat, _ y: CGFloat) -> String { "\(Int(x)),\(Int(y))" }
-        // home signal
-        tag("HOME \(xy(s.homeSignalX, s.throatY - 4))", CGPoint(x: s.homeSignalX, y: s.throatY - 44), .cyan)
+        tag("H", at: CGPoint(x: s.homeSignalX, y: s.throatY - 4), .cyan)
         for pl in s.plats where s.throughIds.contains(pl.id) {
-            tag("PLAT \(pl.id) · y\(Int(pl.y)) · x\(Int(pl.xL))–\(Int(pl.xR))", CGPoint(x: pl.xL + 260, y: pl.y - 4), .white)
-            tag("S\(pl.id) \(xy(pl.xL + 96, pl.y - 18))", CGPoint(x: pl.xL + 96, y: pl.y - 42), .yellow)
-            tag("E\(pl.id) \(xy(pl.xR - 70, pl.y - 18))", CGPoint(x: pl.xR - 70, y: pl.y - 42), .yellow)
+            tag("S\(pl.id)", at: CGPoint(x: pl.xL + 96, y: pl.y - 18), .yellow)
+            tag("E\(pl.id)", at: CGPoint(x: pl.xR - 70, y: pl.y - 18), .yellow)
             let turn = s.eastThroat(pl.y)
-            if turn.count > 1 { tag("Pt\(pl.id) \(xy(turn[1].x, turn[1].y - 16))", CGPoint(x: turn[1].x, y: turn[1].y - 38), .orange) }
+            if turn.count > 1 { tag("Pt\(pl.id)", at: CGPoint(x: turn[1].x, y: turn[1].y - 16), .orange) }
         }
     }
     #endif
