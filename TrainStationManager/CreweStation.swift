@@ -307,7 +307,13 @@ final class CreweStation: ObservableObject {
     /// is taken, head for the one that will clear soonest.
     private func pickPlatform(except t: CreweTrain? = nil) -> Int {
         // While a bay is reversing, keep new arrivals off the top slow line it needs.
-        let pool = reverseActive ? throughIdx.filter { !isTopSlow($0) } : throughIdx
+        var pool = reverseActive ? throughIdx.filter { !isTopSlow($0) } : throughIdx
+        // The single line (11) is low-capacity — only send a train the long way down to it once its two faces
+        // have built up a crowd, otherwise it draws far more traffic than it can shift.
+        if let single = plats.firstIndex(where: { $0.id == 11 }),
+           facesOnLine(single).reduce(0, { $0 + passengers[$1] }) < 8 {
+            pool.removeAll { $0 == single }
+        }
         let n = pool.count
         guard n > 0 else { return throughIdx.first ?? 0 }
         for k in 1...n {
