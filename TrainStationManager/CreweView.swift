@@ -265,7 +265,7 @@ struct CreweView: View {
 
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        for (i, pl) in s.plats.enumerated() where s.servedIds.contains(pl.id) {
+        for (i, pl) in s.plats.enumerated() {
             let feetY = pl.slabAbove ? pl.y - 8 : pl.y + 30
             pax(ctx, count: s.passengers[i], x0: pl.xL + 90, feetY: feetY, sc: sc,
                 agitated: s.agitated(i), t: s.animT, S: S)
@@ -301,13 +301,14 @@ struct CreweView: View {
         // home signal at the east entrance — trains arrive from the east
         drawSignal(ctx, at: S(CGPoint(x: s.homeSignalX, y: station.throatY - 4)), red: !s.entranceOpen, scale: sc * 2.6)
         for (i, pl) in s.plats.enumerated() where s.servedIds.contains(pl.id) {
+            let ly = pl.lineY
             // starter at the west (departure) end — red holds the boarded train (a bay's is its reverse release)
-            drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
+            drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: ly - 18)), red: s.platformHeld[i], scale: sc * 2.2)
             // entry signal at the east (arrival) end — red while the platform is occupied
-            drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
+            drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: ly - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
             // point light out at the throat turnout — red when the platform is occupied or the top throat is
             // reserved for a bay reversing out across it
-            let turn = s.eastThroat(pl.y)
+            let turn = s.eastThroat(ly)
             if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i) || s.topReserved(i), scale: sc * 1.9) }
         }
     }
@@ -329,9 +330,10 @@ struct CreweView: View {
         }
         tag("H", at: CGPoint(x: s.homeSignalX, y: s.throatY - 4), .cyan)
         for pl in s.plats where s.servedIds.contains(pl.id) {
-            tag("S\(pl.id)", at: CGPoint(x: pl.xL + 96, y: pl.y - 18), .yellow)
-            tag("E\(pl.id)", at: CGPoint(x: pl.xR - 70, y: pl.y - 18), .yellow)
-            let turn = s.eastThroat(pl.y)
+            let ly = pl.lineY
+            tag("S\(pl.id)", at: CGPoint(x: pl.xL + 96, y: ly - 18), .yellow)
+            tag("E\(pl.id)", at: CGPoint(x: pl.xR - 70, y: ly - 18), .yellow)
+            let turn = s.eastThroat(ly)
             if turn.count > 1 { tag("Pt\(pl.id)", at: CGPoint(x: turn[1].x, y: turn[1].y - 16), .orange) }
         }
     }
@@ -353,7 +355,7 @@ struct CreweView: View {
                     SignalHalo().frame(width: 50, height: 50).contentShape(Rectangle())
                 }
                 .buttonStyle(PressStyle())
-                .position(project(CGPoint(x: pl.xL + 96, y: pl.y - 40), scale, size))
+                .position(project(CGPoint(x: pl.xL + 96, y: pl.lineY - 40), scale, size))
             }
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {

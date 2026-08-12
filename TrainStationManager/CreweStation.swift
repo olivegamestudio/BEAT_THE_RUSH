@@ -22,9 +22,11 @@ struct CrewePlat {
     var slabL: CGFloat? = nil // slab extent, if it differs from the track (a face on part of a through line)
     var slabR: CGFloat? = nil
     var ownsLine: Bool = true // false = a platform face that shares another platform's line (draws no track of its own)
+    var lineOverride: CGFloat? = nil   // the running line a train berths on, when it differs from the slab (the single line)
     var through: Bool { kind == .through }
     var sLeft: CGFloat { slabL ?? xL }
     var sRight: CGFloat { slabR ?? xR }
+    var lineY: CGFloat { lineOverride ?? y }   // where a train actually stands — the slab is just alongside it
 }
 
 final class CreweTrain: Identifiable {
@@ -85,8 +87,10 @@ final class CreweStation: ObservableObject {
     let xWMouth: CGFloat = -120                      // where the 4 tracks bunch together
     // East throat: 7 tracks (5 + 2 fast) fan over a staircase.
     let xEMouth: CGFloat = 1740
-    let throughIds = [1, 5, 6, 7, 8]                  // the through platforms — trains run right across them
+    let throughIds = [1, 5, 6, 7, 8, 11]             // the through roads — trains run right across them (11 = the single line)
     let bayIds = [2, 3, 4]                            // east-facing terminating bays — trains reverse back out
+    /// The roads trains route onto and that carry signals. Faces that share a road (9, 10, 12) aren't routed to
+    /// directly — their people board the train standing on the shared line.
     var servedIds: Set<Int> { Set(throughIds + bayIds) }
     var homeSignalX: CGFloat { xSR + 470 }            // the east home signal — trains hold here when it's red
 
@@ -137,7 +141,9 @@ final class CreweStation: ObservableObject {
     private var bayIdx: [Int] { plats.indices.filter { bayIds.contains(plats[$0].id) } }
     var servedIdx: [Int] { plats.indices.filter { servedIds.contains(plats[$0].id) } }
     /// Platforms that share the top slow line (the bays and the through platforms above the expresses).
-    private func isTopSlow(_ i: Int) -> Bool { plats[i].kind == .bayEast || slowLineFor(plats[i].y) == slowY[0] }
+    private func isTopSlow(_ i: Int) -> Bool { plats[i].kind == .bayEast || slowLineFor(plats[i].lineY) == slowY[0] }
+    /// Every platform face standing along the same running line — a berthed train boards them all.
+    func facesOnLine(_ i: Int) -> [Int] { plats.indices.filter { plats[$0].lineY == plats[i].lineY } }
     /// The top slow line is clear to reverse onto once no other train is still arriving across it.
     private func topSlowClear(except t: CreweTrain) -> Bool {
         !trains.contains { $0 !== t && !$0.finished && $0.phase == .arriving && isTopSlow($0.target) }
@@ -159,8 +165,8 @@ final class CreweStation: ObservableObject {
             CrewePlat(id: 9,  y: 424, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
             CrewePlat(id: 8,  y: 488, xL: L,    xR: R,    kind: .through, slabAbove: true,  slabL: L,    slabR: midL),
             CrewePlat(id: 10, y: 488, xL: midR, xR: R,    kind: .through, slabAbove: true,  ownsLine: false),
-            CrewePlat(id: 11, y: 566, xL: L,    xR: R,    kind: .through, slabAbove: true,  ownsLine: false),   // top face of the single line
-            CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false),  // bottom face of the single line
+            CrewePlat(id: 11, y: 566, xL: L,    xR: R,    kind: .through, slabAbove: true,  ownsLine: false, lineOverride: 606),   // top face of the single line (606)
+            CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false, lineOverride: 606),  // bottom face of the single line
         ]
         passengers = Array(repeating: 0, count: 12)
         platformHeld = Array(repeating: false, count: 12)
@@ -226,15 +232,15 @@ final class CreweStation: ObservableObject {
     /// Through-platform route — trains arrive **from the east**: in down the east throat, along the platform,
     /// out down the west throat.
     private func buildPath(to i: Int) -> RoutePath {
-        let pl = plats[i]
-        let pts = Array(eastThroatPoints(pl.y).reversed()) + Array(westThroatPoints(pl.y).reversed())
+        let y = plats[i].lineY
+        let pts = Array(eastThroatPoints(y).reversed()) + Array(westThroatPoints(y).reversed())
         return RoutePath(pts)
     }
     /// Bay route — in from the east down the throat to the bay's east end, then along the bay to a stand
     /// short of the buffer. There is no west exit: the train reverses back out along this same road.
     private func buildBayPath(to i: Int) -> RoutePath {
         let pl = plats[i]
-        let pts = Array(eastThroatPoints(pl.y).reversed()) + [CGPoint(x: pl.xL + 180, y: pl.y)]
+        let pts = Array(eastThroatPoints(pl.lineY).reversed()) + [CGPoint(x: pl.xL + 180, y: pl.lineY)]
         return RoutePath(pts)
     }
     /// The road a train takes into platform `i` — a through route, or a terminating bay route.
@@ -243,12 +249,12 @@ final class CreweStation: ObservableObject {
     }
     /// The east spawn → platform-east-end distance for platform `i`.
     private func entryLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
-        p.distanceTo(vertex: eastThroatPoints(plats[i].y).count - 1)
+        p.distanceTo(vertex: eastThroatPoints(plats[i].lineY).count - 1)
     }
     /// The east spawn → entry-turnout distance for platform `i` — where its point light sits. A train held
     /// by a red platform signal stops here rather than running on to the occupied platform.
     private func turnoutLenOf(_ p: RoutePath, _ i: Int) -> CGFloat {
-        p.distanceTo(vertex: max(1, eastThroatPoints(plats[i].y).count - 2))
+        p.distanceTo(vertex: max(1, eastThroatPoints(plats[i].lineY).count - 2))
     }
 
     // MARK: routing
@@ -394,7 +400,7 @@ final class CreweStation: ObservableObject {
         paxClock += dt
         if paxClock >= nextPax {
             paxClock = 0
-            if let p = servedIdx.randomElement(), passengers[p] < platformCap { passengers[p] += 1 }
+            if let p = plats.indices.randomElement(), passengers[p] < platformCap { passengers[p] += 1 }   // people wait on every platform
             nextPax = Double.random(in: def.spawnRange)
         }
         spawnClock += dt
@@ -450,19 +456,22 @@ final class CreweStation: ObservableObject {
                 if !t.spawnedNext && t.dist >= t.entryLen { t.spawnedNext = true; spawnCount += 1 }
                 if t.dist >= t.berthDist {
                     t.dist = t.berthDist; t.phase = .berthed; t.stopped = 0
-                    waitClock[t.target] = 0; t.dwell = dwellTime
+                    for f in facesOnLine(t.target) { waitClock[f] = 0 }; t.dwell = dwellTime
                     Sound.shared.play(.board)
                 }
             case .berthed:
                 if t.dwell > 0 { t.dwell -= dt }
                 let cap = Double(t.spec.length) * perCar
-                if t.load < cap && passengers[t.target] > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, passengers[t.target]))
-                    let before = passengers[t.target]
-                    passengers[t.target] = max(0, passengers[t.target] - take)
-                    if Int(before) != Int(passengers[t.target]) {
-                        let k = Int(passengers[t.target])
-                        sparkles.append(Sparkle(x: plats[t.target].xL + 120 + CGFloat(k) * 15, y: plats[t.target].y + 24))
+                // Board from whichever face of this line has the most waiting — an island platform draws from
+                // both its faces, so the passengers standing on the far face clear too.
+                let faces = facesOnLine(t.target)
+                if t.load < cap, let face = faces.max(by: { passengers[$0] < passengers[$1] }), passengers[face] > 0 {
+                    let take = min(boardOffRate * dt, min(cap - t.load, passengers[face]))
+                    let before = passengers[face]
+                    passengers[face] = max(0, passengers[face] - take)
+                    if Int(before) != Int(passengers[face]) {
+                        let k = Int(passengers[face])
+                        sparkles.append(Sparkle(x: plats[face].xL + 120 + CGFloat(k) * 15, y: plats[face].y + 24))
                     }
                     t.load += take; carried += take
                 }
