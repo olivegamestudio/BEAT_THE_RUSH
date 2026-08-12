@@ -145,7 +145,13 @@ enum Progress {
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
     static func isUnlocked(_ id: Int) -> Bool { id <= unlockedThrough }
-    static func clear(_ id: Int) { if id + 1 > unlockedThrough { unlockedThrough = id + 1 } }
+    /// Clearing a station unlocks the next *playable* one, skipping the generic placeholder stations
+    /// that aren't shown yet — so the unlock chain stays unbroken across the gaps in the list.
+    static func clear(_ id: Int) {
+        let playable = allStations.filter { $0.kind != .ladder }.map(\.id).sorted()
+        let next = playable.first { $0 > id } ?? (id + 1)
+        if next > unlockedThrough { unlockedThrough = next }
+    }
 
     /// Best star rating (0–3) earned at each station, kept as a personal best.
     static func stars(_ id: Int) -> Int { UserDefaults.standard.integer(forKey: "btr.stars.\(id)") }
@@ -624,7 +630,9 @@ struct StationSelectView: View {
 
                 ScrollView {
                     LazyVGrid(columns: cols, spacing: 14) {
-                        ForEach(allStations) { def in
+                        // Only the bespoke, worked-on stations are shown; the generic placeholder
+                        // "ladder" stations are hidden until they're built out.
+                        ForEach(allStations.filter { $0.kind != .ladder }) { def in
                             StationCard(def: def, locked: !Progress.isUnlocked(def.id),
                                         onPick: { onPick(def) })
                         }
