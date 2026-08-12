@@ -65,6 +65,9 @@ final class CreweExpress: Identifiable {
     let line: CGFloat
     var path: RoutePath
     var dist: CGFloat = 0
+    var v: CGFloat = 0
+    var goingEast = true            // true = runs west→east (top fast); false = east→west (bottom fast)
+    var joinDist: CGFloat = .infinity  // distance at which its nose reaches the exit-mouth join
     var finished = false
     var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, line: CGFloat, _ path: RoutePath) { self.spec = spec; self.line = line; self.path = path }
@@ -374,7 +377,24 @@ final class CreweStation: ObservableObject {
         let pts = onTop ? [CGPoint(x: xW, y: line), CGPoint(x: xE, y: line)]
                         : [CGPoint(x: xE, y: line), CGPoint(x: xW, y: line)]
         let spec = Train(length: Int.random(in: 6...8), tint: Color(red: 0.84, green: 0.86, blue: 0.92), name: "")
-        expresses.append(CreweExpress(spec, line: line, RoutePath(pts)))
+        let e = CreweExpress(spec, line: line, RoutePath(pts))
+        e.v = expressSpeed                          // already at line speed as it enters
+        e.goingEast = onTop
+        e.joinDist = onTop ? (xEMouth - xW) : (xE - xWMouth)   // nose → its exit-mouth join
+        expresses.append(e)
+    }
+
+    /// A slow→fast join is occupied while a stopper is in that throat mouth on the paired slow line — an
+    /// express reaching it has to wait, so it screeches to a halt at the join signal.
+    func joinOccupied(fastLine: CGFloat, east: Bool) -> Bool {
+        guard let idx = fastY.firstIndex(of: fastLine) else { return false }
+        let sy = slowY[idx]
+        let lo = east ? xEMouth : xW, hi = east ? xE : xWMouth
+        return trains.contains { t in
+            guard !t.finished else { return false }
+            let p = t.path.sample(t.dist).p
+            return abs(p.y - sy) < 45 && p.x > lo && p.x < hi
+        }
     }
 
     /// The distance along an arriving path at which the nose first reaches the home signal, coming from the
@@ -417,9 +437,18 @@ final class CreweStation: ObservableObject {
             spawnExpress()
             nextExpress = Double.random(in: 4.0...9.0)
         }
-        let expStep = expressSpeed * CGFloat(dt)
+        let eDecel: CGFloat = 520, eAccel: CGFloat = 300
         for e in expresses where !e.finished {
-            e.dist += expStep
+            var ceiling = e.path.total + e.carLen
+            // hold at the join if a stopper is feeding across the fast line there
+            if e.dist < e.joinDist && joinOccupied(fastLine: e.line, east: e.goingEast) {
+                ceiling = min(ceiling, e.joinDist - gap)
+            }
+            let headroom = max(0, ceiling - e.dist)
+            let target = min(expressSpeed, sqrt(2 * eDecel * headroom))   // brake hard — a proper screech
+            if e.v < target { e.v = min(target, e.v + eAccel * CGFloat(dt)) }
+            else { e.v = max(target, e.v - eDecel * CGFloat(dt)) }
+            e.dist = min(e.dist + e.v * CGFloat(dt), ceiling)
             if e.dist >= e.path.total + e.carLen { e.finished = true }
         }
         if expresses.contains(where: { $0.finished }) { expresses.removeAll { $0.finished } }

@@ -337,6 +337,10 @@ struct CreweView: View {
                 }
             }
         }
+        // join signals where the slow lines feed into the fast lines — red stops the express dead. The top
+        // fast leaves east, the bottom fast leaves west, so each is protected at its exit mouth.
+        drawSignal(ctx, at: S(CGPoint(x: s.xEMouth, y: s.fastY[0] - 16)), red: s.joinOccupied(fastLine: s.fastY[0], east: true), scale: sc * 2.0)
+        drawSignal(ctx, at: S(CGPoint(x: s.xWMouth, y: s.fastY[1] - 16)), red: s.joinOccupied(fastLine: s.fastY[1], east: false), scale: sc * 2.0)
     }
 
     #if targetEnvironment(simulator)
@@ -366,6 +370,8 @@ struct CreweView: View {
                 if wturn.count > 1 { let w = wturn[wturn.count - 2]; tag("WPt\(pl.id)", at: CGPoint(x: w.x, y: w.y - 16), .orange) }
             }
         }
+        tag("FJe", at: CGPoint(x: s.xEMouth, y: s.fastY[0] - 16), .red)
+        tag("FJw", at: CGPoint(x: s.xWMouth, y: s.fastY[1] - 16), .red)
     }
     #endif
 
