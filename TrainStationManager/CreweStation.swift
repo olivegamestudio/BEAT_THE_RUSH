@@ -139,55 +139,15 @@ final class CreweStation: ObservableObject {
     /// The path-distance to a platform's west end — a train has cleared the platform once its tail passes here.
     private func platWestDist(_ i: Int) -> CGFloat { platEntryLen[i] + (xSR - plats[i].xL) }
 
-    // MARK: geometry — the staircase throats
+    // MARK: geometry — approach roads
 
-    /// The west throat gathers the four tracks over a long staircase: a platform holds its line to a
-    /// staggered turnout `x`, then steps down onto the running line into the mouth. Higher platforms
-    /// keep their line further in before stepping, so the tracks merge one at a time.
-    /// Platforms branch off the two fast lines — those above the middle come off the top fast line, those
-    /// below come off the bottom one. The further a platform sits from its fast line, the earlier it peels
-    /// away, so they split off gradually, one at a time.
-    func fastLineFor(_ y: CGFloat) -> CGFloat { y < throatY ? fastY[0] : fastY[1] }
-    func throatOrder(_ y: CGFloat) -> Int { min(9, Int((abs(y - fastLineFor(y)) / 34).rounded())) }
-
-    /// Throat geometry at one end. The outer platform groups gather into one line first, then that line
-    /// joins its fast line (top group → top fast line, bottom group → bottom fast line). Platforms 5 and 6,
-    /// which sit right against the fast lines, turn straight onto them.
-    /// The east top group cascades: 1 and 2 merge, then into 3, then 4, then onto the top fast line — each
-    /// merge staggered further out than the last.
-    private func topCascade(from y: CGFloat) -> [CGPoint] {
-        let ys = [plats[0].y, plats[1].y, plats[2].y, plats[3].y, fastY[0]]
-        let r = ys.firstIndex(where: { abs($0 - y) < 6 }) ?? 0
-        var pts = [CGPoint(x: xSR, y: y)]
-        for m in (r + 1)...4 {
-            let xm = xSR + 150 + CGFloat(m - 1) * 190     // each successive merge is further east
-            pts.append(CGPoint(x: xm - 95, y: ys[m - 1])) // run along the current line
-            pts.append(CGPoint(x: xm, y: ys[m]))          // then merge onto the next
-        }
-        pts.append(CGPoint(x: xE, y: fastY[0]))
-        return pts
-    }
-
+    /// Every platform keeps its **own** road straight out to the throat mouth, so regular trains never run
+    /// on the two express lines between P5 and P6 — those stay clear for fly-through expresses. A train
+    /// arrives from the east on its platform's road, runs along the platform, and departs west on the same
+    /// road. Because the roads sit at the platforms' own heights, none of them ever crosses the express pair.
     private func throatPoints(_ y: CGFloat, east: Bool) -> [CGPoint] {
-        if east && y < plats[4].y - 20 { return topCascade(from: y) }   // 1→2→3→4→fast on the east
-        let edge: CGFloat = east ? xSR : xSL
-        let dir: CGFloat = east ? 1 : -1
-        let far: CGFloat = east ? xE : xW
-        let ord = CGFloat(min(6, throatOrder(y)))
-        var pts: [CGPoint]
-        if y < plats[4].y - 20 {                 // west top group (just P1): gather onto the top fast line
-            let gy: CGFloat = 150
-            pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
-                   CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: fastY[0]), CGPoint(x: far, y: fastY[0])]
-        } else if y > plats[5].y + 20 {          // bottom group: join a gathering line one at a time, then the bottom fast line
-            let gy: CGFloat = 486
-            pts = [CGPoint(x: edge, y: y), CGPoint(x: edge + dir * (80 + ord * 82), y: gy),
-                   CGPoint(x: edge + dir * 660, y: gy), CGPoint(x: edge + dir * 830, y: fastY[1]), CGPoint(x: far, y: fastY[1])]
-        } else {                                  // P5 / P6: straight onto their fast line
-            let mergeX = edge + dir * (40 + ord * 120)
-            pts = [CGPoint(x: edge, y: y), CGPoint(x: mergeX, y: fastLineFor(y)), CGPoint(x: far, y: fastLineFor(y))]
-        }
-        return east ? pts : pts.reversed()        // west runs far → platform
+        east ? [CGPoint(x: xSR, y: y), CGPoint(x: xE, y: y)]
+             : [CGPoint(x: xW, y: y), CGPoint(x: xSL, y: y)]
     }
     private func westThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: false) }
     private func eastThroatPoints(_ y: CGFloat) -> [CGPoint] { throatPoints(y, east: true) }
@@ -254,12 +214,10 @@ final class CreweStation: ObservableObject {
             let i = throughIdx[(routeCursor + k) % n]
             if !platformTaken(i, except: t) { routeCursor = (routeCursor + k) % n; return i }
         }
-        return throughIdx.max(by: { progress($0) < progress($1) }) ?? throughIdx.first ?? 0
-    }
-
-    /// How far the train currently on road `i` has run — bigger means nearer to clearing it.
-    private func progress(_ i: Int) -> CGFloat {
-        trains.filter { !$0.finished && $0.target == i }.map(\.dist).max() ?? 0
+        // Every road is taken — still step to the next one so queued trains spread across the station
+        // rather than all stacking behind the same platform.
+        routeCursor = (routeCursor + 1) % n
+        return throughIdx[routeCursor]
     }
 
     func reset() {
@@ -289,7 +247,6 @@ final class CreweStation: ObservableObject {
         let path = buildPath(to: target)
         let t = CreweTrain(spec, target: target, path)
         t.entryLen = platEntryLen[target]
-        t.entryFast = fastLineFor(pl.y)
         t.berthDist = t.entryLen + (xSR - (pl.xL + 180))   // pull in along the platform to its west portion
         t.homeStop = homeStopDist(path)
         t.committed = true

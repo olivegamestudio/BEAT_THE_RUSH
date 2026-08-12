@@ -131,16 +131,16 @@ struct CreweView: View {
         }
     }
 
-    /// A track at `y` running `xL…xR`, with a staggered staircase throat at whichever end connects out.
+    /// A track at `y` running `xL…xR`, carried straight out to the throat mouth at each connected end —
+    /// its own road, clear of the express lines.
     private func drawTrack(_ ctx: GraphicsContext, y: CGFloat, xL: CGFloat, xR: CGFloat,
                            west: Bool, east: Bool, sc: CGFloat, _ S: (CGPoint) -> CGPoint,
                            width: CGFloat = 8, sheen: Color? = nil) {
-        let s = station
         var pts: [CGPoint] = []
-        if west { pts.append(contentsOf: s.westThroat(y).dropFirst()) }   // skip the run along the fast line
+        if west { pts.append(CGPoint(x: station.xW, y: y)) }
         pts.append(CGPoint(x: xL, y: y))
         pts.append(CGPoint(x: xR, y: y))
-        if east { pts.append(contentsOf: s.eastThroat(y).dropLast()) }
+        if east { pts.append(CGPoint(x: station.xE, y: y)) }
         railLine(ctx, pts, sc, S, width: width, sheen: sheen)
     }
 
@@ -275,9 +275,8 @@ struct CreweView: View {
             drawSignal(ctx, at: S(CGPoint(x: pl.xL + 96, y: pl.y - 18)), red: s.platformHeld[i], scale: sc * 2.2)
             // entry signal at the east (arrival) end — red while the platform is occupied
             drawSignal(ctx, at: S(CGPoint(x: pl.xR - 70, y: pl.y - 18)), red: s.platformOccupied(i), scale: sc * 2.2)
-            // point light out at the throat turnout, where this platform's road leaves the fast line
-            let turn = s.eastThroat(pl.y)
-            if turn.count > 1 { drawSignal(ctx, at: S(CGPoint(x: turn[1].x, y: turn[1].y - 16)), red: s.platformOccupied(i), scale: sc * 1.9) }
+            // approach signal out on this platform's road — red while the platform is occupied
+            drawSignal(ctx, at: S(CGPoint(x: pl.xR + 300, y: pl.y - 16)), red: s.platformOccupied(i), scale: sc * 1.9)
         }
     }
 
