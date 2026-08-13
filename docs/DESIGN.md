@@ -324,9 +324,12 @@ migrated too** (pieces 1–3): RailGraph lanes/crossovers; two `HoldSignal` rout
 filter chains; and its movement on `RailSim` with the scripted breakdown/rescue in the hooks. Lostwithiel
 is constant-speed (no easing), which it keeps by giving the sim **huge accel/decel (100000)** so the eased
 step behaves like the old fixed-step move (full speed until the ceiling, then a hard stop) — proving the
-engine spans both eased and constant-speed levels. Still legacy: Birmingham, Newark, Crewe (crossing
-levels — they need the position-based body-ahead follow mode). The *next* new level (US freight) should be
-laid out from the toolkit directly.
+engine spans both eased and constant-speed levels. **Newark is fully migrated too** (pieces 1–3): its two
+lines are `RailSim` lanes (built-in lane-follow), its four entry/starter lights are `HoldSignal`s, and the
+flat crossing is a single-occupancy resource in the `ceiling` hook — it turned out *not* to need
+body-ahead (the lines meet at one point). Still legacy: **Birmingham** and **Crewe** — these genuinely need
+the position-based body-ahead follow mode built into `RailSim` (throats where crossing moves' bodies
+overlap across many points). The *next* new level (US freight) should be laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
