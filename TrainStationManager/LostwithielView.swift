@@ -148,7 +148,7 @@ struct LostwithielView: View {
         rail(ctx, [CGPoint(x: s.xCE - s.xOff, y: s.yBot), CGPoint(x: s.xCE, y: s.yTop)], sc, S)
         // The St Blazey line trails off the up lane to the east — the rescue comes from it, and the
         // casualty is dragged back off along it.
-        rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yTop), s.stBlazey], sc, S)
+        rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yTop), s.blazeTurn, s.stBlazey], sc, S)
     }
 
     private func buffer(_ ctx: GraphicsContext, _ p: CGPoint, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {

@@ -657,14 +657,29 @@ struct MenuView: View {
 
 // MARK: - Station select
 
+/// Reports the bottom of the scroll content (in the scroll's own space), so we can tell when there's
+/// more below and show a scroll hint.
+private struct ScrollBottomKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct StationSelectView: View {
     let onPick: (StationDef) -> Void
     let onBack: () -> Void
 
     @State private var revealStart = Date()
     @State private var animating = true
+    @State private var contentBottom: CGFloat = 0
+    @State private var viewportH: CGFloat = 0
+    @State private var chevBob = false
+    private var moreBelow: Bool { contentBottom > viewportH + 24 }
     private var shown: [StationDef] { allStations.filter { $0.kind != .ladder } }
-    private let cols = [GridItem(.adaptive(minimum: 340), spacing: 14)]
+    // Bigger tiles on iPad — its wider screen otherwise fits many small columns.
+    private var cols: [GridItem] {
+        let minW: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 560 : 340
+        return [GridItem(.adaptive(minimum: minW), spacing: 14)]
+    }
 
     var body: some View {
         ZStack {
@@ -707,11 +722,29 @@ struct StationSelectView: View {
                         }
                     }
                     .padding(20)
+                    .background(GeometryReader { g in Color.clear
+                        .preference(key: ScrollBottomKey.self, value: g.frame(in: .named("selscroll")).maxY) })
+                }
+                .coordinateSpace(name: "selscroll")
+                .onPreferenceChange(ScrollBottomKey.self) { contentBottom = $0 }
+                .background(GeometryReader { g in Color.clear.onAppear { viewportH = g.size.height }
+                    .onChange(of: g.size.height) { _, h in viewportH = h } })
+                .overlay(alignment: .bottom) {
+                    if moreBelow {
+                        ZStack(alignment: .bottom) {
+                            LinearGradient(colors: [.clear, Color(red: 0.06, green: 0.08, blue: 0.12)],
+                                           startPoint: .top, endPoint: .bottom).frame(height: 56)
+                            Image(systemName: "chevron.down").font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.8)).padding(.bottom, chevBob ? 6 : 12)
+                        }
+                        .allowsHitTesting(false)
+                    }
                 }
                 .onAppear {
                     revealStart = Date()
                     let dur = Double(shown.count) * Flap.tileStagger + Flap.revealDuration(15) + 0.6
                     DispatchQueue.main.asyncAfter(deadline: .now() + dur) { animating = false }
+                    withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { chevBob = true }
                 }
             }
         }

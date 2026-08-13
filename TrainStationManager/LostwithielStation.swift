@@ -52,7 +52,8 @@ final class LostwithielStation: ObservableObject {
     let xOff: CGFloat = 70              // how far a crossover slews across between the lanes
     let xFreight: CGFloat = 860         // where the clay freight's engine dies, on the up lane
     let xSideTurn: CGFloat = 1000       // where the St Blazey line trails off the up lane
-    var stBlazey: CGPoint { CGPoint(x: 1440, y: -120) }   // the St Blazey line, off the up lane to the east
+    var stBlazey: CGPoint { CGPoint(x: xE + 400, y: yTop - 62) }        // the St Blazey line runs east, off-scene
+    var blazeTurn: CGPoint { CGPoint(x: xSideTurn + 130, y: yTop - 62) } // where it levels off, heading east
 
     // The shared stretch of the down lane both directions must take turns over once the up lane is blocked.
     var contestL: CGFloat { xCW + xOff }
@@ -163,7 +164,7 @@ final class LostwithielStation: ObservableObject {
         let orange = Color(red: 0.90, green: 0.46, blue: 0.16)
         // Approach: in off the St Blazey line onto the up lane, running west to the casualty — all on the
         // up lane, so it never cuts across untracked ground.
-        let approach = RoutePath([stBlazey, CGPoint(x: xSideTurn, y: yTop),
+        let approach = RoutePath([stBlazey, blazeTurn, CGPoint(x: xSideTurn, y: yTop),
                                   CGPoint(x: xFreight + Track.carUnit * 0.7, y: yTop)])
         let r = LwTrain(Train(length: 1, tint: orange, name: ""), .west, approach,
                         body: Track.carUnit, smoke: 7)
@@ -324,7 +325,7 @@ final class LostwithielStation: ObservableObject {
                 // Haul-out starts well west of the casualty, so the whole consist sits on the line (nothing
                 // pops in), and runs east along the up lane off toward St Blazey.
                 r.path = RoutePath([CGPoint(x: xFreight - 520, y: yTop),
-                                    CGPoint(x: xSideTurn, y: yTop), stBlazey])
+                                    CGPoint(x: xSideTurn, y: yTop), blazeTurn, stBlazey])
                 r.bodyLen = Track.carUnit * 1.15 + Track.carUnit * 0.92 + CGFloat(freightWagons) * wagonUnit
                 r.dist = distAtX(r, xFreight + Track.carUnit * 0.7) ?? 0
                 Sound.shared.play(.ding)
