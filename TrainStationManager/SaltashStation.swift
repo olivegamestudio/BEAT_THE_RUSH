@@ -249,11 +249,14 @@ final class SaltashStation: ObservableObject {
         // and a chain of automatic filter signals down each approach.
         bridgeGroup = HoldGroup([HoldSignal("east", at: CGPoint(x: xMerge + 6, y: yTop)),
                                  HoldSignal("west", at: CGPoint(x: xMergeE - 6, y: yBot))])
+        // Copy the stored properties into locals so the map closures don't capture `self`
+        // (which isn't fully initialised yet at this point in init).
+        let yTopLocal = yTop, yBotLocal = yBot, blockLenLocal = blockLen
         let eSigs = blockXsEast.map {
-            BlockSignal("bE\($0)", at: CGPoint(x: $0, y: yTop - 26), axis: $0, forward: 1, blockLen: blockLen)
+            BlockSignal("bE\($0)", at: CGPoint(x: $0, y: yTopLocal - 26), axis: $0, forward: 1, blockLen: blockLenLocal)
         }
         let wSigs = blockXsWest.map {
-            BlockSignal("bW\($0)", at: CGPoint(x: $0, y: yBot + 26), axis: $0, forward: -1, blockLen: blockLen)
+            BlockSignal("bW\($0)", at: CGPoint(x: $0, y: yBotLocal + 26), axis: $0, forward: -1, blockLen: blockLenLocal)
         }
         if eSigs.count > 1 { for i in 0..<eSigs.count - 1 { eSigs[i].next = eSigs[i + 1] } }
         if wSigs.count > 1 { for i in 0..<wSigs.count - 1 { wSigs[i].next = wSigs[i + 1] } }
@@ -261,7 +264,10 @@ final class SaltashStation: ObservableObject {
         blockSignalsWest = wSigs
 
         // --- RailKit piece 3: the movement engine.
-        sim = RailSim(kin: RailKinematics(speedCap: speed))
+        // decel is deliberately gentle: braking distance is v²/(2·decel), so at line speed 66 a decel of
+        // 60 gives ~36pt of runway (~1s) — the train visibly eases down to a red instead of screeching to
+        // a stand within a few pixels. accel is kept brisk so pull-away still feels lively.
+        sim = RailSim(kin: RailKinematics(speedCap: speed, accel: 150, decel: 60))
 
         // Everything above is stored; self is now fully initialised, so the hooks that reference it
         // can be wired and the first train spawned.
