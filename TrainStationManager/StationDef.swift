@@ -87,8 +87,8 @@ private func def(_ id: Int, _ name: String, _ county: String, platforms n: Int,
 /// The 20-station ladder, simplest → hardest.
 let allStations: [StationDef] = [
     // Tier 1 · 2 platforms · gentle
-    def(1,  "Saltash",               "Cornwall",         platforms: 2, spawn: 2.8...4.8, speed: 64, trains: [2, 3],       goal: 24, express: 0.28, kind: .saltash),
-    def(2,  "Dawlish Warren",        "Devon",            platforms: 2, spawn: 5.6...8.6, speed: 66, trains: [2, 3],       goal: 26, express: 0.24, kind: .dawlish),
+    def(1,  "Saltash",               "Cornwall",         platforms: 2, spawn: 2.8...4.8, speed: 64, trains: [2, 3],       goal: 30, express: 0.28, kind: .saltash),
+    def(2,  "Dawlish Warren",        "Devon",            platforms: 2, spawn: 5.6...8.6, speed: 66, trains: [2, 3],       goal: 30, express: 0.24, kind: .dawlish),
     def(3,  "Worcester Foregate Street", "Worcestershire", platforms: 2, spawn: 4.4...6.8, speed: 70, trains: [2, 3, 4], goal: 40, kind: .worcester),
     def(4,  "Newark",                "Nottinghamshire",  platforms: 2, spawn: 3.0...5.0, speed: 74, trains: [2, 3, 4],    goal: 45, kind: .newark),
     // Tier 2 · a busy junction with a breakdown to manage
