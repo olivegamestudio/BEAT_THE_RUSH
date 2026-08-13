@@ -48,6 +48,8 @@ struct SaltashView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, scale: sc, size: size) }
                     drawRelief(ctx, sc, size)
                     drawContours(ctx, sc, size)
+                    drawWaterShimmer(ctx, sc, size, S)
+                    drawReflections(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
                     drawRouteLights(ctx, sc, S)                     // green/amber/red road ahead of each train
                     drawPlatforms(ctx, sc, S)                       // slabs sit behind the trains
@@ -135,6 +137,44 @@ struct SaltashView: View {
         rail(ctx, CGPoint(x: s.xBridgeE, y: s.yBridge), CGPoint(x: s.xMergeE, y: s.yTop), sc, S)
         rail(ctx, CGPoint(x: s.xMergeE, y: s.yTop), CGPoint(x: s.exitE, y: s.yTop), sc, S)    // eastbound out (top)
         rail(ctx, CGPoint(x: s.xMergeE, y: s.yBot), CGPoint(x: s.entryE, y: s.yBot), sc, S)   // westbound in (bottom)
+    }
+
+    // MARK: the River Tamar — reflections and a soft drifting shimmer, clipped to the water band
+
+    /// A gentle sheen on the Tamar: a few soft, blurred highlights that drift slowly down the water —
+    /// replaces the old hard ripple lines with something that reads as moving water.
+    private func drawWaterShimmer(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        let x0 = S(CGPoint(x: s.riverL, y: 0)).x, x1 = S(CGPoint(x: s.riverR, y: 0)).x
+        let band = CGRect(x: x0, y: 0, width: x1 - x0, height: size.height)
+        ctx.drawLayer { g in
+            g.clip(to: Path(band))
+            g.addFilter(.blur(radius: 8 * sc))
+            let t = CGFloat(station.animT), span = size.height + 140
+            for k in 0..<5 {
+                var yy = (t * (7 + CGFloat(k) * 2.5) + CGFloat(k) * 130).truncatingRemainder(dividingBy: span)
+                yy -= 70
+                let h = (16 + CGFloat(k % 3) * 9) * sc
+                g.fill(Path(ellipseIn: CGRect(x: x0 - 12, y: yy, width: (x1 - x0) + 24, height: h)),
+                       with: .color(.white.opacity(0.05)))
+            }
+        }
+    }
+
+    /// The bridge and any trains over the water, mirrored down into the Tamar — flipped about the deck
+    /// line, blurred and faded, and clipped to the water band so it only shows on the river.
+    private func drawReflections(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
+        let s = station
+        let x0 = S(CGPoint(x: s.riverL, y: 0)).x, x1 = S(CGPoint(x: s.riverR, y: 0)).x
+        let deckY = S(CGPoint(x: 0, y: s.yBridge)).y
+        ctx.drawLayer { g in
+            g.clip(to: Path(CGRect(x: x0, y: deckY, width: x1 - x0, height: size.height - deckY)))
+            g.opacity = 0.28
+            g.addFilter(.blur(radius: 2.2 * sc))
+            g.translateBy(x: 0, y: deckY); g.scaleBy(x: 1, y: -1); g.translateBy(x: 0, y: -deckY)  // flip about the deck
+            drawBridge(g, sc, S)
+            for t in station.trains { drawTrain(g, t, sc, S) }
+        }
     }
 
     // MARK: the River Tamar — a vertical band the bridge crosses
