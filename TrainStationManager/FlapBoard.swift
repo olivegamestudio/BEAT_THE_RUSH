@@ -201,8 +201,8 @@ struct StationBoardTile: View {
                         in: RoundedRectangle(cornerRadius: 13))
             .overlay(RoundedRectangle(cornerRadius: 13)
                 .stroke(unlocked ? Flap.amber.opacity(0.55) : Color.white.opacity(0.05), lineWidth: 1.5))
-            // A warm amber glow behind the playable tiles so they read as pressable.
-            .shadow(color: unlocked ? Flap.amber.opacity(0.38) : .clear, radius: 13, y: 1)
+            // A faint amber glow behind the playable tiles so they read as pressable.
+            .shadow(color: unlocked ? Flap.amber.opacity(0.15) : .clear, radius: 7, y: 1)
         }
         .buttonStyle(PressStyle())
         .disabled(!unlocked)
