@@ -82,8 +82,10 @@ func drawFlapCell(_ ctx: GraphicsContext, _ r: CGRect, _ a: Character, _ b: Char
             }
         }
     }
+    // A hairline seam — kept thin and semi-transparent so it reads as the gap between the leaves
+    // without cutting through the letter (the two-tone leaves already imply the fold).
     var line = Path(); line.move(to: CGPoint(x: r.minX + 1, y: r.midY)); line.addLine(to: CGPoint(x: r.maxX - 1, y: r.midY))
-    ctx.stroke(line, with: .color(Flap.seam), lineWidth: max(0.8, r.height * 0.035))
+    ctx.stroke(line, with: .color(Flap.seam.opacity(0.45)), lineWidth: max(0.5, r.height * 0.014))
 }
 
 /// Draw a fixed-width flap line of `text`, left-aligned at `origin`, riffling in over `elapsed`.
