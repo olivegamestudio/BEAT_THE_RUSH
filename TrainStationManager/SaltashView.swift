@@ -169,8 +169,8 @@ struct SaltashView: View {
         let deckY = S(CGPoint(x: 0, y: s.yBridge)).y
         ctx.drawLayer { g in
             g.clip(to: Path(CGRect(x: x0, y: deckY, width: x1 - x0, height: size.height - deckY)))
-            g.opacity = 0.28
-            g.addFilter(.blur(radius: 2.2 * sc))
+            g.opacity = 0.13
+            g.addFilter(.blur(radius: 3.2 * sc))
             g.translateBy(x: 0, y: deckY); g.scaleBy(x: 1, y: -1); g.translateBy(x: 0, y: -deckY)  // flip about the deck
             drawBridge(g, sc, S)
             for t in station.trains { drawTrain(g, t, sc, S) }
