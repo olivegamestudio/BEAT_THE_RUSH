@@ -6,8 +6,14 @@
 	objectVersion = 70;
 	objects = {
 
+/* Begin PBXFileReference section */
+		AA00000000000000000005 /* TrainStationManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainStationManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000000000000000000EA /* TrainStationManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainStationManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA00000000000000000001 /* TrainStationManager */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TrainStationManager; sourceTree = "<group>"; };
+		AA000000000000000000E1 /* TrainStationManagerTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TrainStationManagerTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -25,6 +31,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000001 /* TrainStationManager */,
+				AA000000000000000000E1 /* TrainStationManagerTests */,
 				AA00000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -32,6 +39,8 @@
 		AA00000000000000000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				AA00000000000000000005 /* TrainStationManager.app */,
+				AA000000000000000000EA /* TrainStationManagerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -57,9 +66,73 @@
 			);
 			name = TrainStationManager;
 			productName = TrainStationManager;
+			productReference = AA00000000000000000005 /* TrainStationManager.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA000000000000000000E0 /* TrainStationManagerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "TrainStationManagerTests" */;
+			buildPhases = (
+				AA000000000000000000E5 /* Sources */,
+				AA000000000000000000E6 /* Frameworks */,
+				AA000000000000000000E7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA000000000000000000E8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA000000000000000000E1 /* TrainStationManagerTests */,
+			);
+			name = TrainStationManagerTests;
+			productName = TrainStationManagerTests;
+			productReference = AA000000000000000000EA /* TrainStationManagerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		AA000000000000000000E9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA00000000000000000006;
+			remoteInfo = TrainStationManager;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		AA000000000000000000E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA00000000000000000006 /* TrainStationManager */;
+			targetProxy = AA000000000000000000E9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXTestFrameworksBuildPhase placeholder */
+		AA000000000000000000E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000000000000000000E6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000000000000000000E7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXTestFrameworksBuildPhase placeholder */
 
 /* Begin PBXProject section */
 		AA0000000000000000000A /* Project object */ = {
@@ -71,6 +144,10 @@
 				TargetAttributes = {
 					AA00000000000000000006 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					AA000000000000000000E0 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = AA00000000000000000006;
 					};
 				};
 			};
@@ -91,6 +168,7 @@
 			projectRoot = "";
 			targets = (
 				AA00000000000000000006 /* TrainStationManager */,
+				AA000000000000000000E0 /* TrainStationManagerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -172,6 +250,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = ZQFRPBBFF3;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Beat the Rush";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -214,9 +293,60 @@
 			};
 			name = Release;
 		};
+		AA000000000000000000E3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZQFRPBBFF3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ogs.signalbox.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainStationManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainStationManager";
+			};
+			name = Debug;
+		};
+		AA000000000000000000E4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZQFRPBBFF3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ogs.signalbox.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainStationManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainStationManager";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "TrainStationManagerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000E3 /* Debug */,
+				AA000000000000000000E4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AA00000000000000000007 /* Build configuration list for PBXNativeTarget "TrainStationManager" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
