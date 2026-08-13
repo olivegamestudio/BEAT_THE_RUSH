@@ -376,6 +376,15 @@ laid out and running in hours, not a day, and a signalling fix lands once.
 
 ## Build, run, deploy
 
+Test (RailSim regression harness — `TrainStationManagerTests`; run it after any change to `RailSim.swift`,
+since every level now rides it):
+```bash
+xcodebuild test -scheme TrainStationManager -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
+```
+The app's Debug config sets `ENABLE_TESTABILITY = YES` so the test target can `@testable import`. Tests
+assert the engine invariants (stops at ceiling, lane-follow / body-ahead never overlap, reverse, overrun,
+speed limit, per-vehicle kinematics) — add a case here when you add a `RailSim` capability.
+
 Sim (fast iterate):
 ```bash
 xcodebuild -scheme TrainStationManager -destination 'platform=iOS Simulator,id=<UDID>' \
