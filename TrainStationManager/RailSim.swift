@@ -60,6 +60,12 @@ final class RailSim<V: RailVehicle> {
     var ceiling: ((V, [V]) -> CGFloat)?
     /// A per-tick speed cap — easing to caution at an amber, say. Return the cap, or `.infinity`.
     var speedLimit: ((V) -> CGFloat)?
+    /// Per-vehicle kinematics override — when a level mixes stock with different feel (a fast express
+    /// vs a gentle local), return that vehicle's speed/accel/decel/gap. Defaults to the sim's `kin`.
+    var kinematics: ((V) -> RailKinematics)?
+    /// Extra arc-length a vehicle may run past the end of its path before finishing, so a long train's
+    /// tail clears the visible end rather than the whole set vanishing at once. Defaults to 0.
+    var overrun: ((V) -> CGFloat)?
     /// Run after a vehicle has advanced this tick: boarding, grabbing or freeing a resource, …
     var onAdvance: ((V, Double) -> Void)?
     /// Has this vehicle finished its run? Defaults to "its head reached the end of its path".
@@ -71,19 +77,21 @@ final class RailSim<V: RailVehicle> {
 
     /// The built-in following limit: the tail of the nearest train ahead on the same lane, less the
     /// follow gap — so a train never runs into the back of the one in front on its own road.
-    private func followCeiling(_ t: V, _ roster: [V]) -> CGFloat {
+    private func followCeiling(_ t: V, _ roster: [V], _ k: RailKinematics) -> CGFloat {
         var aheadTail = CGFloat.infinity
         for o in roster where o !== t && !o.finished && o.lane == t.lane && o.dist > t.dist {
             aheadTail = min(aheadTail, o.dist - o.carLen)
         }
-        return aheadTail.isFinite ? aheadTail - kin.followGap : .infinity
+        return aheadTail.isFinite ? aheadTail - k.followGap : .infinity
     }
 
     func step(_ dt: Double) {
         let roster = vehicles
         for t in roster where !t.finished {
+            let k = kinematics?(t) ?? kin                       // this vehicle's feel (may differ per stock)
+            let end = t.path.total + (overrun?(t) ?? 0)         // it may run a little past the path end
             // How far the train is allowed to reach: the end of its road, the train ahead, the level.
-            var cap = min(t.path.total, followCeiling(t, roster))
+            var cap = min(end, followCeiling(t, roster, k))
             if let extra = ceiling?(t, roster) { cap = min(cap, extra) }
             if cap < 0 { cap = 0 }
 
@@ -91,15 +99,15 @@ final class RailSim<V: RailVehicle> {
             // but never above the top speed or the tick's caution cap. Accelerate up to the target,
             // decelerate down to it — so a train screeches to a stand at a red and pulls away after.
             let headroom = max(0, cap - t.dist)
-            let brakeV = (2 * kin.decel * headroom).squareRoot()
-            let caution = min(speedLimit?(t) ?? .infinity, kin.speedCap)
+            let brakeV = (2 * k.decel * headroom).squareRoot()
+            let caution = min(speedLimit?(t) ?? .infinity, k.speedCap)
             let target = min(brakeV, caution)
-            if t.v < target { t.v = min(target, t.v + kin.accel * CGFloat(dt)) }
-            else { t.v = max(target, t.v - kin.decel * CGFloat(dt)) }
+            if t.v < target { t.v = min(target, t.v + k.accel * CGFloat(dt)) }
+            else { t.v = max(target, t.v - k.decel * CGFloat(dt)) }
             if t.v < 0 { t.v = 0 }
 
             let next = min(t.dist + t.v * CGFloat(dt), cap)
-            t.blocked = next <= t.dist + 0.01 && cap < t.path.total - 1
+            t.blocked = next <= t.dist + 0.01 && cap < end - 1
             t.stopped = t.blocked ? t.stopped + dt : 0
             t.dist = max(t.dist, next)
 
@@ -107,10 +115,10 @@ final class RailSim<V: RailVehicle> {
             // it's closing on something or under caution.
             t.railAspect = railAspect(headroom: cap - t.dist,
                                       clearToEnd: cap >= t.path.total - 1,
-                                      amber: caution < kin.speedCap)
+                                      amber: caution < k.speedCap)
             onAdvance?(t, dt)
 
-            if isFinished?(t) ?? (t.dist >= t.path.total) {
+            if isFinished?(t) ?? (t.dist >= end) {
                 t.finished = true
                 onFinish?(t)
             }

@@ -3,33 +3,28 @@ import SwiftUI
 /// Dawlish Warren on the sandy Exe spit. Two through tracks run across; at each end a pair of
 /// points can turn a stopping train off into a platform loop and back onto the main. Expresses
 /// keep to the main and race straight through.
-final class DawTrain: Identifiable {
-    let id = UUID()
-    var spec: Train
+/// A RailVehicle (RailKit piece 3): the shared engine drives `dist`, `v`, `railAspect` and `stopped`;
+/// the fields here are Dawlish's own — which way it runs, whether it's an express/steam through
+/// service, which platform loop it took, and its boarding state.
+final class DawTrain: RailVehicle {
     let dir: DawlishStation.Dir
     let express: Bool
     var steam = false            // a heritage steam special — runs straight through, never diverts
     let smokeRate = Double.random(in: 0.6...1.55)   // each engine chuffs at its own pace
-    var path: RoutePath          // main by default; switched to the loop if the points divert it
     var berthDist: CGFloat
     var onLoop = false
     var committed = false        // past the entry point — the route is locked
-    let speed: CGFloat
-    var dist: CGFloat = 0
+    let speed: CGFloat           // this train's top speed (its per-vehicle RailKinematics speedCap)
     var boarded = false
     var started = false
     var dwell = 0.0
     var load = 0.0               // people already aboard — keeps topping up until the train pulls away
     var released = false          // the player has cleared the starter — free to pull out onto the main
     var departed = false          // has sounded its departure as it left the platform end
-    var v: CGFloat = 0            // current speed, eased toward the target so trains glide up to and away from stops
-    var stopped = 0.0            // seconds sat still at a red — drives the "waiting" bubble
-    var railAspect = 0           // 0 green / 1 amber / 2 red — lights the track ahead so you can read its route
-    var finished = false
-    var carLen: CGFloat { spec.carLength }
-    init(_ spec: Train, _ dir: DawlishStation.Dir, express: Bool, _ path: RoutePath, berth: CGFloat, speed: CGFloat) {
-        self.spec = spec; self.dir = dir; self.express = express
-        self.path = path; berthDist = berth; self.speed = speed
+    init(_ spec: Train, _ dir: DawlishStation.Dir, express: Bool, _ path: RoutePath,
+         berth: CGFloat, speed: CGFloat, lane: Int) {
+        self.dir = dir; self.express = express; berthDist = berth; self.speed = speed
+        super.init(spec: spec, path: path, lane: lane)
     }
 }
 
@@ -51,7 +46,12 @@ final class DawlishStation: ObservableObject {
     let spawnL: CGFloat = -260
     let spawnR: CGFloat = 1460
 
-    @Published var trains: [DawTrain] = []
+    // --- RailKit piece 3: the shared movement engine owns the trains. `trains` is a view onto its
+    // roster so the rest of the level (and the view) reads it exactly as before.
+    let sim = RailSim<DawTrain>(kin: RailKinematics(speedCap: 74))
+    var trains: [DawTrain] { sim.vehicles }
+    private var laneSeq = 0      // each train gets its own lane so the engine's lane-follow never fires;
+                                 // Dawlish does its own shared-physical-track following in the ceiling hook
     @Published var carried = 0.0
     @Published var pUp = 1.0
     @Published var pDown = 1.0
@@ -140,7 +140,142 @@ final class DawlishStation: ObservableObject {
         if wSigs.count > 1 { for i in 0..<wSigs.count - 1 { wSigs[i].next = wSigs[i + 1] } }
         blockSignalsEast = eSigs
         blockSignalsWest = wSigs
+        configureSim()
         spawn()
+    }
+
+    /// Wire Dawlish's rules into the shared engine. Movement authority (`ceiling`), amber caution
+    /// (`speedLimit`), the per-stock feel (`kinematics`), the tail-clearing overrun, boarding/departure
+    /// (`onAdvance`) and the finish test all plug in here; the sim does the easing and route-lighting.
+    private func configureSim() {
+        // Each stock type has its own feel: expresses build and shed speed briskly so a clear run flies;
+        // locals (and the steam special) stay gentle. speedCap is the train's own top speed.
+        sim.kinematics = { t in
+            RailKinematics(speedCap: t.speed, accel: t.express ? 165 : 62, decel: t.express ? 200 : 96,
+                           followGap: Track.carUnit * 0.9)
+        }
+        // Run on past the end of the line until the whole train has cleared, so a long express doesn't
+        // vanish while its tail is still on-screen.
+        sim.overrun = { CGFloat($0.spec.length) * Track.carUnit }
+        // Ease to caution speed while a through train runs up to an amber block signal ahead.
+        sim.speedLimit = { [weak self] t in
+            guard let self, !t.onLoop else { return .infinity }
+            let east = t.dir == .east
+            let fx = self.mainFrontX(t)
+            for sx in self.blockXs where (east ? sx > fx : sx < fx) && self.blockAspect(sx, t.dir) == 1 {
+                return t.speed * 0.45
+            }
+            return .infinity
+        }
+        sim.ceiling = { [weak self] t, roster in
+            guard let self else { return .infinity }
+            let gap = Track.carUnit * 0.9
+            var ceiling = CGFloat.infinity
+            // A local pulls up to board, then holds while its starter is red, boarding isn't done, or a
+            // through train still has to clear the junction; otherwise it's released to pull out.
+            if !t.express && t.onLoop && !t.released {
+                let hold = t.dir == .east ? self.upHold : self.downHold
+                if hold || !t.boarded || self.throughNearJunction(t.dir) { ceiling = min(ceiling, t.berthDist) }
+                else { t.released = true; Sound.shared.play(.depart) }
+            }
+            // Interlock: a through train holds short of the entry signal while the conflicting platform
+            // train is pulling out onto the main.
+            if !t.onLoop && self.mainBlocked(t.dir) {
+                let sig = self.pointDist(t.dir)          // the main signal stands at the entry point
+                if t.dist < sig { ceiling = min(ceiling, sig - Track.carUnit * 0.6) }
+            }
+            // Junction protection: a through train past the entry stops short of the junction while a
+            // local is crossing it (the local frees the junction only once its rear is through).
+            if !t.onLoop && self.platformCrossing(t.dir) {
+                let jd = self.mainJunctionDist(t.dir)
+                if t.dist < jd { ceiling = min(ceiling, jd - Track.carUnit * 0.9) }
+            }
+            // A through train onto the junction bars a platform train from barging into it.
+            if t.onLoop && t.committed && t.dist < self.exitDist(t.dir) && self.mainNearExit(t.dir, except: t) {
+                ceiling = min(ceiling, self.exitDist(t.dir) - Track.carUnit * 0.7)
+            }
+            // Shared-track following: block on the tail of any train ahead on the same physical track —
+            // the same line through the middle, or the common approach before the point.
+            let pd = self.pointDist(t.dir)
+            var aheadTail = CGFloat.infinity
+            for o in roster where o !== t && !o.finished && o.dir == t.dir && o.dist > t.dist {
+                let sharedApproach = t.dist < pd && o.dist < pd + o.carLen
+                if o.onLoop == t.onLoop || sharedApproach { aheadTail = min(aheadTail, o.dist - o.carLen) }
+            }
+            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+            // Honour the automatic block signals: a through train stops short of a red one.
+            if !t.onLoop {
+                let east = t.dir == .east
+                let fx = self.mainFrontX(t)
+                for sx in self.blockXs where (east ? sx > fx : sx < fx) && self.blockAspect(sx, t.dir) == 2 {
+                    let sd = east ? (sx - self.spawnL) : (self.spawnR - sx)
+                    if t.dist < sd { ceiling = min(ceiling, sd - Track.carUnit * 0.5) }
+                }
+            }
+            return ceiling
+        }
+        // After each advance: board at the platform, then sound the departure at the far end.
+        sim.onAdvance = { [weak self] t, dt in
+            guard let self else { return }
+            self.serveBoarding(t, dt)
+            if t.dist >= t.path.total && !t.express && t.onLoop && !t.departed {
+                t.departed = true; Sound.shared.play(.depart)
+            }
+        }
+        // Off the far end once the whole train (plus its overrun) has cleared.
+        sim.isFinished = { $0.dist >= $0.path.total + CGFloat($0.spec.length) * Track.carUnit }
+    }
+
+    /// Set each train's route before the engine drives it: commit at the point (a short local pulls into
+    /// a free platform loop; expresses/steam and a busy loop stay on the main), and rejoin the main once
+    /// a released local's whole length is past the junction.
+    private func updateRouting() {
+        for t in trains where !t.finished {
+            if !t.committed && t.dist >= pointDist(t.dir) - Track.carUnit * 0.3 {
+                t.committed = true
+                if !t.express && !t.steam && !loopBusy(t.dir, except: t) {
+                    t.onLoop = true
+                    t.path = t.dir == .east ? eStop : wStop
+                    t.berthDist = t.dir == .east ? eBerth : wBerth
+                }
+            }
+            // Switch onto the main path with an equivalent distance so it and the through trains measure
+            // each other on the same scale (otherwise they mis-space and can wedge at the junction).
+            if t.onLoop && t.dist - CGFloat(t.spec.length) * Track.carUnit >= exitDist(t.dir) {
+                let overshoot = t.dist - exitDist(t.dir)
+                t.path = t.dir == .east ? eMain : wMain
+                t.dist = mainJunctionDist(t.dir) + overshoot
+                t.onLoop = false
+            }
+        }
+    }
+
+    /// Board a local while it stands at its berth, topping up from newly-arrived passengers until it
+    /// pulls away. Lifted out of the tick so the engine's `onAdvance` hook can call it.
+    private func serveBoarding(_ t: DawTrain, _ dt: Double) {
+        guard !t.express, t.onLoop, t.dist >= t.berthDist - 0.5, t.dist <= t.berthDist + Track.carUnit * 0.3
+        else { return }
+        if !t.started {
+            t.started = true
+            t.dwell = dwellTime
+            if t.dir == .east { upWait = 0 } else { downWait = 0 }
+            Sound.shared.play(.board)
+        }
+        t.dwell -= dt
+        let cap = Double(t.spec.length) * perCar
+        let plat = t.dir == .east ? pUp : pDown
+        if t.load < cap && plat > 0 {
+            let take = min(boardOffRate * dt, min(cap - t.load, plat))
+            let before = plat
+            if t.dir == .east { pUp = max(0, pUp - take) } else { pDown = max(0, pDown - take) }
+            let after = t.dir == .east ? pUp : pDown
+            if Int(before) != Int(after) {
+                let k = Int(after)
+                sparkles.append(Sparkle(x: platL - 6 + CGFloat(k) * 15, y: t.dir == .east ? 184 : 372))
+            }
+            t.load += take; carried += take
+        }
+        if t.dwell <= 0 { t.boarded = true }
     }
 
     /// Flip a platform starter between hold (red) and clear (green).
@@ -247,7 +382,7 @@ final class DawlishStation: ObservableObject {
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
+        sim.vehicles = []; laneSeq = 0; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pUp = 1; pDown = 1; overUp = 0; overDown = 0; upWait = 0; downWait = 0
         expressNearUp = false; expressNearDown = false; upStarter.cleared = false; downStarter.cleared = false
         spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 1.2
@@ -271,21 +406,22 @@ final class DawlishStation: ObservableObject {
         let spec = Train(length: len, tint: tint, name: "")
         let east = Bool.random()
         let path = east ? eMain : wMain                // everyone starts on the main; points divert stoppers
+        laneSeq += 1
         let t = DawTrain(spec, east ? .east : .west, express: express, path,
                          berth: path.total + 1,
-                         speed: express ? baseSpeed * 3.1 : (steam ? baseSpeed * 2.0 : baseSpeed))
+                         speed: express ? baseSpeed * 3.1 : (steam ? baseSpeed * 2.0 : baseSpeed),
+                         lane: laneSeq)
         t.steam = steam
         if express || steam {   // through services already carry passengers; a few run near-empty (ECS)
             let cap = Double(len) * perCar
             t.load = Double.random(in: 0...1) < 0.78 ? Double.random(in: cap * 0.5 ... cap * 0.95)
                                                      : Double.random(in: 0 ... cap * 0.25)
         }
-        trains.append(t)
+        sim.vehicles.append(t)
     }
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let gap = Track.carUnit * 0.9
 
         animT += dt
         // Ambient life: a speed boat crosses the estuary now and then; a seagull glides over occasionally.
@@ -345,135 +481,12 @@ final class DawlishStation: ObservableObject {
             }
         }
 
-        updateBlockSignals()   // refresh every block signal from the live positions before driving the trains
-        let roster = trains
-        for t in roster where !t.finished {
-            // Every train runs the main to the point. A short local pulls into a free platform automatically;
-            // an express is too long for the loop and a busy loop turns one away — either just carries on the main.
-            if !t.committed && t.dist >= pointDist(t.dir) - Track.carUnit * 0.3 {
-                t.committed = true
-                if !t.express && !t.steam && !loopBusy(t.dir, except: t) {
-                    t.onLoop = true
-                    t.path = t.dir == .east ? eStop : wStop
-                    t.berthDist = t.dir == .east ? eBerth : wBerth
-                }
-            }
-            // Once its whole length is past the junction, a released local rejoins the main proper. Switch it
-            // onto the main path with an equivalent distance, so it and the through trains measure each other on
-            // the same scale (otherwise they mis-space and can wedge at the junction).
-            if t.onLoop && t.dist - CGFloat(t.spec.length) * Track.carUnit >= exitDist(t.dir) {
-                let overshoot = t.dist - exitDist(t.dir)
-                t.path = t.dir == .east ? eMain : wMain
-                t.dist = mainJunctionDist(t.dir) + overshoot
-                t.onLoop = false
-            }
+        // RailKit piece 3: route each train, refresh the block signals from live positions, then let the
+        // shared engine drive everyone (easing, following, route-lighting, boarding via the hooks).
+        updateRouting()
+        updateBlockSignals()
+        sim.step(dt)
 
-            // Let the train run on past the end of the line until its whole length has cleared, so a long
-            // express doesn't vanish while its tail is still on-screen.
-            let overrun = CGFloat(t.spec.length) * Track.carUnit
-            var ceiling = t.path.total + overrun
-            // A local always pulls up to board; then it holds while its starter is red, and pulls away once
-            // it's boarded and the starter is cleared to green.
-            if !t.express && t.onLoop && !t.released {
-                let hold = t.dir == .east ? upHold : downHold
-                // Hold if the starter is red, boarding isn't done, or a through train still has to clear the
-                // junction — the last guard is what stops you releasing a local into a running express's path.
-                if hold || !t.boarded || throughNearJunction(t.dir) { ceiling = min(ceiling, t.berthDist) }
-                else { t.released = true; Sound.shared.play(.depart) }
-            }
-            // Interlock: while a released platform train is claiming the junction, the conflicting main signal is
-            // red — every through train (express or not) holds short of the junction until the platform is clear.
-            if !t.onLoop && mainBlocked(t.dir) {
-                let sig = mainSignalDist(t.dir)
-                if t.dist < sig { ceiling = min(ceiling, sig - Track.carUnit * 0.6) }
-            }
-            // Junction protection: a through train already past the entry stops its nose short of the junction
-            // while a local is crossing it — the local only frees the junction once its rear is through.
-            if !t.onLoop && platformCrossing(t.dir) {
-                let jd = mainJunctionDist(t.dir)
-                if t.dist < jd { ceiling = min(ceiling, jd - Track.carUnit * 0.9) }
-            }
-            // A through train already onto the junction still bars a platform train from barging into it.
-            if t.onLoop && t.committed && t.dist < exitDist(t.dir) && mainNearExit(t.dir, except: t) {
-                ceiling = min(ceiling, exitDist(t.dir) - Track.carUnit * 0.7)
-            }
-            // Trains block each other on any shared physical track: the same line through the middle, or the
-            // common approach before the point (so a fast train can never clip a local that hasn't diverted yet).
-            let pd = pointDist(t.dir)
-            var aheadTail = CGFloat.infinity
-            for o in roster where o !== t && !o.finished && o.dir == t.dir && o.dist > t.dist {
-                let sharedApproach = t.dist < pd && o.dist < pd + o.carLen
-                if o.onLoop == t.onLoop || sharedApproach { aheadTail = min(aheadTail, o.dist - o.carLen) }
-            }
-            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
-            // Honour the automatic block signals: a through train stops at a red one, and eases off at an amber.
-            var speedCap = t.speed
-            var amberAhead = false
-            if !t.onLoop {
-                let east = t.dir == .east
-                let fx = mainFrontX(t)
-                for sx in blockXs where (east ? sx > fx : sx < fx) {
-                    switch blockAspect(sx, t.dir) {
-                    case 2:                                  // red — stop short of the signal
-                        let sd = east ? (sx - spawnL) : (spawnR - sx)
-                        if t.dist < sd { ceiling = min(ceiling, sd - Track.carUnit * 0.5) }
-                    case 1:                                  // amber — run at caution speed
-                        speedCap = min(speedCap, t.speed * 0.45); amberAhead = true
-                    default: break
-                    }
-                }
-            }
-            // Ease toward the target speed: build up and brake gently over a long run, and brake harder and
-            // earlier for a hard stop, so the train glides right up to the ceiling (a red signal, a berth, a train).
-            let headroom = max(0, ceiling - t.dist)
-            // Expresses build up and shed speed more briskly so a clear run really flies; locals stay gentle.
-            let accel: CGFloat = t.express ? 165 : 62, decel: CGFloat = t.express ? 200 : 96
-            let target = min(speedCap, sqrt(2 * decel * headroom))
-            if t.v < target { t.v = min(target, t.v + accel * CGFloat(dt)) }
-            else { t.v = max(target, t.v - decel * CGFloat(dt)) }
-            t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
-            t.stopped = t.v < 5 ? t.stopped + dt : 0   // held at a red — count how long it's been waiting
-            // Route lighting: colour the track ahead by how far the train may run before its next stop.
-            if ceiling >= t.path.total - 1 {
-                t.railAspect = amberAhead ? 1 : 0                        // a clear run to the end of the line
-            } else {
-                let head = ceiling - t.dist
-                t.railAspect = head < Track.carUnit * 0.9 ? 2 : ((head < Track.carUnit * 4 || amberAhead) ? 1 : 0)
-            }
-
-            // Board while the train is standing at its berth. It keeps topping up from newly-arrived passengers
-            // (up to its capacity) for as long as it hasn't pulled away — once it moves off, no more can board.
-            if !t.express && t.onLoop && t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
-                if !t.started {
-                    t.started = true
-                    t.dwell = dwellTime
-                    if t.dir == .east { upWait = 0 } else { downWait = 0 }
-                    Sound.shared.play(.board)
-                }
-                t.dwell -= dt
-                let cap = Double(t.spec.length) * perCar
-                let plat = t.dir == .east ? pUp : pDown
-                if t.load < cap && plat > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, plat))
-                    let before = plat
-                    if t.dir == .east { pUp = max(0, pUp - take) } else { pDown = max(0, pDown - take) }
-                    let after = t.dir == .east ? pUp : pDown
-                    if Int(before) != Int(after) {
-                        // Sparkle on the platform, right where the waiting people stand (not up by the train).
-                        let k = Int(after)
-                        sparkles.append(Sparkle(x: platL - 6 + CGFloat(k) * 15,
-                                                y: t.dir == .east ? 184 : 372))
-                    }
-                    t.load += take; carried += take
-                }
-                if t.dwell <= 0 { t.boarded = true }
-            }
-            if t.dist >= t.path.total + overrun { t.finished = true }
-            else if t.dist >= t.path.total && !t.express && t.onLoop && !t.departed {
-                t.departed = true; Sound.shared.play(.depart)
-            }
-        }
-        trains.removeAll { $0.finished }
         for i in sparkles.indices { sparkles[i].age += dt }
         sparkles.removeAll { $0.age > sparkleLife }
 
