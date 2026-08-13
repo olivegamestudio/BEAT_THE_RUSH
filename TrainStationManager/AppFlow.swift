@@ -163,7 +163,13 @@ enum Progress {
         get { max(1, UserDefaults.standard.integer(forKey: key)) }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
-    static func isUnlocked(_ id: Int) -> Bool { id <= unlockedThrough }
+    static func isUnlocked(_ id: Int) -> Bool {
+        #if DEBUG
+        return true                     // dev builds: every level open, so any can be tested
+        #else
+        return id <= unlockedThrough
+        #endif
+    }
     /// Clearing a station unlocks the next *playable* one, skipping the generic placeholder stations
     /// that aren't shown yet — so the unlock chain stays unbroken across the gaps in the list.
     static func clear(_ id: Int) {
