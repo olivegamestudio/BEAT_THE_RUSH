@@ -76,7 +76,7 @@ struct StationView: View {
                 }
             }
         }
-        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused && !confirmExit { station.tick(0.03) } }
         .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }

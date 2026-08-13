@@ -94,7 +94,7 @@ struct SaltashView: View {
             }
         }
         .ignoresSafeArea()      // measure the full screen so the tap targets match the drawn board
-        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused && !confirmExit { station.tick(0.03) } }
         .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
