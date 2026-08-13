@@ -50,7 +50,7 @@ final class LostwithielStation: ObservableObject {
     let xCW: CGFloat = 380              // west crossover
     let xCE: CGFloat = 900              // east crossover
     let xOff: CGFloat = 70              // how far a crossover slews across between the lanes
-    let xFreight: CGFloat = 780         // where the clay freight's engine dies, on the up lane
+    let xFreight: CGFloat = 860         // where the clay freight's engine dies, on the up lane
     let xSideTurn: CGFloat = 1000       // where the St Blazey line trails off the up lane
     var stBlazey: CGPoint { CGPoint(x: 1440, y: -120) }   // the St Blazey line, off the up lane to the east
 

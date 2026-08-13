@@ -167,8 +167,8 @@ struct LostwithielView: View {
             // Smoke only once it's failed — the stricken engine vents until it's dragged clear.
             if t.dead {
                 let base = S(ep.p)
-                let chim = CGPoint(x: base.x + 0.30 * locoCW * sc, y: base.y - 0.52 * locoCH * sc)
-                drawSteamPlume(ctx, at: chim, back: -1, t: s.animT, scale: sc, rate: t.smokeRate)
+                let chim = CGPoint(x: base.x, y: base.y - 0.52 * locoCH * sc)
+                drawSteamPlume(ctx, at: chim, back: 0, t: s.animT, scale: sc, rate: t.smokeRate)   // stationary — rises straight up
             }
             if t.dead {
                 drawMood(ctx, "⚠️", at: S(CGPoint(x: t.path.sample(t.dist).p.x, y: s.yTop - 40)), scale: sc)
