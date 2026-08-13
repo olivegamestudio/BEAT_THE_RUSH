@@ -248,7 +248,7 @@ struct BirminghamView: View {
             .buttonStyle(PressStyle())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            MuteButton().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
+            HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(Int(station.carried))").font(.system(size: 40, weight: .black, design: .rounded))

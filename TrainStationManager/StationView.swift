@@ -328,7 +328,7 @@ struct StationView: View {
                 .padding(28)
 
                 // mute — top right
-                MuteButton()
+                HStack(spacing: 10) { HapticsButton(); MuteButton() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(28)
 
