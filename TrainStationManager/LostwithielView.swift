@@ -119,11 +119,9 @@ struct LostwithielView: View {
         // Crossovers between the lanes.
         rail(ctx, [CGPoint(x: s.xCW, y: s.yTop), CGPoint(x: s.xCW + s.xOff, y: s.yBot)], sc, S)
         rail(ctx, [CGPoint(x: s.xCE - s.xOff, y: s.yBot), CGPoint(x: s.xCE, y: s.yTop)], sc, S)
-        // The two sidings, both visible.
-        rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yTop), s.casualtyStub], sc, S)         // refuge (up side)
-        rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yBot), s.rescueStub], sc, S)           // rescue (down side)
-        // Buffer stop on the rescue siding (the refuge line runs away off-scene to St Blazey).
-        buffer(ctx, s.rescueStub, sc, S)
+        // The St Blazey line trails off the up lane to the east — the rescue comes from it, and the
+        // casualty is dragged back off along it.
+        rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yTop), s.stBlazey], sc, S)
     }
 
     private func buffer(_ ctx: GraphicsContext, _ p: CGPoint, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -133,7 +131,7 @@ struct LostwithielView: View {
     }
 
     private func drawRouteLights(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
-        for t in station.trains where !t.finished && !t.dead {
+        for t in station.trains where !t.finished && !t.dead && t.role == .service {
             let start = max(0, t.dist)
             let end = min(t.path.total, t.dist + Track.carUnit * 6)
             if end <= start + 1 { continue }
@@ -150,7 +148,7 @@ struct LostwithielView: View {
         switch t.role {
         case .freight:
             // A regular diesel loco at the head (east end), then ten short clay hoods trailing west.
-            let locoCW = Track.carUnit * 1.16, locoCH = Track.carHeight * 1.06
+            let locoCW = Track.carUnit * 0.92, locoCH = Track.carHeight
             let engD = t.dist - locoCW * 0.5
             let ep = t.path.sample(max(0, engD))
             let diesel = Color(red: 0.30, green: 0.33, blue: 0.38)     // clay-line diesel, not steam
@@ -181,7 +179,7 @@ struct LostwithielView: View {
             if t.hauling, let f = t.casualty {
                 // The coupled diesel (still venting until it's clear) and its clay hoods, trailing behind.
                 let diesel = Color(red: 0.30, green: 0.33, blue: 0.38)
-                let locoCW = Track.carUnit * 1.16, locoCH = Track.carHeight * 1.06
+                let locoCW = Track.carUnit * 0.92, locoCH = Track.carHeight
                 let engD = t.dist - Track.carUnit * 1.15
                 if engD >= 0 {
                     let ep = t.path.sample(engD)
@@ -200,11 +198,6 @@ struct LostwithielView: View {
                                  cw: s.wagonUnit - 4, ch: Track.carHeight * 0.86, scale: sc,
                                  fill: 0, seed: f.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12, windows: false)
                 }
-            } else if !t.blocked {
-                let base = S(t.path.sample(t.dist).p)
-                let fwd: CGFloat = cos(t.path.smoothAngle(t.dist)) >= 0 ? 1 : -1
-                drawSteamPlume(ctx, at: CGPoint(x: base.x + fwd * 0.3 * Track.carUnit * sc, y: base.y - 0.5 * Track.carHeight * sc),
-                               back: -fwd, t: s.animT, scale: sc, rate: t.smokeRate)
             }
         case .service:
             for c in 0..<t.spec.length {
@@ -227,12 +220,12 @@ struct LostwithielView: View {
 
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        let midY = (s.yTop + s.yBot) / 2
-        // The route lights are always on the board — the player has the controls at all times.
-        drawSignal(ctx, at: S(CGPoint(x: s.xCW - 26, y: midY)), red: s.passGreen != .east, scale: sc * 2.2)
-        drawSignal(ctx, at: S(CGPoint(x: s.xCE + 26, y: midY)), red: s.passGreen != .west, scale: sc * 2.2)
+        // Up-line signal by the top lane at the west crossover; down-line signal by the bottom lane at the
+        // east crossover — always on the board, red = held.
+        drawSignal(ctx, at: S(CGPoint(x: s.xCW, y: s.yTop)), red: !s.granted(.east), scale: sc * 2.2)
+        drawSignal(ctx, at: S(CGPoint(x: s.xCE, y: s.yBot + 44)), red: !s.granted(.west), scale: sc * 2.2)
         if s.rescueReady {
-            drawSignal(ctx, at: S(CGPoint(x: s.xSideTurn + 34, y: s.yBot + 44)), red: false, scale: sc * 2.2)
+            drawSignal(ctx, at: S(CGPoint(x: s.xSideTurn + 20, y: s.yTop)), red: false, scale: sc * 2.2)
         }
     }
 
@@ -246,12 +239,11 @@ struct LostwithielView: View {
 
     private func controls(scale: CGFloat, size: CGSize) -> some View {
         let s = station
-        let midY = (s.yTop + s.yBot) / 2
         return ZStack {
-            signalButton({ s.clear(.east) }, foot: CGPoint(x: s.xCW - 26, y: midY), scale: scale, size: size)
-            signalButton({ s.clear(.west) }, foot: CGPoint(x: s.xCE + 26, y: midY), scale: scale, size: size)
+            signalButton({ s.clear(.east) }, foot: CGPoint(x: s.xCW, y: s.yTop), scale: scale, size: size)
+            signalButton({ s.clear(.west) }, foot: CGPoint(x: s.xCE, y: s.yBot + 44), scale: scale, size: size)
             if s.rescueReady {
-                signalButton({ s.releaseRescue() }, foot: CGPoint(x: s.xSideTurn + 34, y: s.yBot + 44), scale: scale, size: size)
+                signalButton({ s.releaseRescue() }, foot: CGPoint(x: s.xSideTurn + 20, y: s.yTop), scale: scale, size: size)
             }
 
             Button(action: { Sound.shared.play(.ui); confirmExit = true }) {
@@ -266,14 +258,6 @@ struct LostwithielView: View {
 
             ScoreTicker(count: Int(s.carried), goal: s.def.goal, label: "trains")
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.horizontal, 34).padding(.bottom, 26)
-
-            if s.broken && !s.rescued {
-                Text(s.rescueReady ? "Freight failed — send the rescue!" : "Take turns past the breakdown")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color(red: 0.97, green: 0.62, blue: 0.3))
-                    .shadow(color: .black.opacity(0.8), radius: 5)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 26)
-            }
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(s.name).font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)

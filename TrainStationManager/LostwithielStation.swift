@@ -51,9 +51,8 @@ final class LostwithielStation: ObservableObject {
     let xCE: CGFloat = 900              // east crossover
     let xOff: CGFloat = 70              // how far a crossover slews across between the lanes
     let xFreight: CGFloat = 780         // where the clay freight's engine dies, on the up lane
-    let xSideTurn: CGFloat = 1000       // where both sidings trail off the running lines
-    var casualtyStub: CGPoint { CGPoint(x: 1500, y: -160) }   // refuge line runs off toward St Blazey
-    var rescueStub: CGPoint { CGPoint(x: 1140, y: 404) }    // rescue siding (down side), visible
+    let xSideTurn: CGFloat = 1000       // where the St Blazey line trails off the up lane
+    var stBlazey: CGPoint { CGPoint(x: 1440, y: -120) }   // the St Blazey line, off the up lane to the east
 
     // The shared stretch of the down lane both directions must take turns over once the up lane is blocked.
     var contestL: CGFloat { xCW + xOff }
@@ -61,7 +60,8 @@ final class LostwithielStation: ObservableObject {
 
     @Published var trains: [LwTrain] = []
     @Published var carried = 0.0        // trains sent safely through — the score
-    @Published var passGreen: Dir? = nil        // direction cleared over the shared down-lane stretch
+    @Published var eastClear = true             // the up-line signal — red holds eastbounds at the west crossover
+    @Published var westClear = true             // the down-line signal — red holds westbounds at the east crossover
     @Published var broken = false               // the freight has failed and is blocking the up lane
     @Published var rescued = false
     @Published var rescueReady = false          // the rescue loco is in its siding, waiting for the call
@@ -87,7 +87,7 @@ final class LostwithielStation: ObservableObject {
 
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0
-        passGreen = nil; broken = false; rescued = false; rescueReady = false
+        eastClear = true; westClear = true; broken = false; rescued = false; rescueReady = false
         animT = 0; throughCount = 0; overClock = 0; spawnClock = 0; nextSpawn = 2.2
         spawn(.east); spawn(.west)
         objectWillChange.send()
@@ -128,15 +128,15 @@ final class LostwithielStation: ObservableObject {
     // MARK: controls
 
     /// Tap the route light: clear that direction over the shared stretch, or hold both.
-    func clear(_ dir: Dir) { passGreen = (passGreen == dir) ? nil : dir; objectWillChange.send() }
-    func granted(_ dir: Dir) -> Bool { passGreen == dir }
+    func clear(_ dir: Dir) { if dir == .east { eastClear.toggle() } else { westClear.toggle() }; objectWillChange.send() }
+    func granted(_ dir: Dir) -> Bool { dir == .east ? eastClear : westClear }
 
     func releaseRescue() {
         guard rescueReady, !trains.contains(where: { $0.role == .rescue }) else { return }
         let orange = Color(red: 0.90, green: 0.46, blue: 0.16)
-        // Approach: out of the siding, up onto the up lane at the east crossover, west to the casualty.
-        let approach = RoutePath([rescueStub, CGPoint(x: xSideTurn, y: yBot),
-                                  CGPoint(x: xCE, y: yBot), CGPoint(x: xCE - 40, y: yTop),
+        // Approach: in off the St Blazey line onto the up lane, running west to the casualty — all on the
+        // up lane, so it never cuts across untracked ground.
+        let approach = RoutePath([stBlazey, CGPoint(x: xSideTurn, y: yTop),
                                   CGPoint(x: xFreight + Track.carUnit * 0.7, y: yTop)])
         let r = LwTrain(Train(length: 1, tint: orange, name: ""), .west, approach,
                         body: Track.carUnit, smoke: 7)
@@ -198,7 +198,11 @@ final class LostwithielStation: ObservableObject {
         let deadFreight = roster.first { $0.dead }
         for t in roster where !t.finished {
             if t.dead { t.railAspect = 2; continue }
-            let speed = t.role == .freight ? freightSpeed : (t.role == .rescue ? rescueSpeed : baseSpeed)
+            var speed = t.role == .freight ? freightSpeed : (t.role == .rescue ? rescueSpeed : baseSpeed)
+            if t.role == .freight, !t.dead {              // grind to a halt as it fails, rather than a dead stop
+                let dd = xFreight - headX(t)
+                if dd < 130 { speed *= max(0.12, dd / 130) }
+            }
             var ceiling = t.path.total
 
             // Don't overrun a same-direction train ahead.
@@ -213,18 +217,18 @@ final class LostwithielStation: ObservableObject {
             }
             // Single-line working over the shared stretch: a diverting up-train, or any down-train, may only
             // enter when the route is granted its way and no one is coming the other way.
-            if broken, t.role == .service, (t.diverting || t.dir == .west) {
-                let holdX = t.dir == .east ? xCW : contestR
-                if !(granted(t.dir) && !opposingInContest(t.dir)),
-                   let h = distAtX(t, holdX), t.dist <= h - gap + 1 {
-                    ceiling = min(ceiling, h - gap)
-                }
+            // A service honours its own signal at all times — a red holds it at its crossover. After the
+            // block it also holds if the other way is currently in the shared stretch, so they never meet.
+            if t.role == .service {
+                let holdX = t.dir == .east ? xCW : xCE
+                var mayPass = granted(t.dir)
+                if broken, (t.diverting || t.dir == .west), opposingInContest(t.dir) { mayPass = false }
+                if !mayPass, let h = distAtX(t, holdX), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
             }
-            // The rescue honours the west route light on its way to the casualty, and holds short of any
-            // train ahead; while hauling it runs the whole consist off the scene, so let it overrun.
+            // The rescue holds short of any train ahead; while hauling it runs the whole consist off the
+            // scene, so let it overrun the path end.
             if t.role == .rescue {
                 ceiling = t.hauling ? (t.path.total + t.bodyLen + Track.carUnit) : t.path.total
-                if !t.hauling, passGreen != .west, let h = distAtX(t, xCE), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
                 if rescueMeetsTrain(t) { ceiling = min(ceiling, t.dist) }
             }
 
@@ -276,15 +280,15 @@ final class LostwithielStation: ObservableObject {
                 // Haul-out starts well west of the casualty, so the whole consist sits on the line (nothing
                 // pops in), and runs east along the up lane off toward St Blazey.
                 r.path = RoutePath([CGPoint(x: xFreight - 520, y: yTop),
-                                    CGPoint(x: xSideTurn, y: yTop), casualtyStub])
-                r.bodyLen = Track.carUnit * 1.15 + Track.carUnit * 1.16 + CGFloat(freightWagons) * wagonUnit
+                                    CGPoint(x: xSideTurn, y: yTop), stBlazey])
+                r.bodyLen = Track.carUnit * 1.15 + Track.carUnit * 0.92 + CGFloat(freightWagons) * wagonUnit
                 r.dist = distAtX(r, xFreight + Track.carUnit * 0.7) ?? 0
                 Sound.shared.play(.ding)
             }
         } else if r.dist - r.bodyLen - Track.carUnit >= r.path.total {
             // The whole consist has run off the far end — the road is open again.
             f.finished = true; r.finished = true
-            rescued = true; broken = false; passGreen = nil
+            rescued = true; broken = false
             Sound.shared.play(.depart)
         }
     }
