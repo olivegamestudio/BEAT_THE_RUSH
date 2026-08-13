@@ -300,6 +300,36 @@ set `t.railAspect`; never mutate `trains` inside the loop (defer spawns/removals
 row in `allStations` with `kind:`; add its first-move label in `levelTasks` (`AppFlow.swift`); add the
 `case` in `RootView`'s play switch; and (bespoke) add the `started` gate + `OutcomeOverlay(def:)`.
 
+## Planned: a shared level toolkit ("RailKit")
+
+**Problem.** Bespoke levels are built from scratch — each `…Station` reimplements its own tick, signals,
+routing and geometry. Layout alone is ~a day per level, and a fix in one (e.g. the filter-signal cascade
+in Lostwithiel) doesn't reach the others. To reach twelve levels this has to become assemble-from-pieces.
+
+**Approach.** Build a shared foundation and prove it on the *next* level (US freight); leave the seven
+working bespoke levels alone and migrate them opportunistically, not in a big bang.
+
+**Pieces (roughly in build order):**
+1. **Track graph.** Declare a level's lines as named polyline `RailEdge`s joined at `RailNode`s; a
+   `Router` stitches edges into a train's `RoutePath` (which already exists). Layout becomes data, not
+   hand-placed coordinates + bespoke `drawRails`.
+2. **Signals as types.** `HoldSignal` (player-tappable, holds a direction/route — Saltash/Lostwithiel
+   lights), `BlockSignal` (automatic, red while the block to the next signal is occupied — the filter
+   signals), each owning the section it protects and computing its own aspect from occupancy. One tested
+   implementation instead of per-level copies.
+3. **Movement engine (`RailSim`).** Holds the trains; per tick computes each train's `ceiling` = min(path
+   end, follow-gap to the train ahead, held-signal stops, block-signal stops, **position-based
+   body-ahead** so crossing moves never overlap — the Crewe/Birmingham rule as the default), eases `v`,
+   advances. Level-specific rules plug in via hooks (`shouldSpawn`, `onArrive`, custom holds).
+4. **Rendering.** `drawGraph` draws every edge in the rail style; reuse `drawCarriage`/`drawSignal`/
+   `drawBlockSignal`/route-lights placed from the definitions.
+5. **Level scaffold.** A base the level composes: graph + signals + sim + the shared HUD (briefing,
+   `ScoreTicker`, pause, mute, haptics, outcome) in a thin `RailLevelView`. A new level = define the
+   graph, place signals, write only its unique mechanic.
+
+Each of 1–5 is independently shippable; a level can adopt them piecemeal. Success measure: US freight is
+laid out and running in hours, not a day, and a signalling fix lands once.
+
 ## Build, run, deploy
 
 Sim (fast iterate):
