@@ -63,6 +63,25 @@ struct MuteButton: View {
     }
 }
 
+/// A toggle for the haptics, sat beside the mute — blue when on, grey when off. Toggling on gives a
+/// confirming buzz so you can tell it's working.
+struct HapticsButton: View {
+    @State private var on = Haptics.shared.enabled
+    var body: some View {
+        Button {
+            Haptics.shared.toggle(); on = Haptics.shared.enabled
+        } label: {
+            Image(systemName: on ? "hand.tap.fill" : "hand.tap")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(on ? Color(red: 0.20, green: 0.46, blue: 0.86) : Color(white: 0.32), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.22)))
+        }
+        .buttonStyle(PressStyle())
+    }
+}
+
 /// A non-blocking coaching card along the bottom, tapped through step by step on first play.
 struct TutorialCard: View {
     let text: String
@@ -588,7 +607,7 @@ struct MenuView: View {
                 .animation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true), value: pulse)
             }
         }
-        .overlay(alignment: .topTrailing) { MuteButton().padding(16) }
+        .overlay(alignment: .topTrailing) { HStack(spacing: 10) { HapticsButton(); MuteButton() }.padding(16) }
         .onReceive(tick) { _ in field.tick(0.03) }
         .onAppear { pulse = true }
     }
