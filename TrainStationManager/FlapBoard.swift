@@ -192,7 +192,6 @@ struct StationBoardTile: View {
                     }
                 }
                 boardCanvas
-                    .frame(width: 300, height: 50)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -207,25 +206,28 @@ struct StationBoardTile: View {
         .disabled(!unlocked)
     }
 
-    @ViewBuilder private var boardCanvas: some View {
-        if animating && unlocked {
-            TimelineView(.animation) { tl in
-                canvas(elapsed: tl.date.timeIntervalSince(revealStart))
+    private var boardCanvas: some View {
+        // Scale the fixed 300×50 board to the tile's width, so it grows on an iPad instead of staying tiny.
+        GeometryReader { g in
+            let k = g.size.width / 300
+            Group {
+                if animating && unlocked {
+                    TimelineView(.animation) { tl in canvas(k, elapsed: tl.date.timeIntervalSince(revealStart)) }
+                } else {
+                    canvas(k, elapsed: unlocked ? 9999 : 0)
+                }
             }
-        } else {
-            canvas(elapsed: unlocked ? 9999 : 0)
         }
+        .aspectRatio(6, contentMode: .fit)   // 300:50 — height follows the width
     }
-    private func canvas(elapsed: Double) -> some View {
+    private func canvas(_ k: CGFloat, elapsed: Double) -> some View {
         Canvas { ctx, _ in
-            let nameCell = CGSize(width: 18, height: 28)
-            drawFlapLine(ctx, name, width: 15, origin: .zero, cell: nameCell, gap: 2,
+            drawFlapLine(ctx, name, width: 15, origin: .zero, cell: CGSize(width: 18 * k, height: 28 * k), gap: 2 * k,
                          elapsed: elapsed, baseDelay: baseDelay, ink: Flap.ink)
-            let subCell = CGSize(width: 10, height: 15)
-            let subY: CGFloat = 28 + 7
-            drawFlapLine(ctx, region, width: 15, origin: CGPoint(x: 0, y: subY), cell: subCell, gap: 2,
+            let subY = 35 * k
+            drawFlapLine(ctx, region, width: 15, origin: CGPoint(x: 0, y: subY), cell: CGSize(width: 10 * k, height: 15 * k), gap: 2 * k,
                          elapsed: elapsed, baseDelay: baseDelay + 0.25, ink: Flap.inkDim)
-            drawFlapLine(ctx, status, width: 8, origin: CGPoint(x: 192, y: subY), cell: subCell, gap: 2,
+            drawFlapLine(ctx, status, width: 8, origin: CGPoint(x: 192 * k, y: subY), cell: CGSize(width: 10 * k, height: 15 * k), gap: 2 * k,
                          elapsed: elapsed, baseDelay: baseDelay + 0.4, ink: statusColor)
         }
     }

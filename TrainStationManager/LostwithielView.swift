@@ -122,8 +122,8 @@ struct LostwithielView: View {
         // The two sidings, both visible.
         rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yTop), s.casualtyStub], sc, S)         // refuge (up side)
         rail(ctx, [CGPoint(x: s.xSideTurn, y: s.yBot), s.rescueStub], sc, S)           // rescue (down side)
-        // Buffer stops at the siding ends.
-        buffer(ctx, s.casualtyStub, sc, S); buffer(ctx, s.rescueStub, sc, S)
+        // Buffer stop on the rescue siding (the refuge line runs away off-scene to St Blazey).
+        buffer(ctx, s.rescueStub, sc, S)
     }
 
     private func buffer(_ ctx: GraphicsContext, _ p: CGPoint, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
@@ -162,10 +162,10 @@ struct LostwithielView: View {
                 let smp = t.path.sample(d)
                 drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
                              cw: s.wagonUnit - 4, ch: Track.carHeight * 0.86, scale: sc,
-                             fill: 0, seed: t.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)   // clay hoods carry no people
+                             fill: 0, seed: t.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12, windows: false)   // clay hoods: no windows
             }
-            // Exhaust smoke drifts off the engine while it's moving; a hazard flash once it's failed.
-            if !t.dead && !t.blocked {
+            // Smoke only once it's failed — the stricken engine vents until it's dragged clear.
+            if t.dead {
                 let base = S(ep.p)
                 let chim = CGPoint(x: base.x + 0.30 * locoCW * sc, y: base.y - 0.52 * locoCH * sc)
                 drawSteamPlume(ctx, at: chim, back: -1, t: s.animT, scale: sc, rate: t.smokeRate)
@@ -174,24 +174,37 @@ struct LostwithielView: View {
                 drawMood(ctx, "⚠️", at: S(CGPoint(x: t.path.sample(t.dist).p.x, y: s.yTop - 40)), scale: sc)
             }
         case .rescue:
-            let s0 = t.path.sample(t.dist)
-            drawCarriage(ctx, at: S(s0.p), angle: t.path.smoothAngle(t.dist), tint: t.spec.tint,
-                         cw: Track.carUnit - 4, ch: Track.carHeight, scale: sc, endCap: true)
-            if !t.blocked {
-                let base = S(s0.p)
-                let fwd: CGFloat = cos(t.path.smoothAngle(t.dist)) >= 0 ? 1 : -1
-                drawSteamPlume(ctx, at: CGPoint(x: base.x + fwd * 0.3 * Track.carUnit * sc, y: base.y - 0.5 * Track.carHeight * sc),
-                               back: -fwd, t: s.animT, scale: sc, rate: t.smokeRate)
-            }
+            // The rescue loco at the head.
+            let loD = max(0, t.dist - Track.carUnit * 0.5)
+            drawCarriage(ctx, at: S(t.path.sample(loD).p), angle: t.path.smoothAngle(loD),
+                         tint: t.spec.tint, cw: Track.carUnit - 4, ch: Track.carHeight, scale: sc, endCap: true)
             if t.hauling, let f = t.casualty {
+                // The coupled diesel (still venting until it's clear) and its clay hoods, trailing behind.
+                let diesel = Color(red: 0.30, green: 0.33, blue: 0.38)
+                let locoCW = Track.carUnit * 1.16, locoCH = Track.carHeight * 1.06
+                let engD = t.dist - Track.carUnit * 1.15
+                if engD >= 0 {
+                    let ep = t.path.sample(engD)
+                    drawCarriage(ctx, at: S(ep.p), angle: t.path.smoothAngle(engD), tint: diesel,
+                                 cw: locoCW, ch: locoCH, scale: sc, endCap: true)
+                    let base = S(ep.p)
+                    drawSteamPlume(ctx, at: CGPoint(x: base.x + 0.30 * locoCW * sc, y: base.y - 0.52 * locoCH * sc),
+                                   back: -1, t: s.animT, scale: sc, rate: f.smokeRate)
+                }
+                let tail = t.dist - Track.carUnit * 1.15 - locoCW
                 for c in 0..<s.freightWagons {
-                    let d = t.dist - Track.carUnit - (CGFloat(c) + 0.5) * s.wagonUnit
+                    let d = tail - (CGFloat(c) + 0.5) * s.wagonUnit
                     guard d >= 0 else { continue }
                     let smp = t.path.sample(d)
                     drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: f.spec.tint,
                                  cw: s.wagonUnit - 4, ch: Track.carHeight * 0.86, scale: sc,
-                                 fill: 0, seed: f.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)
+                                 fill: 0, seed: f.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12, windows: false)
                 }
+            } else if !t.blocked {
+                let base = S(t.path.sample(t.dist).p)
+                let fwd: CGFloat = cos(t.path.smoothAngle(t.dist)) >= 0 ? 1 : -1
+                drawSteamPlume(ctx, at: CGPoint(x: base.x + fwd * 0.3 * Track.carUnit * sc, y: base.y - 0.5 * Track.carHeight * sc),
+                               back: -fwd, t: s.animT, scale: sc, rate: t.smokeRate)
             }
         case .service:
             for c in 0..<t.spec.length {
@@ -215,10 +228,9 @@ struct LostwithielView: View {
     private func drawSignals(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         let midY = (s.yTop + s.yBot) / 2
-        if s.broken && !s.rescued {
-            drawSignal(ctx, at: S(CGPoint(x: s.xCW - 26, y: midY)), red: s.passGreen != .east, scale: sc * 2.2)
-            drawSignal(ctx, at: S(CGPoint(x: s.xCE + 26, y: midY)), red: s.passGreen != .west, scale: sc * 2.2)
-        }
+        // The route lights are always on the board — the player has the controls at all times.
+        drawSignal(ctx, at: S(CGPoint(x: s.xCW - 26, y: midY)), red: s.passGreen != .east, scale: sc * 2.2)
+        drawSignal(ctx, at: S(CGPoint(x: s.xCE + 26, y: midY)), red: s.passGreen != .west, scale: sc * 2.2)
         if s.rescueReady {
             drawSignal(ctx, at: S(CGPoint(x: s.xSideTurn + 34, y: s.yBot + 44)), red: false, scale: sc * 2.2)
         }
@@ -236,10 +248,8 @@ struct LostwithielView: View {
         let s = station
         let midY = (s.yTop + s.yBot) / 2
         return ZStack {
-            if s.broken && !s.rescued {
-                signalButton({ s.clear(.east) }, foot: CGPoint(x: s.xCW - 26, y: midY), scale: scale, size: size)
-                signalButton({ s.clear(.west) }, foot: CGPoint(x: s.xCE + 26, y: midY), scale: scale, size: size)
-            }
+            signalButton({ s.clear(.east) }, foot: CGPoint(x: s.xCW - 26, y: midY), scale: scale, size: size)
+            signalButton({ s.clear(.west) }, foot: CGPoint(x: s.xCE + 26, y: midY), scale: scale, size: size)
             if s.rescueReady {
                 signalButton({ s.releaseRescue() }, foot: CGPoint(x: s.xSideTurn + 34, y: s.yBot + 44), scale: scale, size: size)
             }
@@ -254,14 +264,8 @@ struct LostwithielView: View {
 
             HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("\(Int(s.carried))").font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
-                Text("/ \(s.def.goal) trains").font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(white: 0.72))
-            }
-            .shadow(color: .black.opacity(0.75), radius: 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.horizontal, 34).padding(.bottom, 26)
+            ScoreTicker(count: Int(s.carried), goal: s.def.goal, label: "trains")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.horizontal, 34).padding(.bottom, 26)
 
             if s.broken && !s.rescued {
                 Text(s.rescueReady ? "Freight failed — send the rescue!" : "Take turns past the breakdown")

@@ -52,7 +52,7 @@ final class LostwithielStation: ObservableObject {
     let xOff: CGFloat = 70              // how far a crossover slews across between the lanes
     let xFreight: CGFloat = 780         // where the clay freight's engine dies, on the up lane
     let xSideTurn: CGFloat = 1000       // where both sidings trail off the running lines
-    var casualtyStub: CGPoint { CGPoint(x: 1140, y: 92) }   // refuge siding (up side), visible
+    var casualtyStub: CGPoint { CGPoint(x: 1500, y: -160) }   // refuge line runs off toward St Blazey
     var rescueStub: CGPoint { CGPoint(x: 1140, y: 404) }    // rescue siding (down side), visible
 
     // The shared stretch of the down lane both directions must take turns over once the up lane is blocked.
@@ -220,6 +220,13 @@ final class LostwithielStation: ObservableObject {
                     ceiling = min(ceiling, h - gap)
                 }
             }
+            // The rescue honours the west route light on its way to the casualty, and holds short of any
+            // train ahead; while hauling it runs the whole consist off the scene, so let it overrun.
+            if t.role == .rescue {
+                ceiling = t.hauling ? (t.path.total + t.bodyLen + Track.carUnit) : t.path.total
+                if !t.hauling, passGreen != .west, let h = distAtX(t, xCE), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
+                if rescueMeetsTrain(t) { ceiling = min(ceiling, t.dist) }
+            }
 
             let step = speed * CGFloat(dt)
             let next = min(t.dist + step, ceiling)
@@ -266,16 +273,35 @@ final class LostwithielStation: ObservableObject {
         if !r.hauling {
             if r.dist >= r.path.total - 1 {
                 r.hauling = true; r.casualty = f; f.dead = false
-                // Haul-out: drag the casualty east along the up lane and up into the refuge siding.
-                r.path = RoutePath([CGPoint(x: xFreight + Track.carUnit * 0.7, y: yTop),
+                // Haul-out starts well west of the casualty, so the whole consist sits on the line (nothing
+                // pops in), and runs east along the up lane off toward St Blazey.
+                r.path = RoutePath([CGPoint(x: xFreight - 520, y: yTop),
                                     CGPoint(x: xSideTurn, y: yTop), casualtyStub])
-                r.dist = 0
+                r.bodyLen = Track.carUnit * 1.15 + Track.carUnit * 1.16 + CGFloat(freightWagons) * wagonUnit
+                r.dist = distAtX(r, xFreight + Track.carUnit * 0.7) ?? 0
                 Sound.shared.play(.ding)
             }
-        } else if r.dist >= r.path.total - 1 {
+        } else if r.dist - r.bodyLen - Track.carUnit >= r.path.total {
+            // The whole consist has run off the far end — the road is open again.
             f.finished = true; r.finished = true
             rescued = true; broken = false; passGreen = nil
             Sound.shared.play(.depart)
         }
+    }
+
+    /// True if any train (other than the rescue's own casualty) sits just ahead of the rescue on the
+    /// road — sampled from real positions, so it holds whichever lane the other train is on.
+    private func rescueMeetsTrain(_ r: LwTrain) -> Bool {
+        let ahead = r.path.sample(min(r.path.total, r.dist + 1.2 * Track.carUnit)).p
+        for o in trains where o !== r && !o.finished && o.role != .rescue && o !== r.casualty {
+            var d = o.dist
+            let end = max(0, o.dist - o.bodyLen)
+            while d >= end {
+                let p = o.path.sample(d).p
+                if hypot(p.x - ahead.x, p.y - ahead.y) < 0.85 * Track.carUnit { return true }
+                d -= Track.carUnit * 0.5
+            }
+        }
+        return false
     }
 }
