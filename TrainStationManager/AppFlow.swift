@@ -554,7 +554,7 @@ struct MenuView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 10) {
-                FlapHeadline(text: "BEAT THE RUSH", cellW: 30)
+                FlapHeadline(text: "BEAT THE RUSH", cellW: 44)
                     .shadow(color: .black.opacity(0.6), radius: 10, y: 4)
                 Text("Route the trains. Clear the platforms.")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
