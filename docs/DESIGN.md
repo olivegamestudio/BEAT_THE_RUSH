@@ -332,9 +332,13 @@ and algorithmic ladder paths, so it's movement-only on `RailSim` using the new *
 (the reusable position-based follow, lifted from Birmingham's old `aheadCeiling`/`bodyNear` into the
 engine). **Only Crewe is left**, and it does **not** fit `RailSim`'s movement model: its bay services
 *reverse* out (arc-length decreases — the engine only advances), and it runs two vehicle types (stoppers
-with a 4-phase machine + fly-through expresses) where `RailSim<V>` is single-type. Crewe can still adopt
-piece 2 (its 12 starters → `HoldSignal`s); a full movement migration would need a `RailSim` reverse
-capability. The *next* new level (US freight) should be laid out from the toolkit directly.
+with a 4-phase machine + fly-through expresses) where `RailSim<V>` is single-type. **Crewe is now migrated too** — a `RailSim` **`reverseSpeed`** hook was added (a bay backs out: arc-length
+decreases at the level speed, no ceiling/easing, finishing at 0), and Crewe runs its stoppers and
+fly-through expresses on **two** `RailSim` instances, with the arrive/berth/depart/reverse phase machine in
+the hooks and its 12 starters as `HoldSignal`s. **All seven bespoke levels are on RailKit.** The engine now
+spans lane-follow and body-ahead following, eased and constant-speed movement, single/two vehicle types,
+overrun, per-vehicle kinematics, resource holds, and reverse. The *next* new level (US freight) should be
+laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
