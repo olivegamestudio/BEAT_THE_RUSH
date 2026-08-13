@@ -59,8 +59,6 @@ final class DawlishStation: ObservableObject {
     @Published var expressNearDown = false
     @Published var steamNearUp = false      // the nearing through train is the steam special — label it "Special"
     @Published var steamNearDown = false
-    @Published var upHold = true      // platform starter: red holds a boarded train, green clears it to depart
-    @Published var downHold = true
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     @Published var sparkles: [Sparkle] = []
@@ -127,12 +125,27 @@ final class DawlishStation: ObservableObject {
         wMain = g.route(["dnIn", "dnOut"])
         wStop = g.route(["dnIn", "dnEpt", "dnLoopE", "dnBerth", "dnLoopW", "dnWpt", "dnOut"])
         wBerth = wStop.distanceTo(vertex: 3)
+
+        // Build each main's block-signal chain. Copy the stored props into locals so the map closures
+        // don't capture self before init completes. Order the signals in travel order (east ascending,
+        // west descending) so each can point .next at the one ahead — its block is the amber look-ahead.
+        let yUp = upMainY - 30, yDn = downMainY + 30, bl = blockLen
+        let eSigs = blockXs.sorted().map {
+            BlockSignal("bE\($0)", at: CGPoint(x: $0, y: yUp), axis: $0, forward: 1, blockLen: bl)
+        }
+        let wSigs = blockXs.sorted(by: >).map {
+            BlockSignal("bW\($0)", at: CGPoint(x: $0, y: yDn), axis: $0, forward: -1, blockLen: bl)
+        }
+        if eSigs.count > 1 { for i in 0..<eSigs.count - 1 { eSigs[i].next = eSigs[i + 1] } }
+        if wSigs.count > 1 { for i in 0..<wSigs.count - 1 { wSigs[i].next = wSigs[i + 1] } }
+        blockSignalsEast = eSigs
+        blockSignalsWest = wSigs
         spawn()
     }
 
     /// Flip a platform starter between hold (red) and clear (green).
     func toggleStarter(_ dir: Dir) {
-        if dir == .east { upHold.toggle() } else { downHold.toggle() }
+        (dir == .east ? upStarter : downStarter).toggle()
         objectWillChange.send()
     }
     /// Distance from spawn to the entry point, the same on the main and the loop (they share it).
@@ -160,35 +173,42 @@ final class DawlishStation: ObservableObject {
     var upMainBlocked: Bool { mainBlocked(.east) }
     var downMainBlocked: Bool { mainBlocked(.west) }
 
-    // Automatic block signals down each main. A signal is red while the block ahead of it holds any part of a
-    // through train, and a following train must stop at it — front tests the signal, the leader's rear clears it.
+    // --- RailKit piece 2: signals as types.
+    // Two independent platform starters — player-tappable holds. Cleared = green (the boarded train is
+    // free to pull out onto the main); held = red. The view reads `upHold`/`downHold` ("is it red?").
+    let upStarter = HoldSignal("upStart", at: .zero)
+    let downStarter = HoldSignal("dnStart", at: .zero)
+    var upHold: Bool { !upStarter.cleared }
+    var downHold: Bool { !downStarter.cleared }
+
+    // A chain of automatic three-aspect BlockSignals down each main: red while the block just ahead
+    // holds any part of a through train, amber while the next signal's block does (caution to the queue
+    // building ahead), green otherwise. The arrays are built from these positions in init.
     let blockXs: [CGFloat] = [-170, 90, 1060, 1320]
     private let blockLen: CGFloat = 250
+    let blockSignalsEast: [BlockSignal]
+    let blockSignalsWest: [BlockSignal]
     /// The x on the main of a through train's nose, given its distance.
     private func mainFrontX(_ o: DawTrain) -> CGFloat {
         o.dir == .east ? spawnL + o.dist : spawnR - o.dist
     }
-    /// The next block signal a train meets after passing the one at `x`.
-    private func nextBlockX(after x: CGFloat, _ dir: Dir) -> CGFloat? {
-        dir == .east ? blockXs.filter { $0 > x + 1 }.min() : blockXs.filter { $0 < x - 1 }.max()
-    }
-    /// A signal's aspect: 2 = red (block ahead occupied), 1 = amber (next signal red — caution), 0 = green.
+    /// A signal's stored aspect (2 red / 1 amber / 0 green), refreshed each tick by `updateBlockSignals`.
     func blockAspect(_ x: CGFloat, _ dir: Dir) -> Int {
-        if blockOccupied(x, dir) { return 2 }
-        if let nx = nextBlockX(after: x, dir), blockOccupied(nx, dir) { return 1 }
-        return 0
+        (dir == .east ? blockSignalsEast : blockSignalsWest).first { abs($0.axis - x) < 0.5 }?.aspect ?? 0
     }
-    /// Is the block just ahead of the signal at `x` occupied by a through train heading that way?
-    func blockOccupied(_ x: CGFloat, _ dir: Dir) -> Bool {
-        let east = dir == .east
-        let lo = east ? x : x - blockLen
-        let hi = east ? x + blockLen : x
-        return trains.contains { o in
+    /// Refresh every block signal from the live through-train positions in its direction.
+    private func updateBlockSignals() {
+        for s in blockSignalsEast { s.update { self.throughOccupies($0, .east) } }
+        for s in blockSignalsWest { s.update { self.throughOccupies($0, .west) } }
+    }
+    /// Whether any part of a through train heading `dir` lies within the axis range `r` on its main.
+    private func throughOccupies(_ r: ClosedRange<CGFloat>, _ dir: Dir) -> Bool {
+        trains.contains { o in
             guard !o.finished, !o.onLoop, o.dir == dir else { return false }
             let fx = mainFrontX(o)
-            let rx = east ? fx - CGFloat(o.spec.length) * Track.carUnit
-                          : fx + CGFloat(o.spec.length) * Track.carUnit
-            return min(fx, rx) <= hi && max(fx, rx) >= lo
+            let rx = dir == .east ? fx - CGFloat(o.spec.length) * Track.carUnit
+                                  : fx + CGFloat(o.spec.length) * Track.carUnit
+            return min(fx, rx) <= r.upperBound && max(fx, rx) >= r.lowerBound
         }
     }
     /// Distance a through train runs to reach the loop's junction with the main.
@@ -229,7 +249,7 @@ final class DawlishStation: ObservableObject {
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pUp = 1; pDown = 1; overUp = 0; overDown = 0; upWait = 0; downWait = 0
-        expressNearUp = false; expressNearDown = false; upHold = true; downHold = true
+        expressNearUp = false; expressNearDown = false; upStarter.cleared = false; downStarter.cleared = false
         spawnClock = 0; nextSpawn = 1.0; paxClock = 0; nextPax = 1.2
         boatActive = false; boatClock = 0; nextBoat = 5.0; gullActive = false; gullClock = 0; nextGull = 3.5
         tankerActive = false; tankerClock = 0; nextTanker = 2.0
@@ -325,6 +345,7 @@ final class DawlishStation: ObservableObject {
             }
         }
 
+        updateBlockSignals()   // refresh every block signal from the live positions before driving the trains
         let roster = trains
         for t in roster where !t.finished {
             // Every train runs the main to the point. A short local pulls into a free platform automatically;
