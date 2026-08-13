@@ -4,24 +4,19 @@ import SwiftUI
 /// that alternate in / out / in / out. Every platform can be reached from every approach, so the throat is a
 /// full ladder of points. Trains arrive on an "in" road, are routed across the throat to a free platform, call,
 /// then leave over an "out" road at the far end.
-final class BirmTrain: Identifiable {
-    let id = UUID()
-    var spec: Train
-    var path: RoutePath
+/// A RailVehicle (RailKit piece 3): the shared engine drives dist/v/railAspect/stopped and does the
+/// position-based body-ahead following through the throat; the fields here are Birmingham's own — which
+/// platform it's routed to, its berth, and its boarding state.
+final class BirmTrain: RailVehicle {
     let platform: Int
     let berthDist: CGFloat
-    var dist: CGFloat = 0
     var boarded = false
     var started = false
     var dwell = 0.0
     var load = 0.0
-    var v: CGFloat = 0
-    var stopped = 0.0
-    var finished = false
-    var railAspect = 0             // 0 green / 1 amber / 2 red — lights the track ahead to show its route
-    var carLen: CGFloat { spec.carLength }
     init(_ spec: Train, path: RoutePath, platform: Int, berth: CGFloat) {
-        self.spec = spec; self.path = path; self.platform = platform; berthDist = berth
+        self.platform = platform; berthDist = berth
+        super.init(spec: spec, path: path, lane: 0)
     }
 }
 
@@ -110,7 +105,10 @@ final class BirminghamStation: ObservableObject {
         return pts   // ends at (teeX, levelY(lvl))
     }
 
-    @Published var trains: [BirmTrain] = []
+    // --- RailKit piece 3: the shared movement engine owns the trains and does the position-based
+    // body-ahead following (see `sim.followMode` below); `trains` is a view onto its roster.
+    let sim: RailSim<BirmTrain>
+    var trains: [BirmTrain] { sim.vehicles }
     @Published var carried = 0.0
     @Published var pax: [Double]        // waiting passengers per platform
     @Published var outcome: GameOutcome = .playing
@@ -146,42 +144,47 @@ final class BirminghamStation: ObservableObject {
         pax = Array(repeating: 1, count: platformCount)
         wait = Array(repeating: 0, count: platformCount)
         over = Array(repeating: 0, count: platformCount)
+        sim = RailSim(kin: RailKinematics(speedCap: baseSpeed, accel: 100, decel: 170, followGap: Track.carUnit * 0.7))
+        // The throat is a full ladder of weaving roads, so trains follow by body position, not by lane.
+        sim.followMode = .bodyAhead(reach: 110, clear: Track.carUnit * 0.8)
+        configureSim()
         spawn()
+    }
+
+    /// Wire Birmingham's rules into the shared engine. Body-ahead following is the engine's job (followMode
+    /// above); the level only holds a train at its berth until it's boarded, boards it, and overruns the end.
+    private func configureSim() {
+        sim.overrun = { CGFloat($0.spec.length) * Track.carUnit }
+        sim.ceiling = { t, _ in t.boarded ? .infinity : t.berthDist }
+        sim.onAdvance = { [weak self] t, dt in self?.serveBoarding(t, dt) }
+        sim.isFinished = { $0.dist >= $0.path.total + CGFloat($0.spec.length) * Track.carUnit }
+    }
+
+    /// Board a train while it stands at its berth, topping up the platform's waiting count until it pulls away.
+    private func serveBoarding(_ t: BirmTrain, _ dt: Double) {
+        guard t.dist >= t.berthDist - 0.5, t.dist <= t.berthDist + Track.carUnit * 0.3 else { return }
+        if !t.started {
+            t.started = true; t.dwell = dwellTime; wait[t.platform] = 0
+            Sound.shared.play(.board)
+        }
+        t.dwell -= dt
+        let cap = Double(t.spec.length) * perCar
+        if t.load < cap && pax[t.platform] > 0 {
+            let take = min(boardOffRate * dt, min(cap - t.load, pax[t.platform]))
+            let before = pax[t.platform]
+            pax[t.platform] = max(0, pax[t.platform] - take)
+            if Int(before) != Int(pax[t.platform]) {
+                let k = Int(pax[t.platform])
+                sparkles.append(Sparkle(x: platL + 20 + CGFloat(k) * 14, y: platformY(t.platform) - 20))
+            }
+            t.load += take; carried += take
+        }
+        if t.dwell <= 0 { t.boarded = true }
     }
 
     /// Is a platform free to route a fresh train into?
     private func platformFree(_ i: Int) -> Bool {
         !trains.contains { !$0.finished && $0.platform == i }
-    }
-
-    /// The furthest `t` may advance before its nose closes within a car's clearance of any train physically
-    /// ahead of it — anywhere its body crosses `t`'s road, whatever platform it's for. "Ahead" is decided by
-    /// progress (ties broken by id) so a crossing move always has a clear winner and never freezes. Comparing
-    /// real positions is what stops trains overlapping where the throat roads weave across each other.
-    private func aheadCeiling(_ t: BirmTrain, _ roster: [BirmTrain], reach: CGFloat) -> CGFloat {
-        let clear = Track.carUnit * 0.8
-        var d = t.dist + 7
-        let end = t.dist + reach
-        while d <= end {
-            let p = t.path.sample(d).p
-            for o in roster where o !== t && !o.finished {
-                let oAhead = o.dist > t.dist || (o.dist == t.dist && o.id.hashValue > t.id.hashValue)
-                if oAhead && bodyNear(o, p, within: clear) { return d - 7 }
-            }
-            d += 7
-        }
-        return .infinity
-    }
-    /// True if any point along `o`'s body (nose back to tail) lies within `r` of `p`.
-    private func bodyNear(_ o: BirmTrain, _ p: CGPoint, within r: CGFloat) -> Bool {
-        var d = o.dist
-        let tail = o.dist - o.carLen
-        while d >= tail {
-            let q = o.path.sample(d).p
-            if hypot(q.x - p.x, q.y - p.y) < r { return true }
-            d -= 18
-        }
-        return false
     }
 
     private func spawn() {
@@ -220,11 +223,11 @@ final class BirminghamStation: ObservableObject {
         }
         let path = RoutePath(pts)
         let berth = (path.distanceTo(vertex: li) + path.distanceTo(vertex: ri)) / 2   // mid-platform
-        trains.append(BirmTrain(spec, path: path, platform: plat, berth: berth))
+        sim.vehicles.append(BirmTrain(spec, path: path, platform: plat, berth: berth))
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
+        sim.vehicles = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pax = Array(repeating: 1, count: platformCount)
         wait = Array(repeating: 0, count: platformCount)
         over = Array(repeating: 0, count: platformCount)
@@ -235,7 +238,6 @@ final class BirminghamStation: ObservableObject {
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let gap = Track.carUnit * 0.7
 
         animT += dt
         for i in 0..<platformCount { wait[i] = pax[i] >= 1 ? wait[i] + dt : 0 }
@@ -254,48 +256,10 @@ final class BirminghamStation: ObservableObject {
             nextSpawn = Double.random(in: def.spawnRange.lowerBound...(def.spawnRange.upperBound * 1.2))
         }
 
-        let roster = trains
-        for t in roster where !t.finished {
-            let overrun = CGFloat(t.spec.length) * Track.carUnit
-            var ceiling = t.path.total + overrun
-            if !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            // Hold clear of any train whose body lies across the road ahead — wherever the throat roads weave,
-            // not just on the same platform — so crossing moves never overlap.
-            let block = aheadCeiling(t, roster, reach: 110)
-            if block.isFinite { ceiling = min(ceiling, block - gap) }
+        // RailKit piece 3: the shared engine drives everyone — body-ahead following through the throat,
+        // route-lighting, and (via the hooks) the berth hold and boarding.
+        sim.step(dt)
 
-            let headroom = max(0, ceiling - t.dist)
-            let accel: CGFloat = 100, decel: CGFloat = 170
-            let target = min(baseSpeed, sqrt(2 * decel * headroom))
-            if t.v < target { t.v = min(target, t.v + accel * CGFloat(dt)) }
-            else { t.v = max(target, t.v - decel * CGFloat(dt)) }
-            t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
-            t.stopped = t.v < 5 ? t.stopped + dt : 0
-            // Light the road ahead so each shuffle out to a platform and back reads at a glance.
-            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
-
-            if t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
-                if !t.started {
-                    t.started = true; t.dwell = dwellTime; wait[t.platform] = 0
-                    Sound.shared.play(.board)
-                }
-                t.dwell -= dt
-                let cap = Double(t.spec.length) * perCar
-                if t.load < cap && pax[t.platform] > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, pax[t.platform]))
-                    let before = pax[t.platform]
-                    pax[t.platform] = max(0, pax[t.platform] - take)
-                    if Int(before) != Int(pax[t.platform]) {
-                        let k = Int(pax[t.platform])
-                        sparkles.append(Sparkle(x: platL + 20 + CGFloat(k) * 14, y: platformY(t.platform) - 20))
-                    }
-                    t.load += take; carried += take
-                }
-                if t.dwell <= 0 { t.boarded = true }
-            }
-            if t.dist >= t.path.total + overrun { t.finished = true }
-        }
-        trains.removeAll { $0.finished }
         for i in sparkles.indices { sparkles[i].age += dt }
         sparkles.removeAll { $0.age > sparkleLife }
 

@@ -48,11 +48,23 @@ struct RailKinematics {
     }
 }
 
+/// How a vehicle keeps clear of the ones ahead. `.lane` — queue behind the nearest train on the same
+/// lane (simple parallel running: Saltash's approaches, Newark's two lines, …). `.bodyAhead` — hold clear
+/// of any train whose *body* lies across the road just ahead, wherever the throat roads weave across each
+/// other (crossing moves through a full ladder: Birmingham, Crewe); `reach` is how far to look ahead,
+/// `clear` the clearance kept from another train's body.
+enum FollowMode {
+    case lane
+    case bodyAhead(reach: CGFloat, clear: CGFloat)
+}
+
 /// The engine. Owns the trains, advances them each tick, and calls the level's hooks. Generic over
 /// the vehicle type so a level gets its own train class back from `vehicles`, fully typed.
 final class RailSim<V: RailVehicle> {
     var vehicles: [V] = []
     var kin: RailKinematics
+    /// How following is resolved — lane-queue (default) or position-based body-ahead for weaving throats.
+    var followMode: FollowMode = .lane
 
     /// Extra movement authority from the level: the furthest arc-length `t` may reach given the
     /// current roster — held signals, a bridge/crossing resource, a platform berth, and so on. The
@@ -66,6 +78,10 @@ final class RailSim<V: RailVehicle> {
     /// Extra arc-length a vehicle may run past the end of its path before finishing, so a long train's
     /// tail clears the visible end rather than the whole set vanishing at once. Defaults to 0.
     var overrun: ((V) -> CGFloat)?
+    /// A vehicle backing out: return its reverse speed (> 0) and its arc-length *decreases* at that speed
+    /// this tick — no ceiling or easing — finishing when it reaches 0 (a terminating bay reversing out of
+    /// the platform it arrived on). Return 0 for normal forward running.
+    var reverseSpeed: ((V) -> CGFloat)?
     /// Run after a vehicle has advanced this tick: boarding, grabbing or freeing a resource, …
     var onAdvance: ((V, Double) -> Void)?
     /// Has this vehicle finished its run? Defaults to "its head reached the end of its path".
@@ -78,16 +94,60 @@ final class RailSim<V: RailVehicle> {
     /// The built-in following limit: the tail of the nearest train ahead on the same lane, less the
     /// follow gap — so a train never runs into the back of the one in front on its own road.
     private func followCeiling(_ t: V, _ roster: [V], _ k: RailKinematics) -> CGFloat {
-        var aheadTail = CGFloat.infinity
-        for o in roster where o !== t && !o.finished && o.lane == t.lane && o.dist > t.dist {
-            aheadTail = min(aheadTail, o.dist - o.carLen)
+        switch followMode {
+        case .lane:
+            var aheadTail = CGFloat.infinity
+            for o in roster where o !== t && !o.finished && o.lane == t.lane && o.dist > t.dist {
+                aheadTail = min(aheadTail, o.dist - o.carLen)
+            }
+            return aheadTail.isFinite ? aheadTail - k.followGap : .infinity
+        case .bodyAhead(let reach, let clear):
+            let d = bodyAheadCeiling(t, roster, reach: reach, clear: clear)
+            return d.isFinite ? d - k.followGap : .infinity
         }
-        return aheadTail.isFinite ? aheadTail - k.followGap : .infinity
+    }
+
+    /// Walk forward along `t`'s own road; return the arc-length at which its nose first closes within
+    /// `clear` of any train physically ahead of it (by progress, ties broken by id) — whatever road or
+    /// platform that train is heading for. Comparing real positions is what stops trains overlapping where
+    /// the throat roads weave across each other. `.infinity` if the road is clear for `reach`.
+    private func bodyAheadCeiling(_ t: V, _ roster: [V], reach: CGFloat, clear: CGFloat) -> CGFloat {
+        var d = t.dist + 7
+        let end = t.dist + reach
+        while d <= end {
+            let p = t.path.sample(d).p
+            for o in roster where o !== t && !o.finished {
+                let oAhead = o.dist > t.dist || (o.dist == t.dist && o.id.hashValue > t.id.hashValue)
+                if oAhead && bodyNear(o, p, within: clear) { return d - 7 }
+            }
+            d += 7
+        }
+        return .infinity
+    }
+    /// True if any point along `o`'s body (nose back to tail) lies within `r` of `p`.
+    private func bodyNear(_ o: V, _ p: CGPoint, within r: CGFloat) -> Bool {
+        var d = o.dist
+        let tail = o.dist - o.carLen
+        while d >= tail {
+            let q = o.path.sample(d).p
+            if hypot(q.x - p.x, q.y - p.y) < r { return true }
+            d -= 18
+        }
+        return false
     }
 
     func step(_ dt: Double) {
         let roster = vehicles
         for t in roster where !t.finished {
+            // Backing out: arc-length decreases at the level's reverse speed, no ceiling or easing.
+            if let rs = reverseSpeed?(t), rs > 0 {
+                t.v = 0
+                t.dist = max(0, t.dist - rs * CGFloat(dt))
+                t.railAspect = 0
+                onAdvance?(t, dt)
+                if t.dist <= 0 { t.finished = true; onFinish?(t) }
+                continue
+            }
             let k = kinematics?(t) ?? kin                       // this vehicle's feel (may differ per stock)
             let end = t.path.total + (overrun?(t) ?? 0)         // it may run a little past the path end
             // How far the train is allowed to reach: the end of its road, the train ahead, the level.

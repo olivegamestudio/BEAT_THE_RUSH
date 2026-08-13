@@ -29,47 +29,41 @@ struct CrewePlat {
     var lineY: CGFloat { lineOverride ?? y }   // where a train actually stands — the slab is just alongside it
 }
 
-final class CreweTrain: Identifiable {
-    let id = UUID()
-    var spec: Train
+/// A RailVehicle (RailKit piece 3): the shared engine drives dist/v/railAspect/stopped and (via a reverse
+/// hook) backs a bay out; the fields here are Crewe's own — its target platform, berth, boarding state, and
+/// the arrive→berth→depart/reverse phase machine the level runs in the engine hooks.
+final class CreweTrain: RailVehicle {
     var target: Int
-    var path: RoutePath
     var berthDist: CGFloat = 0
-    var dist: CGFloat = 0
     var committed = false
     var boarded = false
     var started = false
     var dwell = 0.0
     var load = 0.0
-    var v: CGFloat = 0
-    var stopped = 0.0
     var spawnedNext = false
     var entryLen: CGFloat = 0       // distance from the east spawn to the platform's east end
     var turnoutDist: CGFloat = 0    // distance to the entry turnout, where a red platform signal holds it
-    var railAspect = 0
-    var finished = false
     var isBay = false               // a terminating bay service: it reverses back out the way it came in
     var owningReverse = false       // holds the top-throat reservation while it backs out
     enum Phase { case arriving, berthed, departing, reversing }
     var phase: Phase = .arriving
-    var carLen: CGFloat { spec.carLength }
-    init(_ spec: Train, target: Int, _ path: RoutePath) { self.spec = spec; self.target = target; self.path = path }
+    init(_ spec: Train, target: Int, _ path: RoutePath, lane: Int) {
+        self.target = target
+        super.init(spec: spec, path: path, lane: lane)
+    }
 }
 
-/// A fly-through express — it runs the full length of one of the two fast lines and never stops. It shares
-/// no track with the platform traffic, so it just streaks across the middle at speed.
-final class CreweExpress: Identifiable {
-    let id = UUID()
-    var spec: Train
+/// A fly-through express (a RailVehicle) — it runs the full length of one of the two fast lines and never
+/// stops. It shares no track with the platform traffic, so it just streaks across the middle at speed on
+/// its own RailSim.
+final class CreweExpress: RailVehicle {
     let line: CGFloat
-    var path: RoutePath
-    var dist: CGFloat = 0
-    var v: CGFloat = 0
     var goingEast = true            // true = runs west→east (top fast); false = east→west (bottom fast)
     var joinDist: CGFloat = .infinity  // distance at which its nose reaches the exit-mouth join
-    var finished = false
-    var carLen: CGFloat { spec.carLength }
-    init(_ spec: Train, line: CGFloat, _ path: RoutePath) { self.spec = spec; self.line = line; self.path = path }
+    init(_ spec: Train, line: CGFloat, _ path: RoutePath, lane: Int) {
+        self.line = line
+        super.init(spec: spec, path: path, lane: lane)
+    }
 }
 
 @MainActor
@@ -95,11 +89,20 @@ final class CreweStation: ObservableObject {
     /// directly — their people board the train standing on the shared line.
     var servedIds: Set<Int> { Set(throughIds + bayIds) }
 
-    @Published var trains: [CreweTrain] = []
-    @Published var expresses: [CreweExpress] = []
+    // --- RailKit piece 3: two shared engines own the vehicles — one for the stoppers (with the reverse
+    // hook for backing bays out), one for the fly-through expresses. `trains`/`expresses` view their rosters.
+    let sim: RailSim<CreweTrain>
+    let expressSim: RailSim<CreweExpress>
+    var trains: [CreweTrain] { sim.vehicles }
+    var expresses: [CreweExpress] { expressSim.vehicles }
+    private var laneSeq = 0        // unique lanes: Crewe does its own body-ahead / same-target following in hooks
+    private var pendingSpawns = 0  // arrivals that cleared the platform east end, spawned after the step
     @Published var carried = 0.0
     @Published var passengers: [Double]
-    @Published var platformHeld: [Bool]              // each platform's starter: true = red, holds the boarded train
+    // --- RailKit piece 2: each platform's starter is a HoldSignal (cleared = green, sends the boarded train;
+    // held = red). `platformHeld` reads them so the view and rules are unchanged.
+    let starters: [HoldSignal] = (0..<12).map { HoldSignal("start\($0)", at: .zero, cleared: true) }
+    var platformHeld: [Bool] { starters.map { !$0.cleared } }
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     @Published var sparkles: [Sparkle] = []
@@ -174,12 +177,117 @@ final class CreweStation: ObservableObject {
             CrewePlat(id: 12, y: 652, xL: L,    xR: R,    kind: .through, slabAbove: false, ownsLine: false, lineOverride: 606),  // bottom face of the single line
         ]
         passengers = Self.seededCrowd()
-        platformHeld = Array(repeating: false, count: 12)
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
+        // Stoppers run at a flat speed (huge accel/decel make the eased engine behave like the old fixed
+        // step); expresses ease briskly. Body-ahead / same-target following is done in the hooks, so each
+        // vehicle gets a unique lane and the built-in lane-follow stays out of the way.
+        sim = RailSim(kin: RailKinematics(speedCap: baseSpeed, accel: 100000, decel: 100000, followGap: Track.carUnit * 0.6))
+        expressSim = RailSim(kin: RailKinematics(speedCap: expressSpeed, accel: 300, decel: 520))
         platEntryLen = plats.indices.map { entryLenOf(routeInto($0), $0) }
         platTurnoutLen = plats.indices.map { turnoutLenOf(routeInto($0), $0) }
+        configureSim()
         spawn()
+    }
+
+    /// Wire Crewe's rules into the two engines. The stoppers run a phase machine (arrive → berth →
+    /// depart, or bays reverse out) via the hooks; the expresses just hold at their join and run off the end.
+    private func configureSim() {
+        let gap = Track.carUnit * 0.6
+        let step = baseSpeed / 33.0          // ~one tick's advance, for the next-step body-proximity check
+        sim.overrun = { $0.phase == .departing ? $0.spec.carLength : 0 }
+        // Bays reverse out (arc-length decreases) briskly once dispatched; everything else runs forward.
+        sim.reverseSpeed = { [weak self] t in
+            (t.phase == .reversing ? (self?.baseSpeed ?? 86) * 1.35 : 0)
+        }
+        sim.ceiling = { [weak self] t, roster in
+            guard let self else { return .infinity }
+            switch t.phase {
+            case .arriving:
+                var c = t.berthDist
+                // Hold at the red point light out at the entry turnout rather than running onto an occupied road.
+                if t.dist < t.turnoutDist && self.platformOccupied(t.target) { c = min(c, t.turnoutDist - gap) }
+                // Hold clear of any train whose body lies across the road just ahead (real positions, so it
+                // holds across merges) — a hard stop, like the old blockedAhead.
+                if self.blockedAhead(t, at: min(t.dist + step, c), roster: roster) { c = min(c, t.dist) }
+                return c
+            case .berthed:
+                return t.dist               // frozen at the berth while it boards
+            case .departing:
+                var c = CGFloat.infinity    // runs off the west end (via overrun)
+                for o in roster where o !== t && !o.finished && o.target == t.target && o.dist > t.dist {
+                    c = min(c, o.dist - o.spec.carLength - gap)
+                }
+                return c
+            case .reversing:
+                return .infinity            // the reverse hook drives it
+            }
+        }
+        sim.onAdvance = { [weak self] t, dt in self?.advanceTrain(t, dt) }
+        sim.isFinished = { $0.phase == .departing && $0.dist >= $0.path.total + $0.spec.carLength }
+        sim.onFinish = { [weak self] t in
+            if t.owningReverse { self?.reverseActive = false; t.owningReverse = false }
+        }
+
+        // The expresses: ease at fast-line speed, hold at the slow→fast join if a stopper is feeding across,
+        // and run off the far end. They share no track, so no following.
+        expressSim.overrun = { $0.spec.carLength }
+        expressSim.kinematics = { [weak self] _ in
+            RailKinematics(speedCap: self?.expressSpeed ?? 550, accel: 300, decel: 520)
+        }
+        expressSim.ceiling = { [weak self] e, _ in
+            guard let self else { return .infinity }
+            if e.dist < e.joinDist && self.joinOccupied(fastLine: e.line, east: e.goingEast) {
+                return e.joinDist - gap
+            }
+            return .infinity
+        }
+        expressSim.isFinished = { $0.dist >= $0.path.total + $0.spec.carLength }
+    }
+
+    /// The stopper phase machine, run each tick after the engine has moved the train.
+    private func advanceTrain(_ t: CreweTrain, _ dt: Double) {
+        switch t.phase {
+        case .arriving:
+            if !t.spawnedNext && t.dist >= t.entryLen { t.spawnedNext = true; pendingSpawns += 1 }
+            if t.dist >= t.berthDist - 0.5 {
+                t.dist = t.berthDist; t.phase = .berthed; t.stopped = 0
+                for f in facesOnLine(t.target) { waitClock[f] = 0 }
+                t.dwell = dwellTime
+                Sound.shared.play(.board)
+            }
+        case .berthed:
+            if t.dwell > 0 { t.dwell -= dt }
+            serveBoarding(t, dt)
+            t.railAspect = platformHeld[t.target] ? 2 : 0     // starter red holds it; green sends it away
+            if t.dwell <= 0 && !platformHeld[t.target] {
+                if t.isBay {
+                    // Claim the top throat, then reverse once the line ahead is clear.
+                    if !reverseActive { reverseActive = true; t.owningReverse = true }
+                    if t.owningReverse && topSlowClear(except: t) { t.phase = .reversing; Sound.shared.play(.depart) }
+                } else {
+                    t.phase = .departing; Sound.shared.play(.depart)
+                }
+            }
+        case .departing, .reversing:
+            break
+        }
+    }
+
+    /// Board from whichever face of a berthed train's line has the most waiting.
+    private func serveBoarding(_ t: CreweTrain, _ dt: Double) {
+        let cap = Double(t.spec.length) * perCar
+        let faces = facesOnLine(t.target)
+        if t.load < cap, let face = faces.max(by: { passengers[$0] < passengers[$1] }), passengers[face] > 0 {
+            let take = min(boardOffRate * dt, min(cap - t.load, passengers[face]))
+            let before = passengers[face]
+            passengers[face] = max(0, passengers[face] - take)
+            if Int(before) != Int(passengers[face]) {
+                let k = Int(passengers[face])
+                sparkles.append(Sparkle(x: plats[face].xL + 120 + CGFloat(k) * 15, y: plats[face].y + 24))
+            }
+            t.load += take; carried += take
+        }
     }
 
     /// The path-distance to a platform's west end — a train has cleared the platform once its tail passes here.
@@ -332,18 +440,19 @@ final class CreweStation: ObservableObject {
     }
 
     func reset() {
-        trains = []; expresses = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0
+        sim.vehicles = []; expressSim.vehicles = []; laneSeq = 0; pendingSpawns = 0
+        carried = 0; outcome = .playing; stars = 0; peakFill = 0
         passengers = Self.seededCrowd()
         waitClock = Array(repeating: 0, count: 12)
         overflowClock = Array(repeating: 0, count: 12)
-        platformHeld = Array(repeating: false, count: 12); sparkles = []; animT = 0
+        for s in starters { s.cleared = true }; sparkles = []; animT = 0
         spawnClock = 0; nextSpawn = 1; paxClock = 0; nextPax = 1; routeCursor = 0
         expressClock = 0; nextExpress = 3; expressOnTop = true; reverseActive = false
         spawn()
         objectWillChange.send()
     }
 
-    func toggleStarter(_ i: Int) { platformHeld[i].toggle(); objectWillChange.send() }
+    func toggleStarter(_ i: Int) { starters[i].toggle(); objectWillChange.send() }
 
     /// The top throat is signalled against (point lights red) while a bay reverses out over its slow line.
     func topReserved(_ i: Int) -> Bool { reverseActive && isTopSlow(i) }
@@ -365,14 +474,15 @@ final class CreweStation: ObservableObject {
         let len = def.trainLengths.randomElement() ?? 4
         let spec = Train(length: len, tint: trainPalette.randomElement() ?? .blue, name: "")
         let path = routeInto(target)
-        let t = CreweTrain(spec, target: target, path)
+        laneSeq += 1
+        let t = CreweTrain(spec, target: target, path, lane: laneSeq)
         t.isBay = isBay
         t.entryLen = platEntryLen[target]
         t.turnoutDist = platTurnoutLen[target]
         // A through train pulls in along the platform; a bay runs right up to its buffer stand (path end).
         t.berthDist = isBay ? path.total : t.entryLen + (xSR - (pl.xL + 180))
         t.committed = true
-        trains.append(t)
+        sim.vehicles.append(t)
     }
 
     /// Send a fly-through express down one of the fast lines. UK trains keep to the left, so the top line
@@ -383,11 +493,12 @@ final class CreweStation: ObservableObject {
         let pts = onTop ? [CGPoint(x: xW, y: line), CGPoint(x: xE, y: line)]
                         : [CGPoint(x: xE, y: line), CGPoint(x: xW, y: line)]
         let spec = Train(length: Int.random(in: 6...8), tint: Color(red: 0.84, green: 0.86, blue: 0.92), name: "")
-        let e = CreweExpress(spec, line: line, RoutePath(pts))
+        laneSeq += 1
+        let e = CreweExpress(spec, line: line, RoutePath(pts), lane: laneSeq)
         e.v = expressSpeed                          // already at line speed as it enters
         e.goingEast = onTop
         e.joinDist = onTop ? (xEMouth - xW) : (xE - xWMouth)   // nose → its exit-mouth join
-        expresses.append(e)
+        expressSim.vehicles.append(e)
     }
 
     /// A slow→fast join is occupied while a stopper is in that throat mouth on the paired slow line — an
@@ -407,8 +518,6 @@ final class CreweStation: ObservableObject {
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let step = baseSpeed * CGFloat(dt)
-        let gap = Track.carUnit * 0.6
         animT += dt
         for i in passengers.indices { waitClock[i] = passengers[i] > 0 ? waitClock[i] + dt : 0 }
 
@@ -433,100 +542,14 @@ final class CreweStation: ObservableObject {
             spawnExpress()
             nextExpress = Double.random(in: 4.0...9.0)
         }
-        let eDecel: CGFloat = 520, eAccel: CGFloat = 300
-        for e in expresses where !e.finished {
-            var ceiling = e.path.total + e.carLen
-            // hold at the join if a stopper is feeding across the fast line there
-            if e.dist < e.joinDist && joinOccupied(fastLine: e.line, east: e.goingEast) {
-                ceiling = min(ceiling, e.joinDist - gap)
-            }
-            let headroom = max(0, ceiling - e.dist)
-            let target = min(expressSpeed, sqrt(2 * eDecel * headroom))   // brake hard — a proper screech
-            if e.v < target { e.v = min(target, e.v + eAccel * CGFloat(dt)) }
-            else { e.v = max(target, e.v - eDecel * CGFloat(dt)) }
-            e.dist = min(e.dist + e.v * CGFloat(dt), ceiling)
-            if e.dist >= e.path.total + e.carLen { e.finished = true }
-        }
-        if expresses.contains(where: { $0.finished }) { expresses.removeAll { $0.finished } }
+        // RailKit piece 3: run the two engines — the expresses on the fast lines, then the stoppers' phase
+        // machine (arrive → berth → depart, or a bay reverses out) driven through the hooks. Arrivals that
+        // cleared the platform east end queued a fresh spawn; make those after the step.
+        expressSim.step(dt)
+        sim.step(dt)
+        for _ in 0..<pendingSpawns { spawn() }
+        pendingSpawns = 0
 
-        let roster = trains
-        var spawnCount = 0
-        for idx in roster.indices {
-            let t = roster[idx]
-            guard !t.finished else { continue }
-            switch t.phase {
-            case .arriving:
-                var ceiling = t.berthDist
-                // Obey the platform's own signal: if its road is occupied, hold at the red point light out
-                // at the entry turnout instead of running on past it onto the platform.
-                if t.dist < t.turnoutDist && platformOccupied(t.target) {
-                    ceiling = min(ceiling, t.turnoutDist - gap)
-                }
-                // Hold clear of any train physically ahead — wherever its body crosses our path, whatever
-                // its target. "Ahead" is decided by progress so a merge always has a clear winner (never a
-                // stand-off), and the check is on real positions so a train peeling off to its platform can't
-                // be overrun by the one behind it.
-                if blockedAhead(t, at: min(t.dist + step, ceiling), roster: roster) {
-                    ceiling = min(ceiling, t.dist)
-                }
-                let next = min(t.dist + step, ceiling)
-                t.stopped = next < t.dist + step - 0.01 && ceiling < t.berthDist ? t.stopped + dt : 0
-                t.dist = max(t.dist, next)
-                t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.berthDist - 1)
-                if !t.spawnedNext && t.dist >= t.entryLen { t.spawnedNext = true; spawnCount += 1 }
-                if t.dist >= t.berthDist {
-                    t.dist = t.berthDist; t.phase = .berthed; t.stopped = 0
-                    for f in facesOnLine(t.target) { waitClock[f] = 0 }; t.dwell = dwellTime
-                    Sound.shared.play(.board)
-                }
-            case .berthed:
-                if t.dwell > 0 { t.dwell -= dt }
-                let cap = Double(t.spec.length) * perCar
-                // Board from whichever face of this line has the most waiting — an island platform draws from
-                // both its faces, so the passengers standing on the far face clear too.
-                let faces = facesOnLine(t.target)
-                if t.load < cap, let face = faces.max(by: { passengers[$0] < passengers[$1] }), passengers[face] > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, passengers[face]))
-                    let before = passengers[face]
-                    passengers[face] = max(0, passengers[face] - take)
-                    if Int(before) != Int(passengers[face]) {
-                        let k = Int(passengers[face])
-                        sparkles.append(Sparkle(x: plats[face].xL + 120 + CGFloat(k) * 15, y: plats[face].y + 24))
-                    }
-                    t.load += take; carried += take
-                }
-                t.railAspect = platformHeld[t.target] ? 2 : 0     // starter red holds it; green sends it away
-                if t.dwell <= 0 && !platformHeld[t.target] {
-                    if t.isBay {
-                        // Claim the top throat, then reverse once the line ahead is clear — the point lights
-                        // hold the arriving trains off while it backs out.
-                        if !reverseActive { reverseActive = true; t.owningReverse = true }
-                        if t.owningReverse && topSlowClear(except: t) { t.phase = .reversing; Sound.shared.play(.depart) }
-                    } else {
-                        t.phase = .departing; Sound.shared.play(.depart)
-                    }
-                }
-            case .departing:
-                var ceiling = t.path.total + t.spec.carLength
-                for o in roster where o !== t && !o.finished && o.target == t.target && o.dist > t.dist {
-                    ceiling = min(ceiling, o.dist - o.spec.carLength - gap)
-                }
-                t.dist = max(t.dist, min(t.dist + step, ceiling))
-                t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
-                if t.dist >= t.path.total + t.spec.carLength { t.finished = true }
-            case .reversing:
-                // Back out east, the way it came, down to the spawn. The reservation keeps the road its own,
-                // so run it out briskly to give the throat back.
-                t.dist = max(0, t.dist - step * 1.35)
-                t.railAspect = 0
-                if t.dist <= 0 {
-                    t.finished = true
-                    if t.owningReverse { reverseActive = false; t.owningReverse = false }
-                }
-            }
-        }
-        if roster.contains(where: { $0.finished }) { trains.removeAll { $0.finished } }
-        for _ in 0..<spawnCount { spawn() }
         for i in sparkles.indices { sparkles[i].age += dt }
         sparkles.removeAll { $0.age > sparkleLife }
 

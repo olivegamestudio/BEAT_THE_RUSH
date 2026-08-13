@@ -319,12 +319,26 @@ on Saltash** (the first level composed on it — see [[Saltash (1)]]), and **Daw
 Foregate Street are now fully migrated onto it too** (pieces 1–3, each in three verified steps: track
 graph → typed signals → movement engine). Dawlish drove the per-vehicle-kinematics and overrun additions
 to piece 3 below; Worcester models its player-granted single line as a three-way `HoldGroup` (like
-Saltash's bridge) and its Platform 2 approach queue as a `BlockSignal` chain. **Lostwithiel has adopted
-pieces 1 & 2** (RailGraph lanes/crossovers; two `HoldSignal` route lights + two `BlockSignal` filter
-chains) but keeps its **bespoke constant-speed tick and scripted breakdown/rescue** for now — its
-no-easing movement model doesn't map cleanly onto `RailSim`'s eased engine. Still fully legacy:
-Birmingham, Newark, Crewe (crossing levels — they need the position-based body-ahead follow mode). The
-*next* new level (US freight) should be laid out from the toolkit directly.
+Saltash's bridge) and its Platform 2 approach queue as a `BlockSignal` chain. **Lostwithiel is now fully
+migrated too** (pieces 1–3): RailGraph lanes/crossovers; two `HoldSignal` route lights + two `BlockSignal`
+filter chains; and its movement on `RailSim` with the scripted breakdown/rescue in the hooks. Lostwithiel
+is constant-speed (no easing), which it keeps by giving the sim **huge accel/decel (100000)** so the eased
+step behaves like the old fixed-step move (full speed until the ceiling, then a hard stop) — proving the
+engine spans both eased and constant-speed levels. **Newark is fully migrated too** (pieces 1–3): its two
+lines are `RailSim` lanes (built-in lane-follow), its four entry/starter lights are `HoldSignal`s, and the
+flat crossing is a single-occupancy resource in the `ceiling` hook — it turned out *not* to need
+body-ahead (the lines meet at one point). **Birmingham is migrated too** (piece 3): it has no player signals
+and algorithmic ladder paths, so it's movement-only on `RailSim` using the new **`FollowMode.bodyAhead`**
+(the reusable position-based follow, lifted from Birmingham's old `aheadCeiling`/`bodyNear` into the
+engine). **Only Crewe is left**, and it does **not** fit `RailSim`'s movement model: its bay services
+*reverse* out (arc-length decreases — the engine only advances), and it runs two vehicle types (stoppers
+with a 4-phase machine + fly-through expresses) where `RailSim<V>` is single-type. **Crewe is now migrated too** — a `RailSim` **`reverseSpeed`** hook was added (a bay backs out: arc-length
+decreases at the level speed, no ceiling/easing, finishing at 0), and Crewe runs its stoppers and
+fly-through expresses on **two** `RailSim` instances, with the arrive/berth/depart/reverse phase machine in
+the hooks and its 12 starters as `HoldSignal`s. **All seven bespoke levels are on RailKit.** The engine now
+spans lane-follow and body-ahead following, eased and constant-speed movement, single/two vehicle types,
+overrun, per-vehicle kinematics, resource holds, and reverse. The *next* new level (US freight) should be
+laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
