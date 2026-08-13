@@ -354,17 +354,10 @@ struct SaltashView: View {
             HStack(spacing: 10) { HapticsButton(); MuteButton() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
-            // score bottom-left
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("\(Int(station.carried))")
-                    .font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
-                Text("people").font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(white: 0.72))
-            }
-            .shadow(color: .black.opacity(0.75), radius: 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.horizontal, 34).padding(.bottom, 26)
+            // score bottom-left — a rolling ticker with a little crowd above it
+            ScoreTicker(count: Int(station.carried), goal: station.def.goal)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.horizontal, 34).padding(.bottom, 26)
 
             // name + county bottom-right
             VStack(alignment: .trailing, spacing: 2) {

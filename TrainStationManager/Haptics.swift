@@ -31,11 +31,11 @@ final class Haptics {
     func fire(for fx: Sound.FX) {
         guard enabled else { return }
         switch fx {
-        case .tap:  transient(intensity: 1.0, sharpness: 0.9)   // throwing a signal — a firm knock
-        case .ui:   transient(intensity: 0.6, sharpness: 0.4)   // menu / tile presses
-        case .win:  transient(intensity: 0.9, sharpness: 0.6)
-        case .lose: transient(intensity: 1.0, sharpness: 0.2)   // a duller thud
-        default:    break                                       // board/depart/ding/star: no buzz
+        case .tap:  transient(intensity: 0.55, sharpness: 0.55)  // throwing a signal — a light tick
+        case .ui:   transient(intensity: 0.4, sharpness: 0.35)   // menu / tile presses
+        case .win:  transient(intensity: 0.7, sharpness: 0.5)
+        case .lose: transient(intensity: 0.7, sharpness: 0.2)    // a duller thud
+        default:    break                                        // board/depart/ding/star: no buzz
         }
     }
 
@@ -56,7 +56,7 @@ final class Haptics {
             }
         }
         let run = {
-            let g = UIImpactFeedbackGenerator(style: .rigid); g.prepare(); g.impactOccurred(intensity: CGFloat(intensity))
+            let g = UIImpactFeedbackGenerator(style: .soft); g.prepare(); g.impactOccurred(intensity: CGFloat(intensity))
         }
         Thread.isMainThread ? run() : DispatchQueue.main.async(execute: run)
     }
