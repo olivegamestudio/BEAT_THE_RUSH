@@ -48,7 +48,6 @@ struct SaltashView: View {
                     func S(_ p: CGPoint) -> CGPoint { project(p, scale: sc, size: size) }
                     drawRelief(ctx, sc, size)
                     drawContours(ctx, sc, size)
-                    drawRiver(ctx, sc, size, S)
                     drawRails(ctx, sc, S)
                     drawRouteLights(ctx, sc, S)                     // green/amber/red road ahead of each train
                     drawPlatforms(ctx, sc, S)                       // slabs sit behind the trains
@@ -140,17 +139,6 @@ struct SaltashView: View {
 
     // MARK: the River Tamar — a vertical band the bridge crosses
 
-    /// Ripples on the river — the water colour itself now comes from the relief.
-    private func drawRiver(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
-        let s = station
-        let x0 = S(CGPoint(x: s.riverL, y: 0)).x, x1 = S(CGPoint(x: s.riverR, y: 0)).x
-        for k in 0..<9 {
-            let ry = (30 + CGFloat(k) * 60) * sc
-            var wave = Path(); wave.move(to: CGPoint(x: x0 + 12 * sc, y: ry))
-            wave.addLine(to: CGPoint(x: x1 - 12 * sc, y: ry))
-            ctx.stroke(wave, with: .color(.white.opacity(0.06)), style: .init(lineWidth: 2 * sc, lineCap: .round))
-        }
-    }
 
     // MARK: the Royal Albert Bridge — twin bowstring arches over the single line
 
