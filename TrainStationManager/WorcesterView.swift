@@ -10,6 +10,7 @@ struct WorcesterView: View {
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
 
     private let worldW: CGFloat = 1520
     private let contentMinX: CGFloat = -340
@@ -79,7 +80,8 @@ struct WorcesterView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in if started { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -285,7 +287,7 @@ struct WorcesterView: View {
             .buttonStyle(PressStyle())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
+            HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(Int(station.carried))").font(.system(size: 44, weight: .black, design: .rounded))

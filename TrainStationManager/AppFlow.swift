@@ -318,6 +318,42 @@ enum Screen {
     case play(StationDef)
 }
 
+/// A round pause button for a level — freezes the sim until resumed.
+struct PauseButton: View {
+    @Binding var paused: Bool
+    var body: some View {
+        Button { Sound.shared.play(.ui); paused = true } label: {
+            Image(systemName: "pause.fill")
+                .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Color(red: 0.20, green: 0.46, blue: 0.86), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.22)))
+        }
+        .buttonStyle(PressStyle())
+    }
+}
+
+/// The overlay shown while a level is paused — a scrim over the frozen scene with a Resume button.
+struct PausedOverlay: View {
+    let onResume: () -> Void
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea().onTapGesture(perform: onResume)
+            VStack(spacing: 18) {
+                Text("PAUSED").font(.system(size: 34, weight: .black, design: .rounded))
+                    .foregroundStyle(.white).tracking(6)
+                Button(action: onResume) {
+                    Label("Resume", systemImage: "play.fill")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundStyle(.black)
+                        .frame(width: 190, height: 52)
+                        .background(Color(red: 0.34, green: 0.86, blue: 0.5), in: Capsule())
+                }
+                .buttonStyle(PressStyle())
+            }
+        }
+    }
+}
+
 /// A soft, one-off camera settle when a level opens — a small zoom that eases back to rest.
 struct IntroZoom: ViewModifier {
     @State private var z: CGFloat = 1.07

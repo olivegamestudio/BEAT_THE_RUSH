@@ -10,6 +10,7 @@ struct DawlishView: View {
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
 
     private let designW: CGFloat = 1200
     // The viewport shows a window a little wider than the 1200-unit layout; the content runs well past
@@ -84,8 +85,9 @@ struct DawlishView: View {
         }
         .ignoresSafeArea()
         .onReceive(tick) { _ in
-            if started { station.tick(0.03) }
+            if started && !paused { station.tick(0.03) }
         }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -461,7 +463,7 @@ struct DawlishView: View {
             .buttonStyle(PressStyle())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
+            HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(Int(station.carried))").font(.system(size: 44, weight: .black, design: .rounded))

@@ -20,6 +20,7 @@ struct LostwithielView: View {
     @State private var dragStart: CGFloat? = nil
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
 
     private func clampOrigin(_ x: CGFloat) -> CGFloat { min(max(x, contentMinX), contentMaxX - designW) }
     private func project(_ p: CGPoint, scale sc: CGFloat, size: CGSize) -> CGPoint {
@@ -73,7 +74,8 @@ struct LostwithielView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in if started { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -254,7 +256,7 @@ struct LostwithielView: View {
             }
             .buttonStyle(PressStyle()).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
+            HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             ScoreTicker(count: Int(s.carried), goal: s.def.goal, label: "trains")
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(.horizontal, 34).padding(.bottom, 26)

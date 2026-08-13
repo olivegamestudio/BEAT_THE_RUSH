@@ -11,6 +11,7 @@ struct StationView: View {
     @State private var pan: CGSize = .zero
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
     @GestureState private var pinch: CGFloat = 1
     @GestureState private var drag: CGSize = .zero
 
@@ -75,7 +76,8 @@ struct StationView: View {
                 }
             }
         }
-        .onReceive(tick) { _ in if started { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -328,7 +330,7 @@ struct StationView: View {
                 .padding(28)
 
                 // mute — top right
-                HStack(spacing: 10) { HapticsButton(); MuteButton() }
+                HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(28)
 

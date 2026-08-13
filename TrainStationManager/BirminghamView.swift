@@ -10,6 +10,7 @@ struct BirminghamView: View {
     private let tick = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
 
     private let worldW: CGFloat = 1500
     private let contentMinX: CGFloat = -840
@@ -105,7 +106,8 @@ struct BirminghamView: View {
             }
         }
         .ignoresSafeArea()
-        .onReceive(tick) { _ in if started { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -248,7 +250,7 @@ struct BirminghamView: View {
             .buttonStyle(PressStyle())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
-            HStack(spacing: 10) { HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
+            HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(Int(station.carried))").font(.system(size: 40, weight: .black, design: .rounded))

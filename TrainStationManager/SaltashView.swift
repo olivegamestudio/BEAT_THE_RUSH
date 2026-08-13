@@ -23,6 +23,7 @@ struct SaltashView: View {
     @State private var dragStart: CGFloat? = nil
     @State private var confirmExit = false
     @State private var started = false
+    @State private var paused = false
 
     /// The design x at the left edge right now (updated live as you drag).
     private func origin(_ sc: CGFloat) -> CGFloat { originX }
@@ -93,7 +94,8 @@ struct SaltashView: View {
             }
         }
         .ignoresSafeArea()      // measure the full screen so the tap targets match the drawn board
-        .onReceive(tick) { _ in if started { station.tick(0.03) } }
+        .onReceive(tick) { _ in if started && !paused { station.tick(0.03) } }
+        .overlay { if paused { PausedOverlay { paused = false } } }
         .statusBarHidden()
     }
 
@@ -379,7 +381,7 @@ struct SaltashView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(28)
 
             // mute — top right
-            HStack(spacing: 10) { HapticsButton(); MuteButton() }
+            HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             // score bottom-left — a rolling ticker with a little crowd above it
