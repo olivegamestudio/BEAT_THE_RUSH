@@ -650,6 +650,12 @@ struct MenuView: View {
             }
         }
         .overlay(alignment: .topTrailing) { HStack(spacing: 10) { HapticsButton(); MuteButton() }.padding(16) }
+        .overlay(alignment: .bottom) {
+            Text(BuildStamp.short)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color(white: 0.42))
+                .padding(.bottom, 6)
+        }
         .onReceive(tick) { _ in field.tick(0.03) }
         .onAppear { pulse = true }
     }

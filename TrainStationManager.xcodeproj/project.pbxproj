@@ -46,6 +46,7 @@
 				AA00000000000000000008 /* Sources */,
 				AA00000000000000000002 /* Frameworks */,
 				AA00000000000000000009 /* Resources */,
+				AA000000000000000000F1 /* Stamp build */,
 			);
 			buildRules = (
 			);
@@ -100,6 +101,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AA000000000000000000F1 /* Stamp build */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp build";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Regenerate GeneratedBuildInfo.swift with the git short hash and build time BEFORE the\n# Swift compile, so the running build is identifiable on-device (read via BuildStamp.swift).\n# Writing a source file (not the signed bundle) keeps code signing intact.\nset -e\nHASH=$(git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo \"\")\nif [ -z \"$HASH\" ]; then HASH=\"nogit\"; elif ! git -C \"$SRCROOT\" diff --quiet -- . ':!*GeneratedBuildInfo.swift' 2>/dev/null; then HASH=\"${HASH}+\"; fi\nWHEN=$(date \"+%d %b %H:%M\")\nOUT=\"$SRCROOT/TrainStationManager/GeneratedBuildInfo.swift\"\nNEW=\"enum GeneratedBuild { static let hash = \\\"$HASH\\\"; static let date = \\\"$WHEN\\\" }\"\n# Only rewrite when the content changed, to avoid needless recompiles.\nif [ ! -f \"$OUT\" ] || [ \"$(cat \"$OUT\")\" != \"$NEW\" ]; then echo \"$NEW\" > \"$OUT\"; fi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		AA00000000000000000008 /* Sources */ = {
