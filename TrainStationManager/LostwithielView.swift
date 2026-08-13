@@ -149,21 +149,22 @@ struct LostwithielView: View {
         let s = station
         switch t.role {
         case .freight:
-            // Engine at the head (east end), then ten short clay hoods trailing west.
+            // A regular diesel loco at the head (east end), then ten short clay hoods trailing west.
             let locoCW = Track.carUnit * 1.16, locoCH = Track.carHeight * 1.06
             let engD = t.dist - locoCW * 0.5
             let ep = t.path.sample(max(0, engD))
-            drawSteamLoco(ctx, at: S(ep.p), angle: t.path.smoothAngle(max(0, engD)),
-                          cw: locoCW, ch: locoCH, scale: sc, phase: t.dist / (0.19 * locoCH))
+            let diesel = Color(red: 0.30, green: 0.33, blue: 0.38)     // clay-line diesel, not steam
+            drawCarriage(ctx, at: S(ep.p), angle: t.path.smoothAngle(max(0, engD)), tint: diesel,
+                         cw: locoCW, ch: locoCH, scale: sc, endCap: true)
             for c in 0..<s.freightWagons {
                 let d = t.dist - locoCW - (CGFloat(c) + 0.5) * s.wagonUnit
                 guard d >= 0 else { continue }
                 let smp = t.path.sample(d)
                 drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: t.spec.tint,
                              cw: s.wagonUnit - 4, ch: Track.carHeight * 0.86, scale: sc,
-                             fill: 0.9, seed: t.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)
+                             fill: 0, seed: t.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)   // clay hoods carry no people
             }
-            // Smoke climbs off the chimney while it's moving; a hazard flash once it's failed.
+            // Exhaust smoke drifts off the engine while it's moving; a hazard flash once it's failed.
             if !t.dead && !t.blocked {
                 let base = S(ep.p)
                 let chim = CGPoint(x: base.x + 0.30 * locoCW * sc, y: base.y - 0.52 * locoCH * sc)
@@ -189,7 +190,7 @@ struct LostwithielView: View {
                     let smp = t.path.sample(d)
                     drawCarriage(ctx, at: S(smp.p), angle: t.path.smoothAngle(d), tint: f.spec.tint,
                                  cw: s.wagonUnit - 4, ch: Track.carHeight * 0.86, scale: sc,
-                                 fill: 0.9, seed: f.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)
+                                 fill: 0, seed: f.id.hashValue &+ c, cornerRadius: Track.carHeight * 0.12)
                 }
             }
         case .service:
