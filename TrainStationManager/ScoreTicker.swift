@@ -10,8 +10,8 @@ struct ScoreTicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label.uppercased())
-                .font(.system(size: 13, weight: .heavy, design: .rounded))
-                .tracking(6)
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .tracking(4)
                 .foregroundStyle(Color(white: 0.62))
             FlapCounter(value: count, goal: goal, cellW: 30, color: Flap.ink)
         }
