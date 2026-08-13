@@ -4,29 +4,23 @@ import SwiftUI
 /// Shrub Hill that everything must share: Platform 2 (orange) departs east over it to Droitwich & Birmingham,
 /// while Platform 1 (green) trains arrive over it from London & Bristol. Only one train fits the single line at
 /// a time, so the player's job is to grant it — east or west — and keep both platforms flowing.
-final class WorcTrain: Identifiable {
+/// A RailVehicle (RailKit piece 3): the shared engine drives `dist`, `v`, `railAspect`, `stopped`; the
+/// fields here are Worcester's own — which platform line it runs, its berth, where it enters and clears
+/// the single line, and whether it currently holds it.
+final class WorcTrain: RailVehicle {
     enum Line { case blue, red }        // blue = Platform 2 (eastbound, orange), red = Platform 1 (westbound, green)
-    let id = UUID()
-    var spec: Train
     let line: Line
-    let path: RoutePath
     let berthDist: CGFloat
     let singleEnter: CGFloat       // distance at which it reaches the single-line neck
     let singleExit: CGFloat        // distance at which its front clears the single line
-    var dist: CGFloat = 0
     var boarded = false
     var started = false
     var dwell = 0.0
     var load = 0.0
     var hasSingle = false          // currently granted the single line
-    var v: CGFloat = 0
-    var stopped = 0.0
-    var finished = false
-    var railAspect = 0             // 0 green / 1 amber / 2 red — lights the track ahead to show its route
-    var carLen: CGFloat { spec.carLength }
-    init(_ spec: Train, _ line: Line, _ path: RoutePath, berth: CGFloat, enter: CGFloat, exit: CGFloat) {
-        self.spec = spec; self.line = line; self.path = path
-        berthDist = berth; singleEnter = enter; singleExit = exit
+    init(_ spec: Train, _ line: Line, _ path: RoutePath, berth: CGFloat, enter: CGFloat, exit: CGFloat, lane: Int) {
+        self.line = line; berthDist = berth; singleEnter = enter; singleExit = exit
+        super.init(spec: spec, path: path, lane: lane)
     }
 }
 
@@ -79,7 +73,11 @@ final class WorcesterStation: ObservableObject {
         return waiting ? 1 : 2
     }
 
-    @Published var trains: [WorcTrain] = []
+    // --- RailKit piece 3: the shared movement engine owns the trains; `trains` is a view onto its roster.
+    let sim: RailSim<WorcTrain>
+    var trains: [WorcTrain] { sim.vehicles }
+    private var laneSeq = 0      // each train gets its own lane so the engine's lane-follow never fires;
+                                 // Worcester does its own same-physical-road following in the ceiling hook
     @Published var carried = 0.0
     @Published var pP2 = 1.0
     @Published var pP1 = 1.0
@@ -165,7 +163,96 @@ final class WorcesterStation: ObservableObject {
         }
         if qs.count > 1 { for i in 0..<qs.count - 1 { qs[i].next = qs[i + 1] } }
         queueSignals = qs
+
+        // Worcester's trains all share one feel: a gentle build and a firm brake (uniform kinematics).
+        sim = RailSim(kin: RailKinematics(speedCap: baseSpeed, accel: 88, decel: 150))
+        configureSim()
         spawn()
+    }
+
+    /// Wire Worcester's rules into the shared engine. Movement authority (`ceiling`), the tail-clearing
+    /// overrun, taking/freeing the single line and boarding (`onAdvance`) and the finish test plug in
+    /// here; the sim does the easing, following-disable (unique lanes) and route-lighting.
+    private func configureSim() {
+        let gap = Track.carUnit * 0.85
+        // Run on past the end of the line until the whole train has cleared, so it doesn't vanish while
+        // its tail is still on-screen.
+        sim.overrun = { CGFloat($0.spec.length) * Track.carUnit }
+        sim.ceiling = { [weak self] t, roster in
+            guard let self else { return .infinity }
+            var ceiling = CGFloat.infinity
+            // Eastbound trains board at the platform before the single line.
+            if t.line == .blue && !t.boarded { ceiling = min(ceiling, t.berthDist) }
+            // Hold unless the single line is granted our way and clear. Eastbound wait AT the platform
+            // (berth stays occupied so the next queues behind); westbound wait at their junction.
+            if !t.hasSingle && t.dist < t.singleExit {
+                let readyForSingle = t.line == .red || t.boarded    // eastbound must load first
+                if !(readyForSingle && self.mayTakeSingle(t)) {
+                    ceiling = min(ceiling, t.line == .blue ? t.berthDist : t.singleEnter - gap)
+                }
+            }
+            // Westbound trains board once they're through the single line, at the platform.
+            if t.line == .red && !t.boarded { ceiling = min(ceiling, t.berthDist) }
+            // Follow the train ahead on the same physical road. Departures share the one Platform 2 road;
+            // arrivals queue per eastern lane (London and Bristol don't hold each other up until the neck).
+            var aheadTail = CGFloat.infinity
+            for o in roster where o !== t && !o.finished && o.line == t.line && o.dist > t.dist {
+                let sameRoad = t.line == .blue || abs(t.path.sample(0).p.y - o.path.sample(0).p.y) < 4
+                if sameRoad { aheadTail = min(aheadTail, o.dist - o.carLen) }
+            }
+            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+            // Eastbound arrivals honour the inbound-left queue signals — hold before a red one.
+            if t.line == .blue && !t.boarded {
+                let headX = t.path.sample(t.dist).p.x
+                for x in self.p2QueueXs.sorted() where x > headX + 2 {
+                    if self.p2QueueAspect(x) == 2 { ceiling = min(ceiling, (x - self.spawnL) - gap); break }
+                }
+            }
+            return ceiling
+        }
+        sim.onAdvance = { [weak self] t, dt in
+            guard let self else { return }
+            // Take the single line when at the neck, granted, and it's clear.
+            if !t.hasSingle && self.mayTakeSingle(t)
+                && t.dist >= t.singleEnter - gap - 1 && (t.line == .red || t.boarded) {
+                t.hasSingle = true; self.occupant = t
+                Sound.shared.play(.ding)
+            }
+            // Free the single line once the tail is clear of it.
+            if t.hasSingle && (t.dist - t.carLen) > t.singleExit {
+                t.hasSingle = false; if self.occupant === t { self.occupant = nil }
+            }
+            self.serveBoarding(t, dt)
+        }
+        sim.isFinished = { $0.dist >= $0.path.total + CGFloat($0.spec.length) * Track.carUnit }
+        // Free the single line if a train reaches the end still holding it.
+        sim.onFinish = { [weak self] t in if self?.occupant === t { self?.occupant = nil } }
+    }
+
+    /// Board a train while it stands at its berth, topping up until it pulls away. Lifted out of the tick
+    /// so the engine's `onAdvance` hook can call it.
+    private func serveBoarding(_ t: WorcTrain, _ dt: Double) {
+        guard t.dist >= t.berthDist - 0.5, t.dist <= t.berthDist + Track.carUnit * 0.3 else { return }
+        if !t.started {
+            t.started = true; t.dwell = dwellTime
+            if t.line == .blue { p2Wait = 0 } else { p1Wait = 0 }
+            Sound.shared.play(.board)
+        }
+        t.dwell -= dt
+        let cap = Double(t.spec.length) * perCar
+        let plat = t.line == .blue ? pP2 : pP1
+        if t.load < cap && plat > 0 {
+            let take = min(boardOffRate * dt, min(cap - t.load, plat))
+            let before = plat
+            if t.line == .blue { pP2 = max(0, pP2 - take) } else { pP1 = max(0, pP1 - take) }
+            let after = t.line == .blue ? pP2 : pP1
+            if Int(before) != Int(after) {
+                let k = Int(after)
+                sparkles.append(Sparkle(x: platL - 6 + CGFloat(k) * 15, y: t.line == .blue ? yP2 - 22 : yP1 + 26))
+            }
+            t.load += take; carried += take
+        }
+        if t.dwell <= 0 { t.boarded = true }
     }
 
     /// Set the single line for a movement (or take the grant away if it was already set that way).
@@ -225,12 +312,14 @@ final class WorcesterStation: ObservableObject {
             path = graph.route(["sp\(dst)", "fan\(dst)", "j\(dst)", "neck", "p1throat", "p1berth", "p1W"])
             berthV = 5; enterV = 2; exitV = 3   // holds the single line from its junction to the platform throat
         }
-        trains.append(WorcTrain(spec, line, path, berth: path.distanceTo(vertex: berthV),
-                                enter: path.distanceTo(vertex: enterV), exit: path.distanceTo(vertex: exitV)))
+        laneSeq += 1
+        sim.vehicles.append(WorcTrain(spec, line, path, berth: path.distanceTo(vertex: berthV),
+                                      enter: path.distanceTo(vertex: enterV), exit: path.distanceTo(vertex: exitV),
+                                      lane: laneSeq))
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
+        sim.vehicles = []; laneSeq = 0; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pP2 = 1; pP1 = 1; overP2 = 0; overP1 = 0; p2Wait = 0; p1Wait = 0; singleGroup.grant(nil)
         spawnClock = 0; nextSpawn = 1.2; paxClock = 0; nextPax = 1.2
         spawn()
@@ -239,7 +328,6 @@ final class WorcesterStation: ObservableObject {
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let gap = Track.carUnit * 0.85
 
         animT += dt
         p2Wait = pP2 >= 1 ? p2Wait + dt : 0
@@ -258,88 +346,11 @@ final class WorcesterStation: ObservableObject {
             nextSpawn = Double.random(in: def.spawnRange.lowerBound...(def.spawnRange.upperBound * 1.3))
         }
 
-        updateQueueSignals()   // refresh the Platform 2 queue signals from live positions before driving trains
-        let roster = trains
-        for t in roster where !t.finished {
-            let overrun = CGFloat(t.spec.length) * Track.carUnit
-            var ceiling = t.path.total + overrun
-            // Eastbound trains board at the platform before the single line; westbound board after it.
-            if t.line == .blue && !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            // Hold unless the single line is granted our way and clear. Eastbound trains wait AT the platform
-            // (so the berth stays occupied and the next train queues behind); westbound wait at their junction.
-            if !t.hasSingle && t.dist < t.singleExit {
-                let readyForSingle = t.line == .red || t.boarded    // eastbound must load first
-                if !(readyForSingle && mayTakeSingle(t)) {
-                    ceiling = min(ceiling, t.line == .blue ? t.berthDist : t.singleEnter - gap)
-                }
-            }
-            // Westbound trains board once they're through the single line, at the platform.
-            if t.line == .red && !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            // Follow the train ahead on the same physical road. Departures share the one Platform 2 road; arrivals
-            // queue per eastern lane (London and Bristol don't hold each other up until they reach the single line).
-            var aheadTail = CGFloat.infinity
-            for o in roster where o !== t && !o.finished && o.line == t.line && o.dist > t.dist {
-                let sameRoad = t.line == .blue || abs(t.path.sample(0).p.y - o.path.sample(0).p.y) < 4
-                if sameRoad { aheadTail = min(aheadTail, o.dist - o.carLen) }
-            }
-            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+        // RailKit piece 3: refresh the queue signals, then let the shared engine drive everyone (easing,
+        // route-lighting, and — via the hooks — single-line grabs and boarding).
+        updateQueueSignals()
+        sim.step(dt)
 
-            // Eastbound arrivals honour the inbound-left queue signals — hold before a red one.
-            if t.line == .blue && !t.boarded {
-                let headX = t.path.sample(t.dist).p.x
-                for x in p2QueueXs.sorted() where x > headX + 2 {
-                    if p2QueueAspect(x) == 2 { ceiling = min(ceiling, (x - spawnL) - gap); break }
-                }
-            }
-
-            let headroom = max(0, ceiling - t.dist)
-            let accel: CGFloat = 88, decel: CGFloat = 150
-            let target = min(baseSpeed, sqrt(2 * decel * headroom))
-            if t.v < target { t.v = min(target, t.v + accel * CGFloat(dt)) }
-            else { t.v = max(target, t.v - decel * CGFloat(dt)) }
-            t.dist = max(t.dist, min(t.dist + t.v * CGFloat(dt), ceiling))
-            t.stopped = t.v < 5 ? t.stopped + dt : 0
-            // Light the road ahead green/amber/red so its route over the single line reads at a glance.
-            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1)
-
-            // Take the single line when at the neck, granted, and it's clear.
-            if !t.hasSingle && mayTakeSingle(t)
-                && t.dist >= t.singleEnter - gap - 1 && (t.line == .red || t.boarded) {
-                t.hasSingle = true; occupant = t
-                Sound.shared.play(.ding)
-            }
-            // Free the single line once the tail is clear of it.
-            if t.hasSingle && (t.dist - t.carLen) > t.singleExit {
-                t.hasSingle = false; if occupant === t { occupant = nil }
-            }
-
-            // Boarding at the platform.
-            if t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
-                if !t.started {
-                    t.started = true; t.dwell = dwellTime
-                    if t.line == .blue { p2Wait = 0 } else { p1Wait = 0 }
-                    Sound.shared.play(.board)
-                }
-                t.dwell -= dt
-                let cap = Double(t.spec.length) * perCar
-                let plat = t.line == .blue ? pP2 : pP1
-                if t.load < cap && plat > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, plat))
-                    let before = plat
-                    if t.line == .blue { pP2 = max(0, pP2 - take) } else { pP1 = max(0, pP1 - take) }
-                    let after = t.line == .blue ? pP2 : pP1
-                    if Int(before) != Int(after) {
-                        let k = Int(after)
-                        sparkles.append(Sparkle(x: platL - 6 + CGFloat(k) * 15,
-                                                y: t.line == .blue ? yP2 - 22 : yP1 + 26))
-                    }
-                    t.load += take; carried += take
-                }
-                if t.dwell <= 0 { t.boarded = true }
-            }
-            if t.dist >= t.path.total + overrun { t.finished = true; if occupant === t { occupant = nil } }
-        }
-        trains.removeAll { $0.finished }
         for i in sparkles.indices { sparkles[i].age += dt }
         sparkles.removeAll { $0.age > sparkleLife }
 
