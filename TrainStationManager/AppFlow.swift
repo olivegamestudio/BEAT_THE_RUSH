@@ -472,11 +472,13 @@ final class MenuField: ObservableObject {
         }
         rakes = rk
         // one signal per line, part-way along, that the trains obey
-        // Push the signals out toward the ends of their lines so they sit near the screen edges,
-        // clear of the Play button in the middle.
-        signals = paths.enumerated().map { i, p in
-            Signal(path: i, dist: p.total * (i % 2 == 0 ? 0.30 : 0.70), red: i % 3 == 1,
-                   clock: Double(i) * 0.6, period: 3.0 + Double(i % 3))
+        // Just four signals — two on the left, two on the right — on the upper and lower lines, well
+        // clear of the Play button in the middle. (Both lines start off-screen left, so a small frac
+        // is the left third and a large frac the right third.)
+        let placements: [(path: Int, frac: CGFloat)] = [(0, 0.28), (2, 0.28), (0, 0.72), (2, 0.72)]
+        signals = placements.enumerated().map { k, pl in
+            Signal(path: pl.path, dist: paths[pl.path].total * pl.frac, red: k % 2 == 0,
+                   clock: Double(k) * 0.7, period: 3.2 + Double(k % 3))
         }
     }
 
