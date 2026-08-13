@@ -6,31 +6,16 @@ struct ScoreTicker: View {
     let count: Int
     let goal: Int
     var label: String = "people"
-    private let green = Color(red: 0.34, green: 0.86, blue: 0.5)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            crowd
-            HStack(alignment: .center, spacing: 9) {
-                FlapCounter(value: count, goal: goal, cellW: 28, color: green)
-                Text("/ \(goal) \(label)")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(white: 0.72))
-            }
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label.uppercased())
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .tracking(6)
+                .foregroundStyle(Color(white: 0.62))
+            FlapCounter(value: count, goal: goal, cellW: 30, color: Flap.ink)
         }
         .shadow(color: .black.opacity(0.8), radius: 6)
-    }
-
-    /// Ten little figures that light green in step with your progress to the goal.
-    private var crowd: some View {
-        let filled = goal > 0 ? min(10, Int((Double(count) / Double(goal) * 10).rounded(.down))) : 0
-        return HStack(spacing: 3) {
-            ForEach(0..<10, id: \.self) { i in
-                Image(systemName: "person.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(i < filled ? green : Color(white: 0.28))
-            }
-        }
     }
 }
 
