@@ -1,0 +1,447 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld people · goal %lld" : {
+      "comment" : "Outcome card subtitle: how many were carried and the level goal.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "substitutions" : {
+            "carried" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg Person" } },
+                  "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg Personen" } }
+                }
+              }
+            }
+          },
+          "stringUnit" : { "state" : "translated", "value" : "%#@carried@ · Ziel %2$lld" }
+        },
+        "en" : {
+          "substitutions" : {
+            "carried" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg person" } },
+                  "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg people" } }
+                }
+              }
+            }
+          },
+          "stringUnit" : { "state" : "translated", "value" : "%#@carried@ · goal %2$lld" }
+        },
+        "es" : {
+          "substitutions" : {
+            "carried" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg persona" } },
+                  "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg personas" } }
+                }
+              }
+            }
+          },
+          "stringUnit" : { "state" : "translated", "value" : "%#@carried@ · meta %2$lld" }
+        },
+        "fr" : {
+          "substitutions" : {
+            "carried" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : { "stringUnit" : { "state" : "translated", "value" : "%arg personne" } },
+                  "other" : { "stringUnit" : { "state" : "translated", "value" : "%arg personnes" } }
+                }
+              }
+            }
+          },
+          "stringUnit" : { "state" : "translated", "value" : "%#@carried@ · objectif %2$lld" }
+        }
+      }
+    },
+    "%lld platforms" : {
+      "comment" : "Station-select tile: number of platforms at the station.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld Gleis" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld Gleise" } }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld platform" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld platforms" } }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld andén" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld andenes" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld quai" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld quais" } }
+            }
+          }
+        }
+      }
+    },
+    "Carry %lld people" : {
+      "comment" : "Level task: carry N passengers to progress.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Befördere %lld Person" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Befördere %lld Personen" } }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Carry %lld person" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Carry %lld people" } }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Transporta a %lld persona" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Transporta a %lld personas" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Transporte %lld personne" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Transporte %lld personnes" } }
+            }
+          }
+        }
+      }
+    },
+    "Clear the casualty and %lld trains" : {
+      "comment" : "Lostwithiel level task: rescue the breakdown and run N trains.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Beseitige den Notfall und %lld Zug" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Beseitige den Notfall und %lld Züge" } }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Clear the casualty and %lld train" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Clear the casualty and %lld trains" } }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Resuelve la incidencia y %lld tren" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Resuelve la incidencia y %lld trenes" } }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "Dégage l'incident et %lld train" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "Dégage l'incident et %lld trains" } }
+            }
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "comment" : "Outcome card: advance after clearing a station.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Weiter" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Continuar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Continuer" } }
+      }
+    },
+    "Fast train" : {
+      "comment" : "Dawlish: label on a through express.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schnellzug" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Tren rápido" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Train rapide" } }
+      }
+    },
+    "Get a train over the crossing" : {
+      "comment" : "Newark level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bring einen Zug über den Bahnübergang" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Haz pasar un tren por el paso a nivel" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fais passer un train au passage à niveau" } }
+      }
+    },
+    "Got it" : {
+      "comment" : "Tutorial card: dismiss the last coaching step.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Verstanden" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Entendido" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Compris" } }
+      }
+    },
+    "Keep it moving past the breakdown" : {
+      "comment" : "Lostwithiel level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Halte den Verkehr an der Panne vorbei am Laufen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Mantén el tráfico pese a la avería" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Maintiens le trafic malgré la panne" } }
+      }
+    },
+    "Leave" : {
+      "comment" : "Confirm dialog: confirm leaving a game in progress.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Verlassen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Salir" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Quitter" } }
+      }
+    },
+    "Leave %@?" : {
+      "comment" : "Confirm dialog title; %@ is the station name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%@ verlassen?" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "¿Salir de %@?" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Quitter %@ ?" } }
+      }
+    },
+    "Next" : {
+      "comment" : "Tutorial card: go to the next coaching step.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Weiter" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Siguiente" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Suivant" } }
+      }
+    },
+    "PAUSED" : {
+      "comment" : "Pause overlay heading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "PAUSIERT" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "EN PAUSA" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "EN PAUSE" } }
+      }
+    },
+    "people" : {
+      "comment" : "HUD: caption under the running carried-passengers count.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Personen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "personas" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "personnes" } }
+      }
+    },
+    "Pick your station" : {
+      "comment" : "Station-select screen subtitle.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wähle deinen Bahnhof" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Elige tu estación" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Choisis ta gare" } }
+      }
+    },
+    "PLATFORM %lld" : {
+      "comment" : "Split-flap board row: platform number.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "GLEIS %lld" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "ANDÉN %lld" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "QUAI %lld" } }
+      }
+    },
+    "Play" : {
+      "comment" : "Main menu: start playing.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Spielen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Jugar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Jouer" } }
+      }
+    },
+    "Resume" : {
+      "comment" : "Pause overlay: resume play.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Fortsetzen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Reanudar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Reprendre" } }
+      }
+    },
+    "Route the trains. Clear the platforms." : {
+      "comment" : "Main menu tagline.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Lenke die Züge. Räume die Bahnsteige." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Dirige los trenes. Despeja los andenes." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aiguille les trains. Dégage les quais." } }
+      }
+    },
+    "Send a little train on its way" : {
+      "comment" : "Dawlish level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen kleinen Zug auf die Reise" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Pon en marcha un tren pequeño" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lance un petit train sur sa voie" } }
+      }
+    },
+    "Send a train down the single line" : {
+      "comment" : "Worcester level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen Zug auf die eingleisige Strecke" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Envía un tren por la vía única" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Engage un train sur la voie unique" } }
+      }
+    },
+    "Send a train over the bridge" : {
+      "comment" : "Saltash level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen Zug über die Brücke" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Envía un tren por el puente" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fais passer un train sur le pont" } }
+      }
+    },
+    "Send a train through Crewe" : {
+      "comment" : "Crewe level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen Zug durch Crewe" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Envía un tren a través de Crewe" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fais passer un train par Crewe" } }
+      }
+    },
+    "Send a train through the loop" : {
+      "comment" : "Lostwithiel level task.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen Zug durch die Schleife" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Envía un tren por el bucle" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fais passer un train par la boucle" } }
+      }
+    },
+    "Send a train to a platform" : {
+      "comment" : "Generic level task: route a train to a platform.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Schicke einen Zug an einen Bahnsteig" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Envía un tren a un andén" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Envoie un train à un quai" } }
+      }
+    },
+    "Special" : {
+      "comment" : "Dawlish: label on the steam special through train.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Sonderzug" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Especial" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Spécial" } }
+      }
+    },
+    "Start" : {
+      "comment" : "Level briefing: begin the level.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Start" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Comenzar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Démarrer" } }
+      }
+    },
+    "Station cleared!" : {
+      "comment" : "Outcome card: win heading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bahnhof geräumt!" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "¡Estación despejada!" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Gare dégagée !" } }
+      }
+    },
+    "Stations" : {
+      "comment" : "Outcome card: go back to the station list.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bahnhöfe" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Estaciones" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Gares" } }
+      }
+    },
+    "Stay" : {
+      "comment" : "Confirm dialog: cancel leaving, stay in the game.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bleiben" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Quedarse" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rester" } }
+      }
+    },
+    "Too busy!" : {
+      "comment" : "Outcome card: loss heading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zu viel Betrieb!" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "¡Demasiado lleno!" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Trop de monde !" } }
+      }
+    },
+    "Try Again" : {
+      "comment" : "Outcome card: retry the level after a loss.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nochmal" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Reintentar" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Réessayer" } }
+      }
+    },
+    "You'll lose this go." : {
+      "comment" : "Confirm dialog message when leaving a game in progress.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dieser Versuch geht verloren." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Perderás este intento." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tu perdras cette partie." } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

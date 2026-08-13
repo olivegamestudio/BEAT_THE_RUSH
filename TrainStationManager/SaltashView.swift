@@ -87,8 +87,8 @@ struct SaltashView: View {
                 }
 
                 if confirmExit {
-                    ConfirmDialog(title: "Leave Saltash?", message: "You'll lose this go.",
-                                  confirmTitle: "Leave", onConfirm: onExit,
+                    ConfirmDialog(title: String(localized: "Leave \(station.name)?"), message: String(localized: "You'll lose this go."),
+                                  confirmTitle: String(localized: "Leave"), onConfirm: onExit,
                                   onCancel: { confirmExit = false })
                 }
             }
@@ -393,7 +393,7 @@ struct SaltashView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(station.name)
                     .font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                Text("\(station.def.county) \(station.def.flag)")
+                Text(verbatim: "\(station.def.county) \(station.def.flag)")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.72))
             }

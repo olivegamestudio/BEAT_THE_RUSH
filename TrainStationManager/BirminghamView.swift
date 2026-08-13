@@ -100,8 +100,8 @@ struct BirminghamView: View {
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
                 if confirmExit {
-                    ConfirmDialog(title: "Leave \(station.name)?", message: "You'll lose this go.",
-                                  confirmTitle: "Leave", onConfirm: onExit, onCancel: { confirmExit = false })
+                    ConfirmDialog(title: String(localized: "Leave \(station.name)?"), message: String(localized: "You'll lose this go."),
+                                  confirmTitle: String(localized: "Leave"), onConfirm: onExit, onCancel: { confirmExit = false })
                 }
             }
         }
@@ -253,7 +253,7 @@ struct BirminghamView: View {
             HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("\(Int(station.carried))").font(.system(size: 40, weight: .black, design: .rounded))
+                Text(verbatim: "\(Int(station.carried))").font(.system(size: 40, weight: .black, design: .rounded))
                     .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
                 Text("people").font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.82))
             }
@@ -263,7 +263,7 @@ struct BirminghamView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(station.name).font(.system(size: 22, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                Text("\(station.def.county) \(station.def.flag)")
+                Text(verbatim: "\(station.def.county) \(station.def.flag)")
                     .font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.82))
             }
             .shadow(color: .black.opacity(0.75), radius: 6)

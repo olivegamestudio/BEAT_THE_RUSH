@@ -128,7 +128,7 @@ struct ConfirmDialog: View {
                 Text(message).font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundStyle(Color(white: 0.72))
                 HStack(spacing: 12) {
-                    Button(action: onCancel) { pill("Stay", filled: false) }.buttonStyle(PressStyle())
+                    Button(action: onCancel) { pill(String(localized: "Stay"), filled: false) }.buttonStyle(PressStyle())
                     Button(action: onConfirm) { pill(confirmTitle, filled: true) }.buttonStyle(PressStyle())
                 }
                 .padding(.top, 12)
@@ -251,9 +251,9 @@ struct OutcomeOverlay: View {
                 }
                 HStack(spacing: 12) {
                     if !won {
-                        Button(action: onRetry) { label("Try Again", filled: false) }.buttonStyle(PressStyle())
+                        Button(action: onRetry) { label(String(localized: "Try Again"), filled: false) }.buttonStyle(PressStyle())
                     }
-                    Button(action: onExit) { label(won ? "Continue" : "Stations", filled: won) }
+                    Button(action: onExit) { label(won ? String(localized: "Continue") : String(localized: "Stations"), filled: won) }
                         .buttonStyle(PressStyle())
                         .disabled(won && !ready)
                         .opacity(won && !ready ? 0.4 : 1)
@@ -378,24 +378,24 @@ func levelTasks(_ def: StationDef) -> [LevelTask] {
     let half = max(5, Int((Double(g) / 2 / 5).rounded()) * 5)   // halfway, rounded to a tidy multiple of 5
     // Lostwithiel scores trains sent safely through, not people carried, and turns on the rescue.
     if def.kind == .lostwithiel {
-        return [LevelTask(label: "Send a train through the loop", need: 1),
-                LevelTask(label: "Keep it moving past the breakdown", need: half),
-                LevelTask(label: "Clear the casualty and \(g) trains", need: g)]
+        return [LevelTask(label: String(localized: "Send a train through the loop"), need: 1),
+                LevelTask(label: String(localized: "Keep it moving past the breakdown"), need: half),
+                LevelTask(label: String(localized: "Clear the casualty and \(g) trains"), need: g)]
     }
     let first: String
     switch def.kind {
-    case .saltash:    first = "Send a train over the bridge"
-    case .dawlish:    first = "Send a little train on its way"
-    case .worcester:  first = "Send a train down the single line"
-    case .newark:     first = "Get a train over the crossing"
-    case .crewe:      first = "Send a train through Crewe"
-    case .birmingham: first = "Send a train to a platform"
-    case .lostwithiel: first = "Send a train through the loop"
-    case .ladder:     first = "Send a train to a platform"
+    case .saltash:    first = String(localized: "Send a train over the bridge")
+    case .dawlish:    first = String(localized: "Send a little train on its way")
+    case .worcester:  first = String(localized: "Send a train down the single line")
+    case .newark:     first = String(localized: "Get a train over the crossing")
+    case .crewe:      first = String(localized: "Send a train through Crewe")
+    case .birmingham: first = String(localized: "Send a train to a platform")
+    case .lostwithiel: first = String(localized: "Send a train through the loop")
+    case .ladder:     first = String(localized: "Send a train to a platform")
     }
     return [LevelTask(label: first, need: 1),
-            LevelTask(label: "Carry \(half) people", need: half),
-            LevelTask(label: "Carry \(g) people", need: g)]
+            LevelTask(label: String(localized: "Carry \(half) people"), need: half),
+            LevelTask(label: String(localized: "Carry \(g) people"), need: g)]
 }
 
 /// One star per completed task — so partial progress is rewarded even on a fail.
@@ -415,7 +415,7 @@ struct LevelBriefing: View {
                 VStack(spacing: 2) {
                     Text(def.name).font(.system(size: 26, weight: .black, design: .rounded))
                         .foregroundStyle(.white).multilineTextAlignment(.center)
-                    Text("\(def.county) \(def.flag)").font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Text(verbatim: "\(def.county) \(def.flag)").font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color(white: 0.7))
                 }
                 VStack(alignment: .leading, spacing: 11) {
@@ -794,7 +794,7 @@ struct StationCard: View {
                     .foregroundStyle(.white)
                     .lineLimit(1).minimumScaleFactor(0.6)
                     .padding(.trailing, locked ? 30 : 0)     // keep clear of the corner padlock
-                Text("\(def.county) \(def.flag)")
+                Text(verbatim: "\(def.county) \(def.flag)")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(white: 0.6))
                 Spacer(minLength: 4)

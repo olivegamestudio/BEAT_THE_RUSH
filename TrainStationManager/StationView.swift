@@ -70,8 +70,8 @@ struct StationView: View {
                 }
 
                 if confirmExit {
-                    ConfirmDialog(title: "Leave \(station.name)?", message: "You'll lose this go.",
-                                  confirmTitle: "Leave", onConfirm: onExit,
+                    ConfirmDialog(title: String(localized: "Leave \(station.name)?"), message: String(localized: "You'll lose this go."),
+                                  confirmTitle: String(localized: "Leave"), onConfirm: onExit,
                                   onCancel: { confirmExit = false })
                 }
             }
@@ -180,7 +180,7 @@ struct StationView: View {
             // crisp top lip to separate the face from the deck
             ctx.stroke(rr, with: .color(edge), style: .init(lineWidth: 2 * scale))
             // number
-            let n = Text("\(i + 1)").font(.system(size: 16 * scale, weight: .heavy, design: .rounded))
+            let n = Text(verbatim: "\(i + 1)").font(.system(size: 16 * scale, weight: .heavy, design: .rounded))
                 .foregroundStyle(inkLight)
             ctx.draw(n, at: CGPoint(x: rect.minX + 18 * scale, y: rect.midY))
 
@@ -336,7 +336,7 @@ struct StationView: View {
 
                 // score — bottom left, big
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text("\(Int(station.carried))")
+                    Text(verbatim: "\(Int(station.carried))")
                         .font(.system(size: 44, weight: .black, design: .rounded))
                         .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
                     Text("people")
@@ -352,7 +352,7 @@ struct StationView: View {
                     Text(station.name)
                         .font(.system(size: 27, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("\(station.def.county) \(station.def.flag)")
+                    Text(verbatim: "\(station.def.county) \(station.def.flag)")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color(white: 0.72))
                 }

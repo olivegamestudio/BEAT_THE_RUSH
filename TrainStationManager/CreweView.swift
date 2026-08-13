@@ -104,8 +104,8 @@ struct CreweView: View {
                                    onRetry: { station.reset() }, onExit: onExit)
                 }
                 if confirmExit {
-                    ConfirmDialog(title: "Leave \(station.name)?", message: "You'll lose this go.",
-                                  confirmTitle: "Leave", onConfirm: onExit, onCancel: { confirmExit = false })
+                    ConfirmDialog(title: String(localized: "Leave \(station.name)?"), message: String(localized: "You'll lose this go."),
+                                  confirmTitle: String(localized: "Leave"), onConfirm: onExit, onCancel: { confirmExit = false })
                 }
             }
         }
@@ -227,7 +227,7 @@ struct CreweView: View {
         }
         ctx.fill(rr, with: .color(Color(red: 0.47, green: 0.48, blue: 0.53)))
         ctx.stroke(rr, with: .color(.white.opacity(0.20)), style: .init(lineWidth: 1.4 * sc))
-        ctx.draw(Text("\(id)").font(.system(size: 10 * sc, weight: .heavy, design: .rounded)).foregroundColor(.white.opacity(0.9)),
+        ctx.draw(Text(verbatim: "\(id)").font(.system(size: 10 * sc, weight: .heavy, design: .rounded)).foregroundColor(.white.opacity(0.9)),
                  at: CGPoint(x: S(CGPoint(x: xL, y: 0)).x + 14 * sc, y: rect.midY))
     }
 
@@ -352,7 +352,7 @@ struct CreweView: View {
         /// The id sits on the signal itself (big); the coordinates trail just past it (smaller).
         func tag(_ id: String, at sig: CGPoint, _ colour: Color) {
             let idText = Text(id).font(.system(size: 15 * sc, weight: .black, design: .rounded)).foregroundColor(colour)
-            let posText = Text("\(Int(sig.x)),\(Int(sig.y))").font(.system(size: 9 * sc, weight: .bold, design: .monospaced)).foregroundColor(.white)
+            let posText = Text(verbatim: "\(Int(sig.x)),\(Int(sig.y))").font(.system(size: 9 * sc, weight: .bold, design: .monospaced)).foregroundColor(.white)
             ctx.drawLayer { l in
                 l.addFilter(.shadow(color: .black, radius: 2.4 * sc))
                 l.draw(idText, at: S(sig)); l.draw(idText, at: S(sig))          // doubled: shadow reads as an outline
@@ -400,7 +400,7 @@ struct CreweView: View {
             HStack(spacing: 10) { PauseButton(paused: $paused); HapticsButton(); MuteButton() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(28)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text("\(Int(station.carried))").font(.system(size: 44, weight: .black, design: .rounded))
+                Text(verbatim: "\(Int(station.carried))").font(.system(size: 44, weight: .black, design: .rounded))
                     .foregroundStyle(Color(red: 0.34, green: 0.86, blue: 0.5))
                 Text("people").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.82))
             }
@@ -410,7 +410,7 @@ struct CreweView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(station.name).font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                Text("\(station.def.county) \(station.def.flag)")
+                Text(verbatim: "\(station.def.county) \(station.def.flag)")
                     .font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.82))
             }
             .shadow(color: .black.opacity(0.75), radius: 6)

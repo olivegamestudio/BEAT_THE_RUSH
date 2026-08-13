@@ -68,8 +68,8 @@ struct LostwithielView: View {
                                    stars: station.stars, onRetry: { station.reset() }, onExit: onExit)
                 }
                 if confirmExit {
-                    ConfirmDialog(title: "Leave Lostwithiel?", message: "You'll lose this go.",
-                                  confirmTitle: "Leave", onConfirm: onExit, onCancel: { confirmExit = false })
+                    ConfirmDialog(title: String(localized: "Leave \(station.name)?"), message: String(localized: "You'll lose this go."),
+                                  confirmTitle: String(localized: "Leave"), onConfirm: onExit, onCancel: { confirmExit = false })
                 }
             }
         }
@@ -295,7 +295,7 @@ struct LostwithielView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(s.name).font(.system(size: 27, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                Text("\(s.def.county) \(s.def.flag)").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.72))
+                Text(verbatim: "\(s.def.county) \(s.def.flag)").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Color(white: 0.72))
             }
             .shadow(color: .black.opacity(0.75), radius: 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing).padding(.horizontal, 34).padding(.bottom, 26)
