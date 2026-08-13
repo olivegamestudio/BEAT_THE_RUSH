@@ -472,8 +472,10 @@ final class MenuField: ObservableObject {
         }
         rakes = rk
         // one signal per line, part-way along, that the trains obey
+        // Push the signals out toward the ends of their lines so they sit near the screen edges,
+        // clear of the Play button in the middle.
         signals = paths.enumerated().map { i, p in
-            Signal(path: i, dist: p.total * 0.6, red: i % 3 == 1,
+            Signal(path: i, dist: p.total * (i % 2 == 0 ? 0.16 : 0.84), red: i % 3 == 1,
                    clock: Double(i) * 0.6, period: 3.0 + Double(i % 3))
         }
     }

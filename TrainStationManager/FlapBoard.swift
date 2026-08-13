@@ -167,7 +167,7 @@ struct StationBoardTile: View {
     private var baseDelay: Double { Double(index) * Flap.tileStagger }
 
     var body: some View {
-        Button(action: { if unlocked { onPick() } }) {
+        Button(action: { if unlocked { Sound.shared.play(.ui); onPick() } }) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     HStack(spacing: 6) {

@@ -48,6 +48,7 @@ final class Sound {
     }
 
     func play(_ fx: FX) {
+        Haptics.shared.fire(for: fx)          // buzz alongside the cue, independent of the sound mute
         guard !muted, let buf = buffers[fx] else { return }
         let now = CACurrentMediaTime()
         if let last = lastPlay[fx], now - last < 0.09 { return }   // debounce — never let one ring on
