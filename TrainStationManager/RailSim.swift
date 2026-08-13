@@ -78,6 +78,10 @@ final class RailSim<V: RailVehicle> {
     /// Extra arc-length a vehicle may run past the end of its path before finishing, so a long train's
     /// tail clears the visible end rather than the whole set vanishing at once. Defaults to 0.
     var overrun: ((V) -> CGFloat)?
+    /// A vehicle backing out: return its reverse speed (> 0) and its arc-length *decreases* at that speed
+    /// this tick — no ceiling or easing — finishing when it reaches 0 (a terminating bay reversing out of
+    /// the platform it arrived on). Return 0 for normal forward running.
+    var reverseSpeed: ((V) -> CGFloat)?
     /// Run after a vehicle has advanced this tick: boarding, grabbing or freeing a resource, …
     var onAdvance: ((V, Double) -> Void)?
     /// Has this vehicle finished its run? Defaults to "its head reached the end of its path".
@@ -135,6 +139,15 @@ final class RailSim<V: RailVehicle> {
     func step(_ dt: Double) {
         let roster = vehicles
         for t in roster where !t.finished {
+            // Backing out: arc-length decreases at the level's reverse speed, no ceiling or easing.
+            if let rs = reverseSpeed?(t), rs > 0 {
+                t.v = 0
+                t.dist = max(0, t.dist - rs * CGFloat(dt))
+                t.railAspect = 0
+                onAdvance?(t, dt)
+                if t.dist <= 0 { t.finished = true; onFinish?(t) }
+                continue
+            }
             let k = kinematics?(t) ?? kin                       // this vehicle's feel (may differ per stock)
             let end = t.path.total + (overrun?(t) ?? 0)         // it may run a little past the path end
             // How far the train is allowed to reach: the end of its road, the train ahead, the level.
