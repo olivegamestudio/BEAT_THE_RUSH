@@ -93,6 +93,11 @@ final class DawlishStation: ObservableObject {
     let platformCap = 16.0
     let overflowGrace = 18.0
 
+    // --- RailKit piece 1: the track graph. Both mains and both platform loops are named nodes; the
+    // four run-paths below are stitched from them by `route(_:)` (straight joins between consecutive
+    // nodes) rather than hand-listed coordinates. Every diverge/rejoin corner is its own node, so the
+    // stitched routes come out identical to the old literal paths — the diagram is now names, not points.
+    let graph: RailGraph
     // Prebuilt routes and their berth distances.
     private let eMain, eStop, wMain, wStop: RoutePath
     private let eBerth, wBerth: CGFloat
@@ -104,17 +109,23 @@ final class DawlishStation: ObservableObject {
     init(_ def: StationDef) {
         self.def = def
         let d: CGFloat = 60      // how far past the points the loop has fully diverged
-        eMain = RoutePath([CGPoint(x: spawnL, y: upMainY), CGPoint(x: spawnR, y: upMainY)])
-        eStop = RoutePath([CGPoint(x: spawnL, y: upMainY), CGPoint(x: xW, y: upMainY),
-                           CGPoint(x: xW + d, y: upLoopY), CGPoint(x: platR, y: upLoopY),
-                           CGPoint(x: xE - d, y: upLoopY), CGPoint(x: xE, y: upMainY),
-                           CGPoint(x: spawnR, y: upMainY)])
+        var g = RailGraph()
+        // Up (eastbound) main + platform loop above it.
+        for n in [RailNode("upIn",   x: spawnL,  y: upMainY), RailNode("upWpt", x: xW,      y: upMainY),
+                  RailNode("upEpt",  x: xE,      y: upMainY), RailNode("upOut", x: spawnR,  y: upMainY),
+                  RailNode("upLoopW", x: xW + d, y: upLoopY), RailNode("upBerth", x: platR, y: upLoopY),
+                  RailNode("upLoopE", x: xE - d, y: upLoopY)] { g.add(n) }
+        // Down (westbound) main + platform loop below it.
+        for n in [RailNode("dnIn",   x: spawnR,  y: downMainY), RailNode("dnEpt", x: xE,      y: downMainY),
+                  RailNode("dnWpt",  x: xW,      y: downMainY), RailNode("dnOut", x: spawnL,  y: downMainY),
+                  RailNode("dnLoopE", x: xE - d, y: downLoopY), RailNode("dnBerth", x: platL, y: downLoopY),
+                  RailNode("dnLoopW", x: xW + d, y: downLoopY)] { g.add(n) }
+        graph = g
+        eMain = g.route(["upIn", "upOut"])
+        eStop = g.route(["upIn", "upWpt", "upLoopW", "upBerth", "upLoopE", "upEpt", "upOut"])
         eBerth = eStop.distanceTo(vertex: 3)
-        wMain = RoutePath([CGPoint(x: spawnR, y: downMainY), CGPoint(x: spawnL, y: downMainY)])
-        wStop = RoutePath([CGPoint(x: spawnR, y: downMainY), CGPoint(x: xE, y: downMainY),
-                           CGPoint(x: xE - d, y: downLoopY), CGPoint(x: platL, y: downLoopY),
-                           CGPoint(x: xW + d, y: downLoopY), CGPoint(x: xW, y: downMainY),
-                           CGPoint(x: spawnL, y: downMainY)])
+        wMain = g.route(["dnIn", "dnOut"])
+        wStop = g.route(["dnIn", "dnEpt", "dnLoopE", "dnBerth", "dnLoopW", "dnWpt", "dnOut"])
         wBerth = wStop.distanceTo(vertex: 3)
         spawn()
     }
