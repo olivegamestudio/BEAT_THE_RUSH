@@ -462,7 +462,7 @@ final class MenuField: ObservableObject {
 
         var rk: [Rake] = []
         for (i, path) in paths.enumerated() {
-            for j in 0..<2 {
+            for j in 0..<1 {          // one rake per line — fewer trains crossing over each other
                 let len = 4 + (i * 3 + j * 2) % 5
                 let tint = trainPalette[(i * 2 + j) % trainPalette.count]
                 let speed = CGFloat(78 + (i * 17 + j * 41) % 74)
@@ -543,7 +543,7 @@ struct MenuView: View {
                 // signals the trains actually obey, at their positions on the lines
                 for sig in field.signals {
                     let foot = field.paths[sig.path].sample(sig.dist).p
-                    drawSignal(ctx, at: S(foot), red: sig.red, scale: scale)
+                    drawSignal(ctx, at: S(CGPoint(x: foot.x, y: foot.y - 24)), red: sig.red, scale: scale)  // lift the post off the rail
                 }
             }
             .ignoresSafeArea()
@@ -558,7 +558,7 @@ struct MenuView: View {
                     .shadow(color: .black.opacity(0.6), radius: 10, y: 4)
                 Text("Route the trains. Clear the platforms.")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(white: 0.72))
+                    .foregroundStyle(Color(white: 0.46))
                     .shadow(color: .black.opacity(0.6), radius: 6)
                     .padding(.bottom, 26)
 

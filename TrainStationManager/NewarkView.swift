@@ -95,7 +95,7 @@ struct NewarkView: View {
                                            startPoint: CGPoint(x: w / 2, y: y0), endPoint: CGPoint(x: w / 2, y: y1)))
         }
         band(0, y(70), Color(red: 0.52, green: 0.62, blue: 0.78), Color(red: 0.80, green: 0.82, blue: 0.84))
-        clouds(ctx, sc, w: w, topY: y(6), botY: y(58))
+        clouds(ctx, sc, w: w, topY: y(4), botY: y(30))     // keep the clouds high, clear of the castle
         castle(ctx, baseY: y(70), sc: sc, w: w)
         band(y(64), y(84), Color(red: 0.32, green: 0.42, blue: 0.31), Color(red: 0.27, green: 0.35, blue: 0.26))
         // The green — a soft top-to-bottom gradient so it isn't flat, plus a faint sheen near the tracks.
@@ -143,9 +143,10 @@ struct NewarkView: View {
             p.addLine(to: CGPoint(x: x + width, y: baseY)); p.closeSubpath()
             ctx.fill(p, with: .color(col))
         }
-        merlons(cx, baseY - 34 * sc, 150 * sc, 8 * sc)                 // curtain wall
-        merlons(cx - 14 * sc, baseY - 58 * sc, 40 * sc, 9 * sc)        // gatehouse tower
-        merlons(cx + 138 * sc, baseY - 52 * sc, 34 * sc, 9 * sc)       // corner tower
+        // A low ruin on the horizon — kept short so it sits under the sky, not up in the clouds.
+        merlons(cx, baseY - 20 * sc, 150 * sc, 7 * sc)                 // curtain wall
+        merlons(cx - 14 * sc, baseY - 32 * sc, 40 * sc, 8 * sc)        // gatehouse tower
+        merlons(cx + 138 * sc, baseY - 28 * sc, 34 * sc, 8 * sc)       // corner tower
     }
 
     private func railLine(_ ctx: GraphicsContext, _ pts: [CGPoint], _ sc: CGFloat, tint: Color?, width: CGFloat = 15, _ S: (CGPoint) -> CGPoint) {

@@ -276,7 +276,8 @@ struct CreweView: View {
     private func drawPeople(_ ctx: GraphicsContext, _ sc: CGFloat, _ S: (CGPoint) -> CGPoint) {
         let s = station
         for (i, pl) in s.plats.enumerated() {
-            let feetY = pl.slabAbove ? pl.y - 8 : pl.y + 30
+            // Stand them at the platform edge nearest the track — on the slab, not out on the rails.
+            let feetY = pl.slabAbove ? pl.y - 28 : pl.y + 32
             pax(ctx, count: s.passengers[i], x0: pl.xL + 90, feetY: feetY, sc: sc,
                 agitated: s.agitated(i), t: s.animT, S: S)
             if s.mood(i).shows { drawMood(ctx, s.mood(i).emoji, at: S(CGPoint(x: pl.xL + 110, y: pl.y - 8)), scale: sc) }

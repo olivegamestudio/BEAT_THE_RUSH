@@ -30,7 +30,7 @@ enum Flap {
     static func cell(target: Character, delay: Double, elapsed: Double) -> (Character, Character, Double) {
         let ti = index(target)
         let local = elapsed - delay
-        if local <= 0 || ti == 0 { return (target, target, 0) }   // not started, or a blank space
+        if ti == 0 || local <= 0 { return (" ", " ", 0) }   // a blank target, or not started yet — stay blank
         let stepsF = local / stepDur
         let done = Int(floor(stepsF))
         if done >= ti { return (target, target, 0) }              // settled
@@ -107,17 +107,21 @@ struct FlapHeadline: View {
     var gap: CGFloat = 3
     @State private var start = Date()
     @State private var animating = true
+    // Every so often the board clears and flaps itself in again, so the menu keeps breathing.
+    private let pulse = Timer.publish(every: 22, on: .main, in: .common).autoconnect()
+
+    private func reveal() {
+        start = Date(); animating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Flap.revealDuration(text.count)) { animating = false }
+    }
 
     var body: some View {
-        let n = text.count
         let cell = CGSize(width: cellW, height: cellW * 1.5)
-        let w = CGFloat(n) * (cellW + gap)
+        let w = CGFloat(text.count) * (cellW + gap)
         board(cell)
             .frame(width: w, height: cell.height)
-            .onAppear {
-                start = Date()
-                DispatchQueue.main.asyncAfter(deadline: .now() + Flap.revealDuration(n)) { animating = false }
-            }
+            .onAppear { reveal() }
+            .onReceive(pulse) { _ in reveal() }
     }
 
     @ViewBuilder private func board(_ cell: CGSize) -> some View {

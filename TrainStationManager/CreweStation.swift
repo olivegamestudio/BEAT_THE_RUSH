@@ -106,7 +106,7 @@ final class CreweStation: ObservableObject {
 
     var animT = 0.0
     private var waitClock: [Double]
-    let agitateAfter = 8.0
+    let agitateAfter = 18.0     // twelve platforms and a seeded crowd — give them longer before they grumble
     func agitated(_ i: Int) -> Bool { passengers[i] > 0 && waitClock[i] > agitateAfter }
     func mood(_ i: Int) -> Mood {
         if passengers[i] < 1 { return .happy }
@@ -152,7 +152,7 @@ final class CreweStation: ObservableObject {
     /// A starting crowd on every platform. Spread thin across twelve platforms, single arrivals never
     /// build a queue a stopping train could clear — trains berthed and left almost empty. Seeding a few
     /// on each face means the first trains through already have people to carry, and the windows fill.
-    private static func seededCrowd() -> [Double] { (0..<12).map { _ in Double(Int.random(in: 3...7)) } }
+    private static func seededCrowd() -> [Double] { (0..<12).map { _ in Double(Int.random(in: 2...5)) } }
 
     init(_ def: StationDef) {
         self.def = def

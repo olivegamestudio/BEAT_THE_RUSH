@@ -300,7 +300,14 @@ final class SaltashStation: ObservableObject {
         spawnClock += dt
         if spawnClock >= nextSpawn {
             spawnClock = 0
-            if trains.count < 7 { spawn(Bool.random() ? .east : .west) }   // don't let the queue run away
+            if trains.count < 7 {
+                // Balance the two approaches — eastbounds must board before the bridge, so they clear the
+                // west side more slowly and would otherwise pile up. Feed whichever side has fewer trains.
+                let east = trains.filter { $0.dir == .east && !$0.finished }.count
+                let west = trains.filter { $0.dir == .west && !$0.finished }.count
+                let dir: Dir = east > west + 1 ? .west : (west > east + 1 ? .east : (Bool.random() ? .east : .west))
+                spawn(dir)
+            }
             nextSpawn = Double.random(in: (def.spawnRange.lowerBound * 1.7)...(def.spawnRange.upperBound * 2.2))
         }
 
