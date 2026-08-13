@@ -327,9 +327,14 @@ step behaves like the old fixed-step move (full speed until the ceiling, then a 
 engine spans both eased and constant-speed levels. **Newark is fully migrated too** (pieces 1–3): its two
 lines are `RailSim` lanes (built-in lane-follow), its four entry/starter lights are `HoldSignal`s, and the
 flat crossing is a single-occupancy resource in the `ceiling` hook — it turned out *not* to need
-body-ahead (the lines meet at one point). Still legacy: **Birmingham** and **Crewe** — these genuinely need
-the position-based body-ahead follow mode built into `RailSim` (throats where crossing moves' bodies
-overlap across many points). The *next* new level (US freight) should be laid out from the toolkit directly.
+body-ahead (the lines meet at one point). **Birmingham is migrated too** (piece 3): it has no player signals
+and algorithmic ladder paths, so it's movement-only on `RailSim` using the new **`FollowMode.bodyAhead`**
+(the reusable position-based follow, lifted from Birmingham's old `aheadCeiling`/`bodyNear` into the
+engine). **Only Crewe is left**, and it does **not** fit `RailSim`'s movement model: its bay services
+*reverse* out (arc-length decreases — the engine only advances), and it runs two vehicle types (stoppers
+with a 4-phase machine + fly-through expresses) where `RailSim<V>` is single-type. Crewe can still adopt
+piece 2 (its 12 starters → `HoldSignal`s); a full movement migration would need a `RailSim` reverse
+capability. The *next* new level (US freight) should be laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
