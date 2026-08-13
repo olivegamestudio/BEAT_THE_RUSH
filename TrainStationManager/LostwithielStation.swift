@@ -59,36 +59,41 @@ final class LostwithielStation: ObservableObject {
     var contestL: CGFloat { xCW + xOff }
     var contestR: CGFloat { xCE - xOff }
 
-    // Automatic filter signals spacing the two approaches, so arrivals queue a block apart, not nose-to-tail.
+    // --- RailKit piece 1: the two running lanes and the two crossovers as named nodes; the service and
+    // divert run-paths are stitched from them by route(_:).
+    let graph: RailGraph
+
+    // --- RailKit piece 2: the automatic filter signals are a BlockSignal chain per approach, spacing
+    // arrivals a block apart. Each block runs from its signal to the next filter (or the crossover); the
+    // chain's .next gives the amber look-ahead. Built in init, refreshed each tick from live positions.
     let blockXsUp: [CGFloat] = [20, 220]        // up-line approach (eastbound), west of the crossover
     let blockXsDown: [CGFloat] = [1200, 1000]   // down-line approach (westbound), east of the crossover
-
-    /// The block ahead of the filter signal at `sx` runs up to the next filter (or the crossover) — held
-    /// if any service of that direction sits in it, so the whole approach cascades back and following
-    /// trains stop a block apart instead of piling into the queue at the crossover.
-    func blockHeld(_ sx: CGFloat, _ dir: Dir, except t: LwTrain? = nil) -> Bool {
-        let xs = dir == .east ? blockXsUp : blockXsDown
-        let cross = dir == .east ? xCW : xCE
-        let next = dir == .east ? (xs.filter { $0 > sx }.min() ?? cross) : (xs.filter { $0 < sx }.max() ?? cross)
-        return trains.contains { o in
-            guard o !== t, !o.finished, o.role == .service, o.dir == dir else { return false }
-            let x = headX(o)
-            return dir == .east ? (x > sx && x <= next) : (x < sx && x >= next)
-        }
-    }
-    /// A filter signal's aspect: 2 red (block ahead held), 1 amber (next block held), 0 green.
+    let blockSignalsUp: [BlockSignal]
+    let blockSignalsDown: [BlockSignal]
+    /// A filter signal's stored aspect (2 red / 1 amber / 0 green), refreshed each tick by updateBlockSignals.
     func blockAspect(_ sx: CGFloat, _ dir: Dir) -> Int {
-        if blockHeld(sx, dir) { return 2 }
-        let xs = dir == .east ? blockXsUp : blockXsDown
-        let next = dir == .east ? xs.filter { $0 > sx }.min() : xs.filter { $0 < sx }.max()
-        if let n = next, blockHeld(n, dir) { return 1 }
-        return 0
+        (dir == .east ? blockSignalsUp : blockSignalsDown).first { abs($0.axis - sx) < 0.5 }?.aspect ?? 0
+    }
+    /// Refresh every filter signal from the live service positions in its direction.
+    private func updateBlockSignals() {
+        for s in blockSignalsUp { s.update { self.serviceHeadInRange($0, .east) } }
+        for s in blockSignalsDown { s.update { self.serviceHeadInRange($0, .west) } }
+    }
+    /// Whether any service of `dir` has its head within the block range `r`.
+    private func serviceHeadInRange(_ r: ClosedRange<CGFloat>, _ dir: Dir) -> Bool {
+        trains.contains { o in
+            guard !o.finished, o.role == .service, o.dir == dir else { return false }
+            let x = self.headX(o)
+            return x >= r.lowerBound && x <= r.upperBound
+        }
     }
 
     @Published var trains: [LwTrain] = []
     @Published var carried = 0.0        // trains sent safely through — the score
-    @Published var eastClear = true             // the up-line signal — red holds eastbounds at the west crossover
-    @Published var westClear = true             // the down-line signal — red holds westbounds at the east crossover
+    // --- RailKit piece 2: the two route lights are independent player-tappable HoldSignals (cleared =
+    // green over the shared stretch). Not a group — either direction can be set on its own.
+    let upHold = HoldSignal("east", at: .zero, cleared: true)     // up-line — red holds eastbounds at the west crossover
+    let downHold = HoldSignal("west", at: .zero, cleared: true)   // down-line — red holds westbounds at the east crossover
     @Published var broken = false               // the freight has failed and is blocking the up lane
     @Published var rescued = false
     @Published var rescueReady = false          // the rescue loco is in its siding, waiting for the call
@@ -110,12 +115,34 @@ final class LostwithielStation: ObservableObject {
 
     init(_ def: StationDef) {
         self.def = def
+        var g = RailGraph()
+        for n in [RailNode("wTop", x: xW, y: yTop),  RailNode("eTop", x: xE, y: yTop),
+                  RailNode("wBot", x: xW, y: yBot),  RailNode("eBot", x: xE, y: yBot),
+                  RailNode("cwTop", x: xCW, y: yTop), RailNode("cwBot", x: xCW + xOff, y: yBot),
+                  RailNode("ceBot", x: xCE - xOff, y: yBot), RailNode("ceTop", x: xCE, y: yTop)] { g.add(n) }
+        graph = g
+        // Build each approach's filter chain: block runs from its signal to the next filter, else the crossover.
+        let upXs = blockXsUp.sorted(), dnXs = blockXsDown.sorted(by: >)
+        let yT = yTop - 26, yB = yBot + 26, cw = xCW, ce = xCE
+        var upS: [BlockSignal] = []
+        for (i, sx) in upXs.enumerated() {
+            let end = i + 1 < upXs.count ? upXs[i + 1] : cw
+            upS.append(BlockSignal("up\(sx)", at: CGPoint(x: sx, y: yT), axis: sx, forward: 1, blockLen: end - sx))
+        }
+        var dnS: [BlockSignal] = []
+        for (i, sx) in dnXs.enumerated() {
+            let end = i + 1 < dnXs.count ? dnXs[i + 1] : ce
+            dnS.append(BlockSignal("dn\(sx)", at: CGPoint(x: sx, y: yB), axis: sx, forward: -1, blockLen: sx - end))
+        }
+        if upS.count > 1 { for i in 0..<upS.count - 1 { upS[i].next = upS[i + 1] } }
+        if dnS.count > 1 { for i in 0..<dnS.count - 1 { dnS[i].next = dnS[i + 1] } }
+        blockSignalsUp = upS; blockSignalsDown = dnS
         spawn(.east); spawn(.west)
     }
 
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0
-        eastClear = true; westClear = true; broken = false; rescued = false; rescueReady = false
+        upHold.cleared = true; downHold.cleared = true; broken = false; rescued = false; rescueReady = false
         animT = 0; throughCount = 0; overClock = 0; spawnClock = 0; nextSpawn = 2.2
         spawn(.east); spawn(.west)
         objectWillChange.send()
@@ -124,13 +151,11 @@ final class LostwithielStation: ObservableObject {
     // MARK: paths
 
     private func servicePath(_ dir: Dir, diverting: Bool) -> RoutePath {
-        if dir == .west { return RoutePath([CGPoint(x: xE, y: yBot), CGPoint(x: xW, y: yBot)]) }
-        if !diverting { return RoutePath([CGPoint(x: xW, y: yTop), CGPoint(x: xE, y: yTop)]) }
+        if dir == .west { return graph.route(["eBot", "wBot"]) }
+        if !diverting { return graph.route(["wTop", "eTop"]) }
         // Up-line divert: run to the west crossover, slew down onto the down lane, run the shared stretch,
         // slew back up at the east crossover, and away.
-        return RoutePath([CGPoint(x: xW, y: yTop), CGPoint(x: xCW, y: yTop),
-                          CGPoint(x: xCW + xOff, y: yBot), CGPoint(x: xCE - xOff, y: yBot),
-                          CGPoint(x: xCE, y: yTop), CGPoint(x: xE, y: yTop)])
+        return graph.route(["wTop", "cwTop", "cwBot", "ceBot", "ceTop", "eTop"])
     }
 
     private func spawn(_ dir: Dir) {
@@ -147,7 +172,7 @@ final class LostwithielStation: ObservableObject {
         let clay = Color(red: 0.80, green: 0.76, blue: 0.68)
         let body = Track.carUnit + CGFloat(freightWagons) * wagonUnit    // engine + ten hoods
         let t = LwTrain(Train(length: 1, tint: clay, name: ""), .east,
-                        RoutePath([CGPoint(x: xW, y: yTop), CGPoint(x: xE, y: yTop)]),
+                        graph.route(["wTop", "eTop"]),
                         body: body, smoke: 3)
         t.role = .freight
         trains.insert(t, at: 0)
@@ -155,9 +180,9 @@ final class LostwithielStation: ObservableObject {
 
     // MARK: controls
 
-    /// Tap the route light: clear that direction over the shared stretch, or hold both.
-    func clear(_ dir: Dir) { if dir == .east { eastClear.toggle() } else { westClear.toggle() }; objectWillChange.send() }
-    func granted(_ dir: Dir) -> Bool { dir == .east ? eastClear : westClear }
+    /// Tap the route light: clear that direction over the shared stretch, or hold it.
+    func clear(_ dir: Dir) { (dir == .east ? upHold : downHold).toggle(); objectWillChange.send() }
+    func granted(_ dir: Dir) -> Bool { (dir == .east ? upHold : downHold).cleared }
 
     func releaseRescue() {
         guard rescueReady, !trains.contains(where: { $0.role == .rescue }) else { return }
@@ -222,6 +247,7 @@ final class LostwithielStation: ObservableObject {
         }
         if !broken && throughCount >= 3 && !trains.contains(where: { $0.role == .freight }) { spawnFreight() }
 
+        updateBlockSignals()   // refresh the filter signals from live positions before driving the trains
         let roster = trains
         let deadFreight = roster.first { $0.dead }
         // Single-line working over the shared stretch: whoever is in it holds it; when it empties, hand it
@@ -265,7 +291,7 @@ final class LostwithielStation: ObservableObject {
                 // Filter signals space the approach: hold a block back if the block ahead is held.
                 for sx in (t.dir == .east ? blockXsUp : blockXsDown) {
                     let approaching = t.dir == .east ? headX(t) < sx - 1 : headX(t) > sx + 1
-                    if approaching, blockHeld(sx, t.dir, except: t), let h = distAtX(t, sx), t.dist <= h - gap {
+                    if approaching, blockAspect(sx, t.dir) == 2, let h = distAtX(t, sx), t.dist <= h - gap {
                         ceiling = min(ceiling, h - gap)
                     }
                 }

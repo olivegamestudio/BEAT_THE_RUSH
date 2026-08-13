@@ -112,6 +112,13 @@ Two platforms with green small + green/red **express** trains (`express: 0.28`).
 signals keep expresses spaced back from locals. Intro to expresses running through.
 - The **Royal Albert Bridge is drawn in front of (over) the trains** — trains pass *under* its spans, so
   the drawing order puts the bridge last.
+- **First level built on RailKit** (the shared toolkit, below). Its layout is a `RailGraph` (the two
+  routes are stitched from named nodes/edges — the bridge is one *shared* edge both directions traverse),
+  its filter signals and bridge levers are typed `BlockSignal`/`HoldGroup`, and its trains ride the shared
+  `RailSim` movement engine; only Saltash's own rules (boarding, the single-line turn-taking, spawn
+  balancing) live in the model, as sim hooks. Because it now uses the shared kinematics, its trains
+  **ease and screech to a stand** at a red rather than snapping to it — the feel the doc asks for
+  everywhere. `SaltashView` (rendering) is unchanged — still bespoke (graph rendering is a later piece).
 
 ### Dawlish Warren (2) — `dawlish`
 Two platform **loops** off the up/down mains. The player controls **platform starters** — tap to
@@ -306,26 +313,49 @@ row in `allStations` with `kind:`; add its first-move label in `levelTasks` (`Ap
 routing and geometry. Layout alone is ~a day per level, and a fix in one (e.g. the filter-signal cascade
 in Lostwithiel) doesn't reach the others. To reach twelve levels this has to become assemble-from-pieces.
 
-**Approach.** Build a shared foundation and prove it on the *next* level (US freight); leave the seven
-working bespoke levels alone and migrate them opportunistically, not in a big bang.
+**Approach.** Build a shared foundation and prove it on a level; leave the other working bespoke levels
+alone and migrate them opportunistically, not in a big bang. **Phase 1 (pieces 1–3) is built and proved
+on Saltash** (the first level composed on it — see [[Saltash (1)]]), and **Dawlish Warren and Worcester
+Foregate Street are now fully migrated onto it too** (pieces 1–3, each in three verified steps: track
+graph → typed signals → movement engine). Dawlish drove the per-vehicle-kinematics and overrun additions
+to piece 3 below; Worcester models its player-granted single line as a three-way `HoldGroup` (like
+Saltash's bridge) and its Platform 2 approach queue as a `BlockSignal` chain. **Lostwithiel has adopted
+pieces 1 & 2** (RailGraph lanes/crossovers; two `HoldSignal` route lights + two `BlockSignal` filter
+chains) but keeps its **bespoke constant-speed tick and scripted breakdown/rescue** for now — its
+no-easing movement model doesn't map cleanly onto `RailSim`'s eased engine. Still fully legacy:
+Birmingham, Newark, Crewe (crossing levels — they need the position-based body-ahead follow mode). The
+*next* new level (US freight) should be laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
-1. **Track graph.** Declare a level's lines as named polyline `RailEdge`s joined at `RailNode`s; a
-   `Router` stitches edges into a train's `RoutePath` (which already exists). Layout becomes data, not
-   hand-placed coordinates + bespoke `drawRails`.
-2. **Signals as types.** `HoldSignal` (player-tappable, holds a direction/route — Saltash/Lostwithiel
-   lights), `BlockSignal` (automatic, red while the block to the next signal is occupied — the filter
-   signals), each owning the section it protects and computing its own aspect from occupancy. One tested
-   implementation instead of per-level copies.
-3. **Movement engine (`RailSim`).** Holds the trains; per tick computes each train's `ceiling` = min(path
-   end, follow-gap to the train ahead, held-signal stops, block-signal stops, **position-based
-   body-ahead** so crossing moves never overlap — the Crewe/Birmingham rule as the default), eases `v`,
-   advances. Level-specific rules plug in via hooks (`shouldSpawn`, `onArrive`, custom holds).
-4. **Rendering.** `drawGraph` draws every edge in the rail style; reuse `drawCarriage`/`drawSignal`/
-   `drawBlockSignal`/route-lights placed from the definitions.
-5. **Level scaffold.** A base the level composes: graph + signals + sim + the shared HUD (briefing,
-   `ScoreTicker`, pause, mute, haptics, outcome) in a thin `RailLevelView`. A new level = define the
-   graph, place signals, write only its unique mechanic.
+1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
+   named `RailNode`s; `RailGraph.route([nodeIDs])` (the `Router`) stitches a chosen node sequence into a
+   `RoutePath`. One *shared* edge can serve both directions (Saltash's single-line bridge is one edge the
+   two routes traverse opposite ways). Layout becomes a small diagram of names, not hand-placed
+   coordinates. (Rendering the graph is piece 4 — not yet built; views still draw their own rails.)
+2. **Signals as types — BUILT (`RailSignals.swift`).** `HoldSignal` (player-tappable, latches the player's
+   intent to clear a route/direction — the Saltash/Lostwithiel levers) with `HoldGroup` for a
+   mutually-exclusive radio set (Saltash's two bridge portals: only one direction cleared at a time);
+   `BlockSignal` (automatic 3-aspect — red while its block is occupied, amber while the next signal's is,
+   the filter signals). Each owns the stretch it protects and computes its own aspect from an occupancy
+   test the level hands it, so the same type serves any axis-aligned line. One tested implementation
+   instead of per-level copies.
+3. **Movement engine — BUILT (`RailSim.swift`).** A generic `RailSim<V: RailVehicle>` owns the trains and,
+   per tick, computes each train's ceiling = min(path end, built-in follow-gap to the train ahead **on its
+   lane**, and a level `ceiling` hook for held-signal/resource/berth stops), then **eases `v`** toward a
+   sqrt braking target (`v² = 2·decel·headroom`) so trains brake smoothly to a stand and accelerate away —
+   the shared kinematics + route-light `aspect` every level was re-implementing. Level rules plug in via
+   hooks: `ceiling`, `speedLimit` (caution at amber), `onAdvance` (boarding, grabbing a resource),
+   `isFinished`/`onFinish`, plus `kinematics` (per-vehicle feel — Dawlish's brisk express vs gentle local)
+   and `overrun` (extra arc-length past the path end so a long train's tail clears the exit). *(Position-based
+   body-ahead for crossing moves — the Crewe/Birmingham rule — is the intended default follow mode; Saltash's
+   lanes never cross off the resource-gated bridge and Dawlish does its own shared-physical-track follow in the
+   `ceiling` hook (unique lane per train), so neither needs it yet. Body-ahead lands when a crossing level is
+   migrated.)*
+4. **Rendering — planned.** `drawGraph` draws every edge in the rail style; reuse `drawCarriage`/
+   `drawSignal`/`drawBlockSignal`/route-lights placed from the definitions.
+5. **Level scaffold — planned.** A base the level composes: graph + signals + sim + the shared HUD
+   (briefing, `ScoreTicker`, pause, mute, haptics, outcome) in a thin `RailLevelView`. A new level =
+   define the graph, place signals, write only its unique mechanic.
 
 Each of 1–5 is independently shippable; a level can adopt them piecemeal. Success measure: US freight is
 laid out and running in hours, not a day, and a signalling fix lands once.
