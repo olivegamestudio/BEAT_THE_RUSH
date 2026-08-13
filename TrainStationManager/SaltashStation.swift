@@ -1,39 +1,37 @@
 import SwiftUI
 
-/// Saltash: two platforms with two running lines between them, feeding a single-track
-/// bridge (the Royal Albert Bridge) off the east end. Trains find their own way to a platform
-/// and out; only one may be on the bridge at a time, so the two directions take turns. The
-/// player's only control is the signals — tap a red one to clear that direction onto the bridge.
-final class SaltTrain: Identifiable {
-    let id = UUID()
-    var spec: Train
+/// Saltash — the first level built on **RailKit** (the shared level toolkit, see docs/DESIGN.md).
+/// Its layout is declared as a track graph, its filter signals and bridge levers are typed RailKit
+/// signals, and its trains are driven by the shared `RailSim` movement engine. Everything unique to
+/// Saltash — boarding, the single-line bridge that the two directions take turns over, the spawn
+/// balancing — plugs into the sim through hooks, so the machinery it shares with every other level
+/// lives in RailKit, not here.
+///
+/// Two platforms with two running lines between them, feeding a single-track bridge (the Royal Albert
+/// Bridge) off the east end. Trains find their own way to a platform and out; only one may be on the
+/// bridge at a time, so the two directions take turns. The player's only control is the signals —
+/// tap a red one to clear that direction onto the bridge.
+final class SaltTrain: RailVehicle {
     let dir: SaltashStation.Dir
-    let path: RoutePath
     let berthDist: CGFloat
     let bridgeEnter: CGFloat
     let bridgeExit: CGFloat
-    var dist: CGFloat = 0
     var boarded = false
     var dwell = 0.0
     var load = 0.0               // people already aboard — keeps topping up until the train pulls away
     var started = false
     var hasBridge = false
-    var finished = false
-    var blocked = false
-    var stopped = 0.0            // seconds sat still at a red — drives the "waiting" bubble
-    var railAspect = 0           // 0 green / 1 amber / 2 red — lights the track ahead to show its route
-    var carLen: CGFloat { spec.carLength }
 
     init(_ spec: Train, _ dir: SaltashStation.Dir, _ path: RoutePath,
          berth: CGFloat, enter: CGFloat, exit: CGFloat) {
-        self.spec = spec; self.dir = dir; self.path = path
-        berthDist = berth; bridgeEnter = enter; bridgeExit = exit
+        self.dir = dir; berthDist = berth; bridgeEnter = enter; bridgeExit = exit
+        super.init(spec: spec, path: path, lane: dir == .east ? 0 : 1)
     }
 }
 
 @MainActor
 final class SaltashStation: ObservableObject {
-    enum Dir { case east, west }
+    enum Dir { case east, west; var key: String { self == .east ? "east" : "west" } }
     let def: StationDef
     var name: String { def.name }
 
@@ -146,8 +144,21 @@ final class SaltashStation: ObservableObject {
         return lines
     }()
 
-    @Published var trains: [SaltTrain] = []
-    @Published var bridgeGreen: Dir? = .east   // direction currently cleared onto the bridge; nil = both held
+    // MARK: RailKit composition — a graph, typed signals, and the shared movement engine
+
+    /// The track diagram (RailKit piece 1). Saltash's two running routes are stitched from it.
+    let graph: RailGraph
+    /// The movement engine (RailKit piece 3) — owns the trains and drives their kinematics.
+    let sim: RailSim<SaltTrain>
+    /// The two bridge levers (RailKit piece 2): a radio group, so only one direction is ever cleared
+    /// onto the single line at a time — the two take turns.
+    let bridgeGroup: HoldGroup
+    /// The automatic three-aspect filter signals down each approach (RailKit piece 2).
+    private(set) var blockSignalsEast: [BlockSignal] = []
+    private(set) var blockSignalsWest: [BlockSignal] = []
+
+    // MARK: published game state
+
     @Published var carried = 0.0
     @Published var pTop = 1.0    // passengers on the top (eastbound) platform
     @Published var pBot = 1.0    // passengers on the bottom (westbound) platform
@@ -185,35 +196,134 @@ final class SaltashStation: ObservableObject {
     private var paxClock = 0.0, nextPax = 1.4
     private weak var occupant: SaltTrain?
 
+    // Automatic three-aspect block signals on the two approaches to the bridge: green/amber/red as
+    // the queue builds. A train eases to caution speed at an amber; the queue itself (trains stopping
+    // behind each other) is what turns them red.
+    let blockXsEast: [CGFloat] = [40, 200, 460]      // top line (eastbound), the western approach
+    let blockXsWest: [CGFloat] = [1340, 1160, 1060]  // bottom line (westbound), the eastern approach
+    private let blockLen: CGFloat = 200
+
+    /// The live trains, from the sim — the view reads this each frame.
+    var trains: [SaltTrain] { sim.vehicles }
+
     init(_ def: StationDef) {
         self.def = def
-        // Eastbound runs on the top line (left-hand running): in from the west → top platform →
-        // west throat → bridge → east throat back to the top line → out east.
-        eastPath = RoutePath([CGPoint(x: exitW, y: yTop), CGPoint(x: platR, y: yTop),
-                              CGPoint(x: xMerge, y: yTop), CGPoint(x: xBridgeW, y: yBridge),
-                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xMergeE, y: yTop),
-                              CGPoint(x: exitE, y: yTop)])
+
+        // --- RailKit piece 1: the track graph. Declare Saltash's lines as named nodes + edges, then
+        // let the graph stitch the two running routes. The bridge edge (brW—brE) is *shared*:
+        // eastbound runs it west→east, westbound east→west, so the single line falls straight out of
+        // one shared edge rather than being coordinated by hand.
+        var g = RailGraph()
+        for n in [RailNode("eIn",   x: exitW,    y: yTop),
+                  RailNode("topP",  x: platR,    y: yTop),
+                  RailNode("wThrT", x: xMerge,   y: yTop),
+                  RailNode("brW",   x: xBridgeW, y: yBridge),
+                  RailNode("brE",   x: xBridgeE, y: yBridge),
+                  RailNode("eThrT", x: xMergeE,  y: yTop),
+                  RailNode("eOut",  x: exitE,    y: yTop),
+                  RailNode("wIn",   x: entryE,   y: yBot),
+                  RailNode("eThrB", x: xMergeE,  y: yBot),
+                  RailNode("wThrB", x: xMerge,   y: yBot),
+                  RailNode("botP",  x: platL,    y: yBot),
+                  RailNode("wOut",  x: exitW,    y: yBot)] { g.add(n) }
+        for e in [RailEdge("e0", "eIn", "topP"),  RailEdge("e1", "topP", "wThrT"),
+                  RailEdge("e2", "wThrT", "brW"),  RailEdge("bridge", "brW", "brE"),
+                  RailEdge("e3", "brE", "eThrT"),  RailEdge("e4", "eThrT", "eOut"),
+                  RailEdge("w0", "wIn", "eThrB"),  RailEdge("w1", "eThrB", "brE"),
+                  RailEdge("w2", "brW", "wThrB"),  RailEdge("w3", "wThrB", "botP"),
+                  RailEdge("w4", "botP", "wOut")] { g.add(e) }
+        graph = g
+
+        // Eastbound: in from the west → top platform → west throat → bridge → east throat → out east.
+        eastPath = g.route(["eIn", "topP", "wThrT", "brW", "brE", "eThrT", "eOut"])
+        // Westbound: in from the east → east throat → bridge → west throat → bottom platform → out.
+        westPath = g.route(["wIn", "eThrB", "brE", "brW", "wThrB", "botP", "wOut"])
         eBerth = eastPath.distanceTo(vertex: 1)
         eEnter = eastPath.distanceTo(vertex: 3)
         eExit  = eastPath.distanceTo(vertex: 4)
-        // Westbound runs on the bottom line: in from the east → east throat → bridge → west
-        // throat → bottom platform → out west. Its own track each side, never shared.
-        westPath = RoutePath([CGPoint(x: entryE, y: yBot), CGPoint(x: xMergeE, y: yBot),
-                              CGPoint(x: xBridgeE, y: yBridge), CGPoint(x: xBridgeW, y: yBridge),
-                              CGPoint(x: xMerge, y: yBot), CGPoint(x: platL, y: yBot),
-                              CGPoint(x: exitW, y: yBot)])
         wEnter = westPath.distanceTo(vertex: 2)
         wExit  = westPath.distanceTo(vertex: 3)
         wBerth = westPath.distanceTo(vertex: 5)
+
+        // --- RailKit piece 2: the signals. Two player levers (the bridge portals) as a radio group,
+        // and a chain of automatic filter signals down each approach.
+        bridgeGroup = HoldGroup([HoldSignal("east", at: CGPoint(x: xMerge + 6, y: yTop)),
+                                 HoldSignal("west", at: CGPoint(x: xMergeE - 6, y: yBot))])
+        let eSigs = blockXsEast.map {
+            BlockSignal("bE\($0)", at: CGPoint(x: $0, y: yTop - 26), axis: $0, forward: 1, blockLen: blockLen)
+        }
+        let wSigs = blockXsWest.map {
+            BlockSignal("bW\($0)", at: CGPoint(x: $0, y: yBot + 26), axis: $0, forward: -1, blockLen: blockLen)
+        }
+        if eSigs.count > 1 { for i in 0..<eSigs.count - 1 { eSigs[i].next = eSigs[i + 1] } }
+        if wSigs.count > 1 { for i in 0..<wSigs.count - 1 { wSigs[i].next = wSigs[i + 1] } }
+        blockSignalsEast = eSigs
+        blockSignalsWest = wSigs
+
+        // --- RailKit piece 3: the movement engine.
+        sim = RailSim(kin: RailKinematics(speedCap: speed))
+
+        // Everything above is stored; self is now fully initialised, so the hooks that reference it
+        // can be wired and the first train spawned.
+        bridgeGroup.grant("east")
+        configureSim()
         spawn(.east)
+    }
+
+    /// Wire the level's rules into the shared engine: what holds a train, when it eases to caution,
+    /// what happens as it advances, and what to do when it clears the level.
+    private func configureSim() {
+        // Extra movement authority: the berth (board before moving on), the platform's near end (don't
+        // queue onto a busy platform), and the bridge (hold short unless it's our turn and it's clear).
+        sim.ceiling = { [weak self] t, _ in
+            guard let self else { return .infinity }
+            let gap = self.sim.kin.followGap
+            var c = CGFloat.infinity
+            if !t.boarded { c = min(c, t.berthDist) }
+            if t.dist < self.platEntryDist(t) && self.platformBusy(t.dir, except: t) {
+                c = min(c, self.platEntryDist(t) - gap)
+            }
+            if !t.hasBridge && t.dist < t.bridgeEnter {
+                let ready = t.dir == .west || t.boarded          // eastbound must board before crossing
+                if !(ready && self.portalGreen(t.dir)) { c = min(c, t.bridgeEnter - gap) }
+            }
+            return c
+        }
+        // Ease to caution speed while running up to an amber filter signal ahead.
+        sim.speedLimit = { [weak self] t in
+            guard let self else { return .infinity }
+            let fx = t.path.sample(t.dist).p.x
+            let xs = t.dir == .east ? self.blockXsEast : self.blockXsWest
+            for sx in xs where (t.dir == .east ? sx > fx : sx < fx) && self.blockAspect(sx, t.dir) == 1 {
+                return self.speed * 0.5
+            }
+            return .infinity
+        }
+        // After each advance: board at the platform, then take/free the single-line bridge.
+        sim.onAdvance = { [weak self] t, dt in
+            guard let self else { return }
+            self.serveBoarding(t, dt)
+            self.serveBridge(t)
+        }
+        // Off the far end: free the bridge if it was still ours, and sound the departure.
+        sim.onFinish = { [weak self] t in
+            guard let self else { return }
+            if self.occupant === t { self.occupant = nil }
+            Sound.shared.play(.depart)
+        }
     }
 
     /// Tap a signal: clear that direction (green), or hold both (red) if it was already cleared.
     /// Only one direction is ever cleared — the single line makes the two take turns.
-    func clear(_ dir: Dir) { bridgeGreen = (bridgeGreen == dir) ? nil : dir; objectWillChange.send() }
+    func clear(_ dir: Dir) { bridgeGroup.toggle(dir.key); objectWillChange.send() }
+
+    /// The direction currently cleared onto the bridge (nil = both held) — for the view's signals.
+    var bridgeGreen: Dir? {
+        switch bridgeGroup.granted { case "east": return .east; case "west": return .west; default: return nil }
+    }
 
     /// Green portal (a direction may enter the bridge): it's cleared and the bridge is empty.
-    func portalGreen(_ dir: Dir) -> Bool { bridgeGreen == dir && occupant == nil }
+    func portalGreen(_ dir: Dir) -> Bool { bridgeGroup.isCleared(dir.key) && occupant == nil }
 
     /// The near end of a train's platform — trains wait here rather than piling onto the platform.
     private func platEntryDist(_ t: SaltTrain) -> CGFloat { t.berthDist - (platR - platL) }
@@ -227,37 +337,59 @@ final class SaltashStation: ObservableObject {
     var topBusy: Bool { platformBusy(.east) }   // eastbound platform (top) occupied
     var botBusy: Bool { platformBusy(.west) }   // westbound platform (bottom) occupied
 
-    // Automatic three-aspect block signals on the two approaches to the bridge: green/amber/red as the queue
-    // builds. A train eases to caution speed at an amber; the queue itself (trains stopping behind each other)
-    // is what turns them red.
-    let blockXsEast: [CGFloat] = [40, 200, 460]      // top line (eastbound), the western approach
-    let blockXsWest: [CGFloat] = [1340, 1160, 1060]  // bottom line (westbound), the eastern approach
-    private let blockLen: CGFloat = 200
-    private func trainXExtent(_ o: SaltTrain) -> (CGFloat, CGFloat) {
-        let fx = o.path.sample(o.dist).p.x
-        let rx = o.path.sample(max(0, o.dist - CGFloat(o.spec.length) * Track.carUnit)).p.x
-        return (min(fx, rx), max(fx, rx))
-    }
-    /// Is the block just ahead of the signal at `x` occupied by a train of that direction?
-    func blockOccupied(_ x: CGFloat, _ dir: Dir) -> Bool {
-        let east = dir == .east
-        let lo = east ? x : x - blockLen
-        let hi = east ? x + blockLen : x
-        return trains.contains { o in
-            guard !o.finished, o.dir == dir else { return false }
-            let (a, b) = trainXExtent(o)
-            return a <= hi && b >= lo
+    /// Refresh every filter signal from the live train positions in its direction.
+    private func updateBlockSignals() {
+        for s in blockSignalsEast {
+            s.update { r in self.trains.contains { !$0.finished && $0.dir == .east && $0.xExtent.overlaps(r) } }
+        }
+        for s in blockSignalsWest {
+            s.update { r in self.trains.contains { !$0.finished && $0.dir == .west && $0.xExtent.overlaps(r) } }
         }
     }
-    private func nextBlockX(after x: CGFloat, _ dir: Dir) -> CGFloat? {
-        let xs = dir == .east ? blockXsEast : blockXsWest
-        return dir == .east ? xs.filter { $0 > x + 1 }.min() : xs.filter { $0 < x - 1 }.max()
-    }
-    /// A signal's aspect: 2 = red (block ahead occupied), 1 = amber (next signal red), 0 = green.
+    /// A signal's aspect at approach position `x`: 2 = red, 1 = amber, 0 = green.
     func blockAspect(_ x: CGFloat, _ dir: Dir) -> Int {
-        if blockOccupied(x, dir) { return 2 }
-        if let nx = nextBlockX(after: x, dir), blockOccupied(nx, dir) { return 1 }
-        return 0
+        let arr = dir == .east ? blockSignalsEast : blockSignalsWest
+        return arr.first { abs($0.axis - x) < 0.5 }?.aspect ?? 0
+    }
+
+    /// Board while standing at the platform. It keeps topping up from newly-arrived passengers (up to
+    /// its capacity) until it pulls away — once it's moved off the berth, no more can board.
+    private func serveBoarding(_ t: SaltTrain, _ dt: Double) {
+        guard t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 else { return }
+        if !t.started {
+            t.started = true
+            t.dwell = dwellTime
+            if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
+            Sound.shared.play(.board)
+        }
+        t.dwell -= dt
+        let cap = Double(t.spec.length) * perCar
+        let plat = t.dir == .east ? pTop : pBot
+        if t.load < cap && plat > 0 {
+            let take = min(boardOffRate * dt, min(cap - t.load, plat))
+            let before = plat
+            if t.dir == .east { pTop = max(0, pTop - take) } else { pBot = max(0, pBot - take) }
+            let after = t.dir == .east ? pTop : pBot
+            if Int(before) != Int(after) {        // a whole person boarded — sparkle where they stood
+                let k = Int(after)
+                sparkles.append(Sparkle(x: platL + 16 + CGFloat(k) * 15,
+                                        y: t.dir == .east ? yTop - 28 : yBot + 38))
+            }
+            t.load += take; carried += take
+        }
+        if t.dwell <= 0 { t.boarded = true }
+    }
+
+    /// Take the bridge when at the portal, our turn, and it's clear; free it once our tail is off it.
+    private func serveBridge(_ t: SaltTrain) {
+        if !t.hasBridge && occupant == nil && portalGreen(t.dir)
+            && t.dist >= t.bridgeEnter - sim.kin.followGap - 1 && (t.dir == .west || t.boarded) {
+            t.hasBridge = true; occupant = t
+            Sound.shared.play(.ding)        // the level-crossing bell as a train takes the bridge
+        }
+        if t.hasBridge && (t.dist - t.carLen) > t.bridgeExit {
+            t.hasBridge = false; if occupant === t { occupant = nil }
+        }
     }
 
     private func spawn(_ dir: Dir) {
@@ -268,16 +400,17 @@ final class SaltashStation: ObservableObject {
         let tint = express ? (Bool.random() ? red : green) : green
         let spec = Train(length: len, tint: tint, name: "")
         if dir == .east {
-            trains.append(SaltTrain(spec, .east, eastPath, berth: eBerth, enter: eEnter, exit: eExit))
+            sim.vehicles.append(SaltTrain(spec, .east, eastPath, berth: eBerth, enter: eEnter, exit: eExit))
         } else {
-            trains.append(SaltTrain(spec, .west, westPath, berth: wBerth, enter: wEnter, exit: wExit))
+            sim.vehicles.append(SaltTrain(spec, .west, westPath, berth: wBerth, enter: wEnter, exit: wExit))
         }
     }
 
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
+        sim.vehicles = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
         pTop = 1; pBot = 1; overTop = 0; overBot = 0; topWait = 0; botWait = 0
-        bridgeGreen = .east
+        occupant = nil
+        bridgeGroup.grant("east")
         spawnClock = 0; nextSpawn = 1.5; paxClock = 0; nextPax = 1.4
         spawn(.east)
         objectWillChange.send()
@@ -285,7 +418,6 @@ final class SaltashStation: ObservableObject {
 
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
-        let gap = Track.carUnit * 1.15     // keep clear air between queued trains
 
         animT += dt
         topWait = pTop >= 1 ? topWait + dt : 0
@@ -301,8 +433,8 @@ final class SaltashStation: ObservableObject {
         if spawnClock >= nextSpawn {
             spawnClock = 0
             if trains.count < 7 {
-                // Balance the two approaches — eastbounds must board before the bridge, so they clear the
-                // west side more slowly and would otherwise pile up. Feed whichever side has fewer trains.
+                // Balance the two approaches — eastbounds must board before the bridge, so they clear
+                // the west side more slowly and would otherwise pile up. Feed whichever side has fewer.
                 let east = trains.filter { $0.dir == .east && !$0.finished }.count
                 let west = trains.filter { $0.dir == .west && !$0.finished }.count
                 let dir: Dir = east > west + 1 ? .west : (west > east + 1 ? .east : (Bool.random() ? .east : .west))
@@ -311,87 +443,10 @@ final class SaltashStation: ObservableObject {
             nextSpawn = Double.random(in: (def.spawnRange.lowerBound * 1.7)...(def.spawnRange.upperBound * 2.2))
         }
 
-        let roster = trains
-        for t in roster where !t.finished {
-            var ceiling = t.path.total
-            // wait at the platform until boarding is done
-            if !t.boarded { ceiling = min(ceiling, t.berthDist) }
-            // hold at the platform's near end while a same-direction train still stands on it,
-            // so trains never queue onto the platform itself
-            if t.dist < platEntryDist(t) && platformBusy(t.dir, except: t) {
-                ceiling = min(ceiling, platEntryDist(t) - gap)
-            }
-            // wait short of the bridge unless it's granted to us
-            if !t.hasBridge && t.dist < t.bridgeEnter {
-                let readyToCross = t.dir == .west || t.boarded    // eastbound must board first
-                if !(readyToCross && portalGreen(t.dir)) {
-                    ceiling = min(ceiling, t.bridgeEnter - gap)
-                }
-            }
-            // don't run into the nearest same-direction train ahead
-            var aheadTail = CGFloat.infinity
-            for o in roster where o !== t && o.dir == t.dir && !o.finished && o.dist > t.dist {
-                aheadTail = min(aheadTail, o.dist - o.carLen)
-            }
-            if aheadTail.isFinite { ceiling = min(ceiling, aheadTail - gap) }
+        // Refresh the filter signals, then let the shared engine advance every train.
+        updateBlockSignals()
+        sim.step(dt)
 
-            // Ease to caution speed while running up to an amber block signal ahead.
-            var spd = speed
-            let fx = t.path.sample(t.dist).p.x
-            let xs = t.dir == .east ? blockXsEast : blockXsWest
-            for sx in xs where (t.dir == .east ? sx > fx : sx < fx) && blockAspect(sx, t.dir) == 1 {
-                spd = min(spd, speed * 0.5)
-            }
-            let step = spd * CGFloat(dt)
-            let next = min(t.dist + step, ceiling)
-            t.blocked = next < t.dist + step - 0.01 && next < t.path.total - 1
-            t.stopped = t.blocked ? t.stopped + dt : 0
-            t.dist = max(t.dist, next)
-            // Light the road ahead: green for a clear run to the exit, red/amber when held or closing in.
-            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1, amber: spd < speed)
-
-            // Board while standing at the platform. It keeps topping up from newly-arrived passengers (up to
-            // its capacity) until it pulls away — once it's moved off the berth, no more can board.
-            if t.dist >= t.berthDist - 0.5 && t.dist <= t.berthDist + Track.carUnit * 0.3 {
-                if !t.started {
-                    t.started = true
-                    t.dwell = dwellTime
-                    if t.dir == .east { topWait = 0 } else { botWait = 0 }   // a train's here, calm down
-                    Sound.shared.play(.board)
-                }
-                t.dwell -= dt
-                let cap = Double(t.spec.length) * perCar
-                let plat = t.dir == .east ? pTop : pBot
-                if t.load < cap && plat > 0 {
-                    let take = min(boardOffRate * dt, min(cap - t.load, plat))
-                    let before = plat
-                    if t.dir == .east { pTop = max(0, pTop - take) } else { pBot = max(0, pBot - take) }
-                    let after = t.dir == .east ? pTop : pBot
-                    if Int(before) != Int(after) {        // a whole person boarded — sparkle where they stood
-                        let k = Int(after)
-                        sparkles.append(Sparkle(x: platL + 16 + CGFloat(k) * 15,
-                                                y: t.dir == .east ? yTop - 28 : yBot + 38))
-                    }
-                    t.load += take; carried += take
-                }
-                if t.dwell <= 0 { t.boarded = true }
-            }
-            // take the bridge when at the portal, our turn, and it's clear
-            if !t.hasBridge && occupant == nil && portalGreen(t.dir)
-                && t.dist >= t.bridgeEnter - gap - 1 && (t.dir == .west || t.boarded) {
-                t.hasBridge = true; occupant = t
-                Sound.shared.play(.ding)        // the level-crossing bell as a train takes the bridge
-            }
-            // free the bridge once our tail is clear of it
-            if t.hasBridge && (t.dist - t.carLen) > t.bridgeExit {
-                t.hasBridge = false; if occupant === t { occupant = nil }
-            }
-            if t.dist >= t.path.total {
-                t.finished = true; if occupant === t { occupant = nil }
-                Sound.shared.play(.depart)
-            }
-        }
-        trains.removeAll { $0.finished }
         for i in sparkles.indices { sparkles[i].age += dt }
         sparkles.removeAll { $0.age > sparkleLife }
 
