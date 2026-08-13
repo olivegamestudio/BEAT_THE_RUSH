@@ -335,20 +335,19 @@ xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 - Birmingham: build the player-controlled **points routing** (currently auto only).
 - Worcester: general polish pass.
 - Menu-screen accel/decel easing (long-outstanding).
-- **Polish phase (after the twelve cores exist):** rebuild the **station-select screen** as a **split-flap
-  departure board** — *chosen and approved* (web feel-prototype signed off). Railway-station board: big
-  legible mono rows (good for partial sight), columns `TIME · DESTINATION · REGION · EXPECTED`, semantic
-  status colour (green on-time / amber delayed), tap a row to pick a level. **The feel that sold it, to
-  reproduce in Canvas:** each cell **riffles through the character set** (space→A→B…) and settles — never a
-  single cut to the final glyph; a two-leaf **fold** with a centre seam + the shadow the upper leaf casts;
-  a small overshoot "slap" as it lands; letters **staggered** across a word (~40ms/cell) so it ripples in;
-  ~64ms per flip; a soft per-flap **tick** (synth, mute-able) that thins as cells settle. Reveal-from-blank
-  on entry is the money shot. Ports straight onto the existing `Canvas` + 0.03s tick.
-  Refinements agreed on the prototype: **one mini board per station** (a grid of small boards, not a single
-  list) — an **unlocked** station flaps in its name/region/status + stars; a **locked** one stays **blank**
-  ("not in service"), and *clearing* the level before it flaps that station **into service** (nicer than a
-  padlock). The **menu title "BEAT THE RUSH" is itself split-flap and reveals** on load, tying menu and
-  select together. Prototype: `scratchpad/departure-board.html` → the published Artifact.
+- **Split-flap departure board — BUILT (`FlapBoard.swift`).** The menu title **"BEAT THE RUSH"** and the
+  **station-select screen** are now split-flap boards. `enum Flap` holds the charset + palette; each cell's
+  glyph is a **pure function of elapsed time** (start blank, step through the charset to the target at
+  `stepDur=0.05`, staggered `cellStagger=0.04`/column, `tileStagger=0.09`/board), so there's no mutable flip
+  state — the board reads the clock. `drawFlapCell` draws two charcoal leaves + seam and, mid-flip, the
+  folding leaf squashed about the hinge (a 2-D fake of the fold) with the new glyph revealed behind. Driven
+  by `TimelineView(.animation)` **only while revealing**, then frozen to a static `Canvas` (costs nothing at
+  rest). `FlapHeadline` = the title; `StationBoardTile` = one mini board per station — **unlocked** flaps in
+  `boardName`/county/status (`CLEARED` amber / `ON TIME` green) + stars; **locked** stays **blank** ("not in
+  service"). `StationDef.boardName` shortens long names to the town. Web feel-prototype:
+  `scratchpad/departure-board.html`.
+  **Still to tune:** the per-flap **tick sound** isn't wired to `Sound` yet; trailing blank cells on short
+  names; reveal pacing; a locked→in-service flap when a level is cleared.
 
 ## Future level ideas
 - **Breakdown & rescue** (Simon): *built* as **[[Lostwithiel (6)]]** — a double-track section where the

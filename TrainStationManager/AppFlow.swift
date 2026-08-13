@@ -554,10 +554,7 @@ struct MenuView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 10) {
-                Text("BEAT THE RUSH")
-                    .font(.system(size: 64, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1).minimumScaleFactor(0.6)
+                FlapHeadline(text: "BEAT THE RUSH", cellW: 30)
                     .shadow(color: .black.opacity(0.6), radius: 10, y: 4)
                 Text("Route the trains. Clear the platforms.")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
@@ -597,7 +594,10 @@ struct StationSelectView: View {
     let onPick: (StationDef) -> Void
     let onBack: () -> Void
 
-    private let cols = [GridItem(.adaptive(minimum: 168), spacing: 14)]
+    @State private var revealStart = Date()
+    @State private var animating = true
+    private var shown: [StationDef] { allStations.filter { $0.kind != .ladder } }
+    private let cols = [GridItem(.adaptive(minimum: 340), spacing: 14)]
 
     var body: some View {
         ZStack {
@@ -630,14 +630,21 @@ struct StationSelectView: View {
 
                 ScrollView {
                     LazyVGrid(columns: cols, spacing: 14) {
-                        // Only the bespoke, worked-on stations are shown; the generic placeholder
-                        // "ladder" stations are hidden until they're built out.
-                        ForEach(allStations.filter { $0.kind != .ladder }) { def in
-                            StationCard(def: def, locked: !Progress.isUnlocked(def.id),
-                                        onPick: { onPick(def) })
+                        // Only the bespoke, worked-on stations are shown; each is a mini departure board —
+                        // unlocked ones flap in their departure, locked ones stay blank ("not in service").
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, def in
+                            StationBoardTile(def: def, unlocked: Progress.isUnlocked(def.id),
+                                             stars: Progress.stars(def.id), index: i,
+                                             revealStart: revealStart, animating: animating,
+                                             onPick: { onPick(def) })
                         }
                     }
                     .padding(20)
+                }
+                .onAppear {
+                    revealStart = Date()
+                    let dur = Double(shown.count) * Flap.tileStagger + Flap.revealDuration(15) + 0.6
+                    DispatchQueue.main.asyncAfter(deadline: .now() + dur) { animating = false }
                 }
             }
         }
