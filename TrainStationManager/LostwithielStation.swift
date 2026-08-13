@@ -58,6 +58,28 @@ final class LostwithielStation: ObservableObject {
     var contestL: CGFloat { xCW + xOff }
     var contestR: CGFloat { xCE - xOff }
 
+    // Automatic filter signals spacing the two approaches, so arrivals queue a block apart, not nose-to-tail.
+    let blockXsUp: [CGFloat] = [20, 220]        // up-line approach (eastbound), west of the crossover
+    let blockXsDown: [CGFloat] = [1200, 1000]   // down-line approach (westbound), east of the crossover
+    private let blockLen: CGFloat = 180
+
+    /// Is the block just ahead of the signal at `sx` (in `dir`) held by another service?
+    func blockHeld(_ sx: CGFloat, _ dir: Dir, except t: LwTrain? = nil) -> Bool {
+        trains.contains { o in
+            guard o !== t, !o.finished, o.role == .service, o.dir == dir else { return false }
+            let x = headX(o)
+            return dir == .east ? (x > sx && x < sx + blockLen) : (x < sx && x > sx - blockLen)
+        }
+    }
+    /// A filter signal's aspect: 2 red (block ahead held), 1 amber (next block held), 0 green.
+    func blockAspect(_ sx: CGFloat, _ dir: Dir) -> Int {
+        if blockHeld(sx, dir) { return 2 }
+        let xs = dir == .east ? blockXsUp : blockXsDown
+        let next = dir == .east ? xs.filter { $0 > sx }.min() : xs.filter { $0 < sx }.max()
+        if let n = next, blockHeld(n, dir) { return 1 }
+        return 0
+    }
+
     @Published var trains: [LwTrain] = []
     @Published var carried = 0.0        // trains sent safely through — the score
     @Published var eastClear = true             // the up-line signal — red holds eastbounds at the west crossover
@@ -77,8 +99,9 @@ final class LostwithielStation: ObservableObject {
     private var spawnClock = 0.0, nextSpawn = 2.2
     private var throughCount = 0
     private var overClock = 0.0
-    let maxBacklog = 5
-    let overflowGrace = 10.0
+    let maxBacklog = 6
+    let overflowGrace = 16.0
+    private var contestDir: Dir? = nil          // which way currently holds the shared single-line stretch
 
     init(_ def: StationDef) {
         self.def = def
@@ -196,6 +219,18 @@ final class LostwithielStation: ObservableObject {
 
         let roster = trains
         let deadFreight = roster.first { $0.dead }
+        // Single-line working over the shared stretch: whoever is in it holds it; when it empties, hand it
+        // to the waiting side, alternating, so neither is starved and traffic flows around the block by itself.
+        if let occ = roster.first(where: { $0.role == .service && inContest($0) }) {
+            contestDir = occ.dir
+        } else {
+            let eastWaiting = roster.contains { $0.role == .service && $0.diverting && headX($0) > xCW - 80 && headX($0) < xCW + 6 }
+            let westWaiting = roster.contains { $0.role == .service && $0.dir == .west && headX($0) < xCE + 80 && headX($0) > xCE - 6 }
+            if eastWaiting && westWaiting { contestDir = (contestDir == .east) ? .west : .east }
+            else if eastWaiting { contestDir = .east }
+            else if westWaiting { contestDir = .west }
+            else { contestDir = nil }
+        }
         for t in roster where !t.finished {
             if t.dead { t.railAspect = 2; continue }
             var speed = t.role == .freight ? freightSpeed : (t.role == .rescue ? rescueSpeed : baseSpeed)
@@ -207,9 +242,7 @@ final class LostwithielStation: ObservableObject {
 
             // Don't overrun a same-direction train ahead.
             for o in roster where o !== t && !o.finished && o.dir == t.dir && o.role != .rescue && o.dist > t.dist {
-                if o.role == .freight || t.role != .freight {           // freight ignores nothing; services queue behind freight too
-                    ceiling = min(ceiling, o.dist - o.bodyLen - gap)
-                }
+                ceiling = min(ceiling, o.dist - o.bodyLen - gap)       // everything queues behind the train ahead, freight included
             }
             // The dead freight is a wall on the up lane — up-line trains still committed to it stop short.
             if let f = deadFreight, t.role == .service, !t.diverting, t.dir == .east {
@@ -222,8 +255,15 @@ final class LostwithielStation: ObservableObject {
             if t.role == .service {
                 let holdX = t.dir == .east ? xCW : xCE
                 var mayPass = granted(t.dir)
-                if broken, (t.diverting || t.dir == .west), opposingInContest(t.dir) { mayPass = false }
+                if broken, (t.diverting || t.dir == .west), let c = contestDir, c != t.dir { mayPass = false }
                 if !mayPass, let h = distAtX(t, holdX), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
+                // Filter signals space the approach: hold a block back if the block ahead is held.
+                for sx in (t.dir == .east ? blockXsUp : blockXsDown) {
+                    let approaching = t.dir == .east ? headX(t) < sx - 1 : headX(t) > sx + 1
+                    if approaching, blockHeld(sx, t.dir, except: t), let h = distAtX(t, sx), t.dist <= h - gap {
+                        ceiling = min(ceiling, h - gap)
+                    }
+                }
             }
             // The rescue holds short of any train ahead; while hauling it runs the whole consist off the
             // scene, so let it overrun the path end.

@@ -229,6 +229,13 @@ struct LostwithielView: View {
         if s.rescueReady {
             drawSignal(ctx, at: S(CGPoint(x: s.xSideTurn + 20, y: s.yTop)), red: false, scale: sc * 2.2)
         }
+        // Automatic filter signals along the two approaches — they space the arrivals.
+        for sx in s.blockXsUp {
+            drawBlockSignal(ctx, at: S(CGPoint(x: sx, y: s.yTop - 26)), aspect: s.blockAspect(sx, .east), scale: sc * 1.7)
+        }
+        for sx in s.blockXsDown {
+            drawBlockSignal(ctx, at: S(CGPoint(x: sx, y: s.yBot + 26)), aspect: s.blockAspect(sx, .west), scale: sc * 1.7)
+        }
     }
 
     // MARK: controls
