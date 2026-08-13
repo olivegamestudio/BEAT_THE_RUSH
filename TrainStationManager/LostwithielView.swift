@@ -83,33 +83,50 @@ struct LostwithielView: View {
 
     private func drawTerrain(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize, _ S: (CGPoint) -> CGPoint) {
         let s = station
-        var ground = Path()
-        let gTop = S(CGPoint(x: s.xW, y: s.yTop - 150)).y
-        ground.addRect(CGRect(x: 0, y: gTop, width: size.width, height: size.height - gTop))
-        ctx.fill(ground, with: .color(Color(red: 0.13, green: 0.20, blue: 0.15)))
-        // The 'Cornish Alps' — pale conical china-clay spoil tips along the skyline.
-        var hills = Path()
-        let baseY = s.yTop - 78
-        hills.move(to: S(CGPoint(x: s.xW, y: baseY)))
-        var x = s.xW
-        while x <= s.xE {
-            let cone = pow(max(0, sin(x / 95 + 0.6)), 6) * 86      // narrow tall tips
-            let ridge = 26 + 12 * sin(x / 230)
-            hills.addLine(to: S(CGPoint(x: x, y: baseY - ridge - cone))); x += 22
-        }
-        hills.addLine(to: S(CGPoint(x: s.xE, y: baseY))); hills.closeSubpath()
-        ctx.fill(hills, with: .color(Color(red: 0.40, green: 0.39, blue: 0.36)))            // pale clay grey
-        ctx.fill(hills, with: .linearGradient(                                              // a chalky sheen up top
-            Gradient(colors: [Color(red: 0.56, green: 0.54, blue: 0.50).opacity(0.55), .clear]),
-            startPoint: S(CGPoint(x: s.xW, y: baseY - 110)), endPoint: S(CGPoint(x: s.xW, y: baseY))))
-        // River Fowey below the lines.
+        let vOff = (size.height - Track.H * sc) / 2
+        let horizon = (s.yTop - 40) * sc + vOff
+        // Sky — bright, behind everything.
+        ctx.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: horizon)),
+                 with: .linearGradient(Gradient(colors: [Color(red: 0.47, green: 0.60, blue: 0.78),
+                                                          Color(red: 0.78, green: 0.82, blue: 0.84)]),
+                                       startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: horizon)))
+        // Two parallax layers of china-clay spoil tips — far ones barely move, near ones move more.
+        clayTips(ctx, sc, size, baseY: s.yTop - 52, amp: 52, factor: 0.20,
+                 fill: Color(red: 0.52, green: 0.53, blue: 0.55), sheen: Color(red: 0.72, green: 0.73, blue: 0.74))
+        clayTips(ctx, sc, size, baseY: s.yTop - 40, amp: 86, factor: 0.44,
+                 fill: Color(red: 0.42, green: 0.41, blue: 0.38), sheen: Color(red: 0.60, green: 0.58, blue: 0.53))
+        // Green valley floor (flat, foreground).
+        ctx.fill(Path(CGRect(x: 0, y: horizon, width: size.width, height: size.height - horizon)),
+                 with: .color(Color(red: 0.14, green: 0.21, blue: 0.16)))
+        // River Fowey below the lines — milky with clay.
         var river = Path()
         let ry = s.yBot + 150
-        river.move(to: S(CGPoint(x: s.xW, y: ry))); x = s.xW
+        river.move(to: S(CGPoint(x: s.xW, y: ry))); var x = s.xW
         while x <= s.xE { river.addLine(to: S(CGPoint(x: x, y: ry + 12 * sin(x / 120)))); x += 40 }
         river.addLine(to: S(CGPoint(x: s.xE, y: size.height / sc)))
         river.addLine(to: S(CGPoint(x: s.xW, y: size.height / sc))); river.closeSubpath()
-        ctx.fill(river, with: .color(Color(red: 0.09, green: 0.18, blue: 0.26)))
+        ctx.fill(river, with: .color(Color(red: 0.13, green: 0.25, blue: 0.32)))
+    }
+
+    /// A ridge of pale conical clay tips at a parallax `factor` (0 = fixed, 1 = moves with the foreground),
+    /// drawn well past the pannable range so its ends never come into view.
+    private func clayTips(_ ctx: GraphicsContext, _ sc: CGFloat, _ size: CGSize,
+                          baseY: CGFloat, amp: CGFloat, factor: CGFloat, fill: Color, sheen: Color) {
+        let s = station
+        let vOff = (size.height - Track.H * sc) / 2
+        func P(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: (x - originX * factor) * sc, y: y * sc + vOff) }
+        var path = Path()
+        let x0 = s.xW - 600, x1 = s.xE + 600
+        path.move(to: P(x0, baseY)); var x = x0
+        while x <= x1 {
+            let cone = pow(max(0, sin(x / 95 + 0.6)), 6) * amp
+            let ridge = 22 + 10 * sin(x / 230)
+            path.addLine(to: P(x, baseY - ridge - cone)); x += 22
+        }
+        path.addLine(to: P(x1, baseY)); path.closeSubpath()
+        ctx.fill(path, with: .color(fill))
+        ctx.fill(path, with: .linearGradient(Gradient(colors: [sheen.opacity(0.6), .clear]),
+                                             startPoint: P(x0, baseY - amp), endPoint: P(x0, baseY)))
     }
 
     // MARK: rails
