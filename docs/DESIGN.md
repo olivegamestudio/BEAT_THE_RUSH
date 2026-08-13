@@ -315,8 +315,10 @@ in Lostwithiel) doesn't reach the others. To reach twelve levels this has to bec
 
 **Approach.** Build a shared foundation and prove it on a level; leave the other working bespoke levels
 alone and migrate them opportunistically, not in a big bang. **Phase 1 (pieces 1–3) is built and proved
-on Saltash** (the first level composed on it — see [[Saltash (1)]]); the *next* new level (US freight) is
-the one that should be laid out from the toolkit directly.
+on Saltash** (the first level composed on it — see [[Saltash (1)]]), and **Dawlish Warren is now fully
+migrated onto it too** (pieces 1–3, in three verified steps: track graph → typed signals → movement
+engine), which is what drove the per-vehicle-kinematics and overrun additions to piece 3 below. The
+*next* new level (US freight) is the one that should be laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
@@ -337,9 +339,12 @@ the one that should be laid out from the toolkit directly.
    sqrt braking target (`v² = 2·decel·headroom`) so trains brake smoothly to a stand and accelerate away —
    the shared kinematics + route-light `aspect` every level was re-implementing. Level rules plug in via
    hooks: `ceiling`, `speedLimit` (caution at amber), `onAdvance` (boarding, grabbing a resource),
-   `isFinished`/`onFinish`. *(Position-based body-ahead for crossing moves — the Crewe/Birmingham rule —
-   is the intended default follow mode; Saltash's lanes never cross off the resource-gated bridge, so it
-   uses lane-follow. Body-ahead lands when a crossing level is migrated.)*
+   `isFinished`/`onFinish`, plus `kinematics` (per-vehicle feel — Dawlish's brisk express vs gentle local)
+   and `overrun` (extra arc-length past the path end so a long train's tail clears the exit). *(Position-based
+   body-ahead for crossing moves — the Crewe/Birmingham rule — is the intended default follow mode; Saltash's
+   lanes never cross off the resource-gated bridge and Dawlish does its own shared-physical-track follow in the
+   `ceiling` hook (unique lane per train), so neither needs it yet. Body-ahead lands when a crossing level is
+   migrated.)*
 4. **Rendering — planned.** `drawGraph` draws every edge in the rail style; reuse `drawCarriage`/
    `drawSignal`/`drawBlockSignal`/route-lights placed from the definitions.
 5. **Level scaffold — planned.** A base the level composes: graph + signals + sim + the shared HUD
