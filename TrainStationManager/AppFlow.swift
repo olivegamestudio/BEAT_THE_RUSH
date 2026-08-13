@@ -670,6 +670,13 @@ private struct ScrollBottomKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
+/// Reports the top of the scroll content (in the scroll's own space); goes negative as the user
+/// scrolls down, so we can tell when there's more above and show an upward scroll hint.
+private struct ScrollTopKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct StationSelectView: View {
     let onPick: (StationDef) -> Void
     let onBack: () -> Void
@@ -677,9 +684,11 @@ struct StationSelectView: View {
     @State private var revealStart = Date()
     @State private var animating = true
     @State private var contentBottom: CGFloat = 0
+    @State private var contentTop: CGFloat = 0
     @State private var viewportH: CGFloat = 0
     @State private var chevBob = false
     private var moreBelow: Bool { contentBottom > viewportH + 24 }
+    private var moreAbove: Bool { contentTop < -24 }
     private var shown: [StationDef] { allStations.filter { $0.kind != .ladder } }
     // Bigger tiles on iPad — its wider screen otherwise fits many small columns.
     private var cols: [GridItem] {
@@ -729,12 +738,25 @@ struct StationSelectView: View {
                     }
                     .padding(20)
                     .background(GeometryReader { g in Color.clear
-                        .preference(key: ScrollBottomKey.self, value: g.frame(in: .named("selscroll")).maxY) })
+                        .preference(key: ScrollBottomKey.self, value: g.frame(in: .named("selscroll")).maxY)
+                        .preference(key: ScrollTopKey.self, value: g.frame(in: .named("selscroll")).minY) })
                 }
                 .coordinateSpace(name: "selscroll")
                 .onPreferenceChange(ScrollBottomKey.self) { contentBottom = $0 }
+                .onPreferenceChange(ScrollTopKey.self) { contentTop = $0 }
                 .background(GeometryReader { g in Color.clear.onAppear { viewportH = g.size.height }
                     .onChange(of: g.size.height) { _, h in viewportH = h } })
+                .overlay(alignment: .top) {
+                    if moreAbove {
+                        ZStack(alignment: .top) {
+                            LinearGradient(colors: [Color(red: 0.06, green: 0.08, blue: 0.12), .clear],
+                                           startPoint: .top, endPoint: .bottom).frame(height: 56)
+                            Image(systemName: "chevron.up").font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.8)).padding(.top, chevBob ? 6 : 12)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
                 .overlay(alignment: .bottom) {
                     if moreBelow {
                         ZStack(alignment: .bottom) {
