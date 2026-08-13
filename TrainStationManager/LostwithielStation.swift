@@ -12,27 +12,22 @@ import SwiftUI
 
 enum LwRole { case service, freight, rescue }
 
-@MainActor
-final class LwTrain: Identifiable {
-    let id = UUID()
-    var spec: Train
+/// A RailVehicle (RailKit piece 3): the shared engine drives `dist`, `railAspect`, `stopped`, `blocked`;
+/// the fields here are Lostwithiel's own — direction, role, the long body used for following, and the
+/// breakdown/rescue state.
+final class LwTrain: RailVehicle {
     let dir: LostwithielStation.Dir     // east = left→right (up/top lane), west = right→left (down/bottom lane)
     var role: LwRole = .service
-    var path: RoutePath
-    var dist: CGFloat = 0
     var bodyLen: CGFloat                 // tail length for following/collision (freight is long)
     var diverting = false               // an up-line train routed across onto the down lane past the block
-    var finished = false
-    var blocked = false
-    var stopped = 0.0
-    var railAspect = 0
     var dead = false                    // the freight, once it has failed
     var hauling = false                 // the rescue has coupled the casualty and is dragging it clear
     weak var casualty: LwTrain?
     let smokeRate: Double
 
-    init(_ spec: Train, _ dir: LostwithielStation.Dir, _ path: RoutePath, body: CGFloat, smoke: Double) {
-        self.spec = spec; self.dir = dir; self.path = path; self.bodyLen = body; self.smokeRate = smoke
+    init(_ spec: Train, _ dir: LostwithielStation.Dir, _ path: RoutePath, body: CGFloat, smoke: Double, lane: Int) {
+        self.dir = dir; self.bodyLen = body; self.smokeRate = smoke
+        super.init(spec: spec, path: path, lane: lane)
     }
 }
 
@@ -88,7 +83,11 @@ final class LostwithielStation: ObservableObject {
         }
     }
 
-    @Published var trains: [LwTrain] = []
+    // --- RailKit piece 3: the shared movement engine owns the trains; `trains` is a view onto its roster.
+    let sim: RailSim<LwTrain>
+    var trains: [LwTrain] { sim.vehicles }
+    private var laneSeq = 0      // each train gets its own lane so the engine's lane-follow never fires;
+                                 // Lostwithiel does its own body-length following in the ceiling hook
     @Published var carried = 0.0        // trains sent safely through — the score
     // --- RailKit piece 2: the two route lights are independent player-tappable HoldSignals (cleared =
     // green over the shared stretch). Not a group — either direction can be set on its own.
@@ -137,11 +136,98 @@ final class LostwithielStation: ObservableObject {
         if upS.count > 1 { for i in 0..<upS.count - 1 { upS[i].next = upS[i + 1] } }
         if dnS.count > 1 { for i in 0..<dnS.count - 1 { dnS[i].next = dnS[i + 1] } }
         blockSignalsUp = upS; blockSignalsDown = dnS
+
+        // Lostwithiel runs a constant-speed model: the huge accel/decel make RailSim's eased step behave
+        // like the old fixed-step move (full speed until the ceiling, then a hard stop) — so the feel is
+        // unchanged while the shared engine still owns following, route-lighting and the roster.
+        sim = RailSim(kin: RailKinematics(speedCap: baseSpeed, accel: 100000, decel: 100000))
+        configureSim()
         spawn(.east); spawn(.west)
     }
 
+    /// Wire Lostwithiel's rules into the shared engine. Per-role speed (with the failing freight's ramp),
+    /// movement authority (`ceiling`), the rescue's haul-out overrun, the breakdown/rescue script
+    /// (`onAdvance`) and the finish/score all plug in here.
+    private func configureSim() {
+        let gap = Track.carUnit * 2.2
+        // Per-role top speed; the clay freight grinds to a halt as it fails rather than a dead stop.
+        sim.kinematics = { [weak self] t in
+            guard let self else { return RailKinematics(speedCap: 78, accel: 100000, decel: 100000) }
+            var speed = t.role == .freight ? self.freightSpeed : (t.role == .rescue ? self.rescueSpeed : self.baseSpeed)
+            if t.role == .freight, !t.dead {
+                let dd = self.xFreight - self.headX(t)
+                if dd < 130 { speed *= max(0.12, dd / 130) }
+            }
+            return RailKinematics(speedCap: speed, accel: 100000, decel: 100000)
+        }
+        // While hauling, the rescue runs its whole consist off the far end, so it may overrun the path.
+        sim.overrun = { $0.role == .rescue && $0.hauling ? $0.bodyLen + Track.carUnit : 0 }
+        sim.ceiling = { [weak self] t, roster in
+            guard let self else { return .infinity }
+            if t.dead { return t.dist }        // the failed freight is a fixed wall until the rescue drags it clear
+            var ceiling = CGFloat.infinity
+            // Don't overrun a same-direction train ahead (freight included; the rescue is never followed).
+            for o in roster where o !== t && !o.finished && o.dir == t.dir && o.role != .rescue && o.dist > t.dist {
+                ceiling = min(ceiling, o.dist - o.bodyLen - gap)
+            }
+            // The dead freight is a wall on the up lane — up-line trains still committed to it stop short.
+            if let f = roster.first(where: { $0.dead }), t.role == .service, !t.diverting, t.dir == .east {
+                if let d = self.distAtX(t, self.tailX(f) - gap), d > t.dist { ceiling = min(ceiling, d) }
+            }
+            // Single-line working: a service honours its own signal, and after the block also holds if the
+            // other way is currently in the shared stretch, so they never meet.
+            if t.role == .service {
+                let holdX = t.dir == .east ? self.xCW : self.xCE
+                var mayPass = self.granted(t.dir)
+                if self.broken, (t.diverting || t.dir == .west), let c = self.contestDir, c != t.dir { mayPass = false }
+                if !mayPass, let h = self.distAtX(t, holdX), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
+                for sx in (t.dir == .east ? self.blockXsUp : self.blockXsDown) {
+                    let approaching = t.dir == .east ? self.headX(t) < sx - 1 : self.headX(t) > sx + 1
+                    if approaching, self.blockAspect(sx, t.dir) == 2, let h = self.distAtX(t, sx), t.dist <= h - gap {
+                        ceiling = min(ceiling, h - gap)
+                    }
+                }
+            }
+            // The rescue holds short of anything ahead on the road.
+            if t.role == .rescue, self.rescueMeetsTrain(t) { ceiling = min(ceiling, t.dist) }
+            return ceiling
+        }
+        sim.onAdvance = { [weak self] t, _ in
+            guard let self else { return }
+            // The freight plods up the up lane and fails at the appointed spot — the inciting event.
+            if t.role == .freight && !t.dead && self.headX(t) >= self.xFreight {
+                t.dead = true; self.broken = true; self.rescueReady = true
+                self.divertUpTrains()
+                Sound.shared.play(.ding)
+            }
+            if t.role == .rescue { self.runRescue(t) }
+        }
+        // A service finishes at the far portal (scored); the freight and rescue finish inside runRescue.
+        sim.isFinished = { $0.role == .service && $0.dist >= $0.path.total - 1 }
+        sim.onFinish = { [weak self] t in
+            guard let self, t.role == .service else { return }
+            self.carried += 1; self.throughCount += 1; Sound.shared.play(.depart)
+        }
+    }
+
+    /// Single-line working over the shared stretch: whoever is in it holds it; when it empties, hand it to
+    /// the waiting side, alternating, so neither is starved and traffic flows around the block by itself.
+    private func computeContestDir() {
+        let roster = trains
+        if let occ = roster.first(where: { $0.role == .service && inContest($0) }) {
+            contestDir = occ.dir
+        } else {
+            let eastWaiting = roster.contains { $0.role == .service && $0.diverting && headX($0) > xCW - 80 && headX($0) < xCW + 6 }
+            let westWaiting = roster.contains { $0.role == .service && $0.dir == .west && headX($0) < xCE + 80 && headX($0) > xCE - 6 }
+            if eastWaiting && westWaiting { contestDir = (contestDir == .east) ? .west : .east }
+            else if eastWaiting { contestDir = .east }
+            else if westWaiting { contestDir = .west }
+            else { contestDir = nil }
+        }
+    }
+
     func reset() {
-        trains = []; carried = 0; outcome = .playing; stars = 0
+        sim.vehicles = []; laneSeq = 0; carried = 0; outcome = .playing; stars = 0
         upHold.cleared = true; downHold.cleared = true; broken = false; rescued = false; rescueReady = false
         animT = 0; throughCount = 0; overClock = 0; spawnClock = 0; nextSpawn = 2.2
         spawn(.east); spawn(.west)
@@ -162,20 +248,22 @@ final class LostwithielStation: ObservableObject {
         let len = def.trainLengths.randomElement() ?? 3
         let tint = trainPalette[Int.random(in: 0..<trainPalette.count)]
         let diverting = dir == .east && broken
+        laneSeq += 1
         let t = LwTrain(Train(length: len, tint: tint, name: ""), dir, servicePath(dir, diverting: diverting),
-                        body: CGFloat(len) * Track.carUnit, smoke: Double(Int.random(in: 0..<100)))
+                        body: CGFloat(len) * Track.carUnit, smoke: Double(Int.random(in: 0..<100)), lane: laneSeq)
         t.diverting = diverting
-        trains.append(t)
+        sim.vehicles.append(t)
     }
 
     private func spawnFreight() {
         let clay = Color(red: 0.80, green: 0.76, blue: 0.68)
         let body = Track.carUnit + CGFloat(freightWagons) * wagonUnit    // engine + ten hoods
+        laneSeq += 1
         let t = LwTrain(Train(length: 1, tint: clay, name: ""), .east,
                         graph.route(["wTop", "eTop"]),
-                        body: body, smoke: 3)
+                        body: body, smoke: 3, lane: laneSeq)
         t.role = .freight
-        trains.insert(t, at: 0)
+        sim.vehicles.insert(t, at: 0)
     }
 
     // MARK: controls
@@ -191,10 +279,11 @@ final class LostwithielStation: ObservableObject {
         // up lane, so it never cuts across untracked ground.
         let approach = RoutePath([stBlazey, blazeTurn, CGPoint(x: xSideTurn, y: yTop),
                                   CGPoint(x: xFreight + Track.carUnit * 0.7, y: yTop)])
+        laneSeq += 1
         let r = LwTrain(Train(length: 1, tint: orange, name: ""), .west, approach,
-                        body: Track.carUnit, smoke: 7)
+                        body: Track.carUnit, smoke: 7, lane: laneSeq)
         r.role = .rescue
-        trains.append(r)
+        sim.vehicles.append(r)
         rescueReady = false
         Sound.shared.play(.ding)
         objectWillChange.send()
@@ -237,7 +326,6 @@ final class LostwithielStation: ObservableObject {
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
         animT += dt
-        let gap = Track.carUnit * 2.2       // keep plenty of air between trains
 
         spawnClock += dt
         if spawnClock >= nextSpawn {
@@ -247,82 +335,11 @@ final class LostwithielStation: ObservableObject {
         }
         if !broken && throughCount >= 3 && !trains.contains(where: { $0.role == .freight }) { spawnFreight() }
 
-        updateBlockSignals()   // refresh the filter signals from live positions before driving the trains
-        let roster = trains
-        let deadFreight = roster.first { $0.dead }
-        // Single-line working over the shared stretch: whoever is in it holds it; when it empties, hand it
-        // to the waiting side, alternating, so neither is starved and traffic flows around the block by itself.
-        if let occ = roster.first(where: { $0.role == .service && inContest($0) }) {
-            contestDir = occ.dir
-        } else {
-            let eastWaiting = roster.contains { $0.role == .service && $0.diverting && headX($0) > xCW - 80 && headX($0) < xCW + 6 }
-            let westWaiting = roster.contains { $0.role == .service && $0.dir == .west && headX($0) < xCE + 80 && headX($0) > xCE - 6 }
-            if eastWaiting && westWaiting { contestDir = (contestDir == .east) ? .west : .east }
-            else if eastWaiting { contestDir = .east }
-            else if westWaiting { contestDir = .west }
-            else { contestDir = nil }
-        }
-        for t in roster where !t.finished {
-            if t.dead { t.railAspect = 2; continue }
-            var speed = t.role == .freight ? freightSpeed : (t.role == .rescue ? rescueSpeed : baseSpeed)
-            if t.role == .freight, !t.dead {              // grind to a halt as it fails, rather than a dead stop
-                let dd = xFreight - headX(t)
-                if dd < 130 { speed *= max(0.12, dd / 130) }
-            }
-            var ceiling = t.path.total
-
-            // Don't overrun a same-direction train ahead.
-            for o in roster where o !== t && !o.finished && o.dir == t.dir && o.role != .rescue && o.dist > t.dist {
-                ceiling = min(ceiling, o.dist - o.bodyLen - gap)       // everything queues behind the train ahead, freight included
-            }
-            // The dead freight is a wall on the up lane — up-line trains still committed to it stop short.
-            if let f = deadFreight, t.role == .service, !t.diverting, t.dir == .east {
-                if let d = distAtX(t, tailX(f) - gap), d > t.dist { ceiling = min(ceiling, d) }
-            }
-            // Single-line working over the shared stretch: a diverting up-train, or any down-train, may only
-            // enter when the route is granted its way and no one is coming the other way.
-            // A service honours its own signal at all times — a red holds it at its crossover. After the
-            // block it also holds if the other way is currently in the shared stretch, so they never meet.
-            if t.role == .service {
-                let holdX = t.dir == .east ? xCW : xCE
-                var mayPass = granted(t.dir)
-                if broken, (t.diverting || t.dir == .west), let c = contestDir, c != t.dir { mayPass = false }
-                if !mayPass, let h = distAtX(t, holdX), t.dist <= h - gap { ceiling = min(ceiling, h - gap) }
-                // Filter signals space the approach: hold a block back if the block ahead is held.
-                for sx in (t.dir == .east ? blockXsUp : blockXsDown) {
-                    let approaching = t.dir == .east ? headX(t) < sx - 1 : headX(t) > sx + 1
-                    if approaching, blockAspect(sx, t.dir) == 2, let h = distAtX(t, sx), t.dist <= h - gap {
-                        ceiling = min(ceiling, h - gap)
-                    }
-                }
-            }
-            // The rescue holds short of any train ahead; while hauling it runs the whole consist off the
-            // scene, so let it overrun the path end.
-            if t.role == .rescue {
-                ceiling = t.hauling ? (t.path.total + t.bodyLen + Track.carUnit) : t.path.total
-                if rescueMeetsTrain(t) { ceiling = min(ceiling, t.dist) }
-            }
-
-            let step = speed * CGFloat(dt)
-            let next = min(t.dist + step, ceiling)
-            t.blocked = next < t.dist + step - 0.01 && next < t.path.total - 1
-            t.stopped = t.blocked ? t.stopped + dt : 0
-            t.dist = max(t.dist, next)
-            t.railAspect = railAspect(headroom: ceiling - t.dist, clearToEnd: ceiling >= t.path.total - 1, amber: false)
-
-            // The freight plods up the up lane and fails at the appointed spot — the inciting event.
-            if t.role == .freight && !t.dead && headX(t) >= xFreight {
-                t.dead = true; broken = true; rescueReady = true
-                divertUpTrains()
-                Sound.shared.play(.ding)
-            }
-            if t.role == .rescue { runRescue(t) }
-
-            if t.role == .service && t.dist >= t.path.total - 1 {
-                t.finished = true; carried += 1; throughCount += 1; Sound.shared.play(.depart)
-            }
-        }
-        trains.removeAll { $0.finished }
+        // RailKit piece 3: set the single-line direction, refresh the filter signals, then let the shared
+        // engine drive everyone (following, route-lighting, and — via the hooks — the breakdown/rescue).
+        updateBlockSignals()
+        computeContestDir()
+        sim.step(dt)
 
         let backlog = max(eastBacklog, westBacklog)
         overClock = backlog > maxBacklog ? overClock + dt : 0
