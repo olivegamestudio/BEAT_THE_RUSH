@@ -315,10 +315,12 @@ in Lostwithiel) doesn't reach the others. To reach twelve levels this has to bec
 
 **Approach.** Build a shared foundation and prove it on a level; leave the other working bespoke levels
 alone and migrate them opportunistically, not in a big bang. **Phase 1 (pieces 1–3) is built and proved
-on Saltash** (the first level composed on it — see [[Saltash (1)]]), and **Dawlish Warren is now fully
-migrated onto it too** (pieces 1–3, in three verified steps: track graph → typed signals → movement
-engine), which is what drove the per-vehicle-kinematics and overrun additions to piece 3 below. The
-*next* new level (US freight) is the one that should be laid out from the toolkit directly.
+on Saltash** (the first level composed on it — see [[Saltash (1)]]), and **Dawlish Warren and Worcester
+Foregate Street are now fully migrated onto it too** (pieces 1–3, each in three verified steps: track
+graph → typed signals → movement engine). Dawlish drove the per-vehicle-kinematics and overrun additions
+to piece 3 below; Worcester models its player-granted single line as a three-way `HoldGroup` (like
+Saltash's bridge) and its Platform 2 approach queue as a `BlockSignal` chain. Still legacy: Birmingham,
+Newark, Crewe, Lostwithiel. The *next* new level (US freight) should be laid out from the toolkit directly.
 
 **Pieces (roughly in build order):**
 1. **Track graph — BUILT (`RailGraph.swift`).** A level's lines are named polyline `RailEdge`s joined at
