@@ -83,8 +83,21 @@ final class WorcesterStation: ObservableObject {
     @Published var carried = 0.0
     @Published var pP2 = 1.0
     @Published var pP1 = 1.0
-    enum Grant { case east, london, bristol }   // what the single line is currently set for
-    @Published var grant: Grant? = nil
+    enum Grant {
+        case east, london, bristol   // what the single line is currently set for
+        var key: String { switch self { case .east: "east"; case .london: "london"; case .bristol: "bristol" } }
+        init?(key: String) {
+            switch key { case "east": self = .east; case "london": self = .london
+                         case "bristol": self = .bristol; default: return nil }
+        }
+    }
+    // --- RailKit piece 2: the single line is a player-granted resource — a mutually-exclusive HoldGroup
+    // of three levers (send Platform 2 out east, admit from London, admit from Bristol). Only one is ever
+    // cleared, so the movements take turns; `grant` reads whichever it is.
+    let singleGroup = HoldGroup([HoldSignal("east", at: .zero),
+                                 HoldSignal("london", at: .zero),
+                                 HoldSignal("bristol", at: .zero)])
+    var grant: Grant? { singleGroup.granted.flatMap(Grant.init(key:)) }
     @Published var outcome: GameOutcome = .playing
     @Published var stars = 0
     @Published var sparkles: [Sparkle] = []
@@ -119,10 +132,44 @@ final class WorcesterStation: ObservableObject {
     private var peakFill = 0.0
     private weak var occupant: WorcTrain?
 
-    init(_ def: StationDef) { self.def = def; spawn() }
+    // --- RailKit piece 1: the track graph. The two platforms, the shared single line and the four
+    // destination branches are named nodes; each train's run-path is stitched from a node sequence by
+    // route(_:) (straight joins) rather than hand-listed coordinates — identical geometry, named layout.
+    let graph: RailGraph
+
+    init(_ def: StationDef) {
+        self.def = def
+        let d: CGFloat = 40      // how far past the east throat the crossover reaches the single line
+        var g = RailGraph()
+        for n in [RailNode("p2W",     x: spawnL, y: yP2), RailNode("p2berth", x: platR, y: yP2),
+                  RailNode("p2throat", x: xEJ,    y: yP2), RailNode("neck",    x: xEJ + d, y: ySingle),
+                  RailNode("p1throat", x: xEJ,    y: yP1), RailNode("p1berth", x: platL, y: yP1),
+                  RailNode("p1W",      x: spawnL, y: yP1)] { g.add(n) }
+        // Each destination: its junction on the single line, its fan-out point, and its off-map spawn.
+        let dests: [(String, CGFloat, CGFloat)] =
+            [("Lon", yLondon, xSH),               ("Dro", yDroitwich, xSH + branchStep),
+             ("Bir", yBirmingham, xSH + 2 * branchStep), ("Bri", yBristol, xSH + 3 * branchStep)]
+        for (id, yD, bx) in dests {
+            g.add(RailNode("j\(id)",   x: bx, y: ySingle))
+            g.add(RailNode("fan\(id)", x: bx + branchFan, y: yD))
+            g.add(RailNode("sp\(id)",  x: spawnR, y: yD))
+        }
+        graph = g
+
+        // Build the Platform 2 queue chain: signals ordered west→east (travel order) so each points
+        // .next at the one ahead — its block is the amber look-ahead. Copy props to locals so the map
+        // closure doesn't capture self before init completes.
+        let yq = yP2 - 24, bl = queueBlockLen
+        let qs = [platL - 40, platL - 250, platL - 460].sorted().map {
+            BlockSignal("q\($0)", at: CGPoint(x: $0, y: yq), axis: $0, forward: 1, blockLen: bl)
+        }
+        if qs.count > 1 { for i in 0..<qs.count - 1 { qs[i].next = qs[i + 1] } }
+        queueSignals = qs
+        spawn()
+    }
 
     /// Set the single line for a movement (or take the grant away if it was already set that way).
-    func setGrant(_ g: Grant) { grant = (grant == g) ? nil : g; objectWillChange.send() }
+    func setGrant(_ g: Grant) { singleGroup.toggle(g.key); objectWillChange.send() }
     /// May this train take the single line right now — is it granted for its movement, and the line clear?
     private func mayTakeSingle(_ t: WorcTrain) -> Bool {
         guard occupant == nil else { return false }
@@ -137,25 +184,28 @@ final class WorcesterStation: ObservableObject {
     var p2Busy: Bool { present(.blue) }
     var p1Busy: Bool { present(.red) }
 
-    /// Is the block just east of `x` on the Platform 2 western approach occupied — i.e. should a queue signal
-    /// there show red? Used to line eastbound arrivals up behind each other on the inbound-left road.
-    func p2BlockAhead(_ x: CGFloat) -> Bool {
-        let blockLen: CGFloat = 210
+    /// Signal positions down the inbound-left (eastbound) approach, nearest the platform first. These
+    /// positions build the queue's BlockSignal chain in init.
+    var p2QueueXs: [CGFloat] { [platL - 40, platL - 250, platL - 460] }
+    private let queueBlockLen: CGFloat = 210
+    let queueSignals: [BlockSignal]     // automatic 3-aspect chain down the Platform 2 western approach
+    /// A queue signal's stored aspect (2 red / 1 amber / 0 green), refreshed each tick by `updateQueueSignals`.
+    func p2QueueAspect(_ x: CGFloat) -> Int {
+        queueSignals.first { abs($0.axis - x) < 0.5 }?.aspect ?? 0
+    }
+    /// Refresh the queue signals from the live eastbound-approach positions.
+    private func updateQueueSignals() {
+        for s in queueSignals { s.update { self.p2ApproachOccupies($0) } }
+    }
+    /// Whether any part of an eastbound train still on the Platform 2 western approach lies in range `r`.
+    private func p2ApproachOccupies(_ r: ClosedRange<CGFloat>) -> Bool {
         for t in trains where !t.finished && t.line == .blue {
             let head = t.path.sample(t.dist).p
             guard head.x <= xEJ + 4, abs(head.y - yP2) < 24 else { continue }   // still on the western approach
             let tail = head.x - t.carLen
-            if head.x > x && tail < x + blockLen { return true }
+            if head.x > r.lowerBound && tail < r.upperBound { return true }
         }
         return false
-    }
-    /// Signal positions down the inbound-left approach, nearest the platform first.
-    var p2QueueXs: [CGFloat] { [platL - 40, platL - 250, platL - 460] }
-    /// Three-aspect for a queue light: red if the block just ahead is taken, amber if the block beyond it is, else green.
-    func p2QueueAspect(_ x: CGFloat) -> Int {
-        if p2BlockAhead(x) { return 2 }
-        if p2BlockAhead(x + 210) { return 1 }
-        return 0
     }
     /// Three-aspect for a junction light on the single line: red while a train holds the line, amber while it's
     /// granted but not yet taken, green when clear.
@@ -165,21 +215,14 @@ final class WorcesterStation: ObservableObject {
         let line: Line = Bool.random() ? .blue : .red
         let spec = Train(length: def.trainLengths.randomElement() ?? 3,
                          tint: line == .blue ? Self.wmrOrange : Self.gwrGreen, name: "")
-        let d: CGFloat = 40
         let path: RoutePath, berthV: Int, enterV: Int, exitV: Int
         if line == .blue {          // eastbound: Malvern → Platform 2 → single line → its junction → Droitwich/Birmingham
-            let yE = Bool.random() ? yDroitwich : yBirmingham
-            let bx = branchX(yE)
-            path = RoutePath([CGPoint(x: spawnL, y: yP2), CGPoint(x: platR, y: yP2), CGPoint(x: xEJ, y: yP2),
-                              CGPoint(x: xEJ + d, y: ySingle), CGPoint(x: bx, y: ySingle),
-                              CGPoint(x: bx + branchFan, y: yE), CGPoint(x: spawnR, y: yE)])
+            let dst = Bool.random() ? "Dro" : "Bir"
+            path = graph.route(["p2W", "p2berth", "p2throat", "neck", "j\(dst)", "fan\(dst)", "sp\(dst)"])
             berthV = 1; enterV = 3; exitV = 4   // holds the single line until it diverges at its junction
         } else {                    // westbound: London/Bristol → its junction → single line → Platform 1 → Malvern
-            let yA = Bool.random() ? yLondon : yBristol
-            let bx = branchX(yA)
-            path = RoutePath([CGPoint(x: spawnR, y: yA), CGPoint(x: bx + branchFan, y: yA), CGPoint(x: bx, y: ySingle),
-                              CGPoint(x: xEJ + d, y: ySingle), CGPoint(x: xEJ, y: yP1),
-                              CGPoint(x: platL, y: yP1), CGPoint(x: spawnL, y: yP1)])
+            let dst = Bool.random() ? "Lon" : "Bri"
+            path = graph.route(["sp\(dst)", "fan\(dst)", "j\(dst)", "neck", "p1throat", "p1berth", "p1W"])
             berthV = 5; enterV = 2; exitV = 3   // holds the single line from its junction to the platform throat
         }
         trains.append(WorcTrain(spec, line, path, berth: path.distanceTo(vertex: berthV),
@@ -188,7 +231,7 @@ final class WorcesterStation: ObservableObject {
 
     func reset() {
         trains = []; carried = 0; outcome = .playing; stars = 0; peakFill = 0; sparkles = []
-        pP2 = 1; pP1 = 1; overP2 = 0; overP1 = 0; p2Wait = 0; p1Wait = 0; grant = nil
+        pP2 = 1; pP1 = 1; overP2 = 0; overP1 = 0; p2Wait = 0; p1Wait = 0; singleGroup.grant(nil)
         spawnClock = 0; nextSpawn = 1.2; paxClock = 0; nextPax = 1.2
         spawn()
         objectWillChange.send()
@@ -215,6 +258,7 @@ final class WorcesterStation: ObservableObject {
             nextSpawn = Double.random(in: def.spawnRange.lowerBound...(def.spawnRange.upperBound * 1.3))
         }
 
+        updateQueueSignals()   // refresh the Platform 2 queue signals from live positions before driving trains
         let roster = trains
         for t in roster where !t.finished {
             let overrun = CGFloat(t.spec.length) * Track.carUnit
