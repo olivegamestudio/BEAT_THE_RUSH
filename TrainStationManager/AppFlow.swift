@@ -695,9 +695,9 @@ struct StationSelectView: View {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color(white: 0.8))
+                            .foregroundStyle(.white)
                             .frame(width: 36, height: 36)
-                            .background(Color(red: 0.16, green: 0.19, blue: 0.25), in: Circle())
+                            .background(Color(red: 0.82, green: 0.24, blue: 0.24).opacity(0.94), in: Circle())
                             .overlay(Circle().stroke(.white.opacity(0.12)))
                     }
                     .buttonStyle(PressStyle())
