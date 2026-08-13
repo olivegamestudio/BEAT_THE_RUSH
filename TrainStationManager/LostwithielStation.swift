@@ -61,14 +61,18 @@ final class LostwithielStation: ObservableObject {
     // Automatic filter signals spacing the two approaches, so arrivals queue a block apart, not nose-to-tail.
     let blockXsUp: [CGFloat] = [20, 220]        // up-line approach (eastbound), west of the crossover
     let blockXsDown: [CGFloat] = [1200, 1000]   // down-line approach (westbound), east of the crossover
-    private let blockLen: CGFloat = 180
 
-    /// Is the block just ahead of the signal at `sx` (in `dir`) held by another service?
+    /// The block ahead of the filter signal at `sx` runs up to the next filter (or the crossover) — held
+    /// if any service of that direction sits in it, so the whole approach cascades back and following
+    /// trains stop a block apart instead of piling into the queue at the crossover.
     func blockHeld(_ sx: CGFloat, _ dir: Dir, except t: LwTrain? = nil) -> Bool {
-        trains.contains { o in
+        let xs = dir == .east ? blockXsUp : blockXsDown
+        let cross = dir == .east ? xCW : xCE
+        let next = dir == .east ? (xs.filter { $0 > sx }.min() ?? cross) : (xs.filter { $0 < sx }.max() ?? cross)
+        return trains.contains { o in
             guard o !== t, !o.finished, o.role == .service, o.dir == dir else { return false }
             let x = headX(o)
-            return dir == .east ? (x > sx && x < sx + blockLen) : (x < sx && x > sx - blockLen)
+            return dir == .east ? (x > sx && x <= next) : (x < sx && x >= next)
         }
     }
     /// A filter signal's aspect: 2 red (block ahead held), 1 amber (next block held), 0 green.
@@ -207,12 +211,12 @@ final class LostwithielStation: ObservableObject {
     func tick(_ dt: Double) {
         guard outcome == .playing else { return }
         animT += dt
-        let gap = Track.carUnit * 0.9
+        let gap = Track.carUnit * 2.2       // keep plenty of air between trains
 
         spawnClock += dt
         if spawnClock >= nextSpawn {
             spawnClock = 0
-            if trains.filter({ $0.role == .service }).count < 8 { spawn(Bool.random() ? .east : .west) }
+            if trains.filter({ $0.role == .service }).count < 6 { spawn(Bool.random() ? .east : .west) }
             nextSpawn = Double.random(in: def.spawnRange)
         }
         if !broken && throughCount >= 3 && !trains.contains(where: { $0.role == .freight }) { spawnFreight() }

@@ -87,13 +87,21 @@ struct LostwithielView: View {
         let gTop = S(CGPoint(x: s.xW, y: s.yTop - 150)).y
         ground.addRect(CGRect(x: 0, y: gTop, width: size.width, height: size.height - gTop))
         ctx.fill(ground, with: .color(Color(red: 0.13, green: 0.20, blue: 0.15)))
+        // The 'Cornish Alps' — pale conical china-clay spoil tips along the skyline.
         var hills = Path()
-        let baseY = s.yTop - 96
+        let baseY = s.yTop - 78
         hills.move(to: S(CGPoint(x: s.xW, y: baseY)))
         var x = s.xW
-        while x <= s.xE { hills.addLine(to: S(CGPoint(x: x, y: baseY - (44 + 26 * sin(x / 150) + 14 * cos(x / 63))))); x += 40 }
+        while x <= s.xE {
+            let cone = pow(max(0, sin(x / 95 + 0.6)), 6) * 86      // narrow tall tips
+            let ridge = 26 + 12 * sin(x / 230)
+            hills.addLine(to: S(CGPoint(x: x, y: baseY - ridge - cone))); x += 22
+        }
         hills.addLine(to: S(CGPoint(x: s.xE, y: baseY))); hills.closeSubpath()
-        ctx.fill(hills, with: .color(Color(red: 0.10, green: 0.17, blue: 0.13)))
+        ctx.fill(hills, with: .color(Color(red: 0.40, green: 0.39, blue: 0.36)))            // pale clay grey
+        ctx.fill(hills, with: .linearGradient(                                              // a chalky sheen up top
+            Gradient(colors: [Color(red: 0.56, green: 0.54, blue: 0.50).opacity(0.55), .clear]),
+            startPoint: S(CGPoint(x: s.xW, y: baseY - 110)), endPoint: S(CGPoint(x: s.xW, y: baseY))))
         // River Fowey below the lines.
         var river = Path()
         let ry = s.yBot + 150
