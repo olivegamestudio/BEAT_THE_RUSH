@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import TrainStationManager
+@testable import BeatTheRush
 
 /// Regression harness for RailKit's shared movement engine. Every bespoke level now rides `RailSim`, so a
 /// change here can move all of them at once — these deterministic scenarios pin the invariants that matter:

@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		AA00000000000000000005 /* TrainStationManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainStationManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA000000000000000000EA /* TrainStationManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainStationManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000000000000000005 /* BeatTheRush.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeatTheRush.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000000000000000000EA /* BeatTheRushTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BeatTheRushTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA00000000000000000001 /* TrainStationManager */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TrainStationManager; sourceTree = "<group>"; };
-		AA000000000000000000E1 /* TrainStationManagerTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TrainStationManagerTests; sourceTree = "<group>"; };
+		AA00000000000000000001 /* BeatTheRush */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = BeatTheRush; sourceTree = "<group>"; };
+		AA000000000000000000E1 /* BeatTheRushTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = BeatTheRushTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -30,8 +30,8 @@
 		AA00000000000000000003 = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000001 /* TrainStationManager */,
-				AA000000000000000000E1 /* TrainStationManagerTests */,
+				AA00000000000000000001 /* BeatTheRush */,
+				AA000000000000000000E1 /* BeatTheRushTests */,
 				AA00000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,8 +39,8 @@
 		AA00000000000000000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000005 /* TrainStationManager.app */,
-				AA000000000000000000EA /* TrainStationManagerTests.xctest */,
+				AA00000000000000000005 /* BeatTheRush.app */,
+				AA000000000000000000EA /* BeatTheRushTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AA00000000000000000006 /* TrainStationManager */ = {
+		AA00000000000000000006 /* BeatTheRush */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AA00000000000000000007 /* Build configuration list for PBXNativeTarget "TrainStationManager" */;
+			buildConfigurationList = AA00000000000000000007 /* Build configuration list for PBXNativeTarget "BeatTheRush" */;
 			buildPhases = (
 				AA00000000000000000008 /* Sources */,
 				AA00000000000000000002 /* Frameworks */,
@@ -62,16 +62,16 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				AA00000000000000000001 /* TrainStationManager */,
+				AA00000000000000000001 /* BeatTheRush */,
 			);
-			name = TrainStationManager;
-			productName = TrainStationManager;
-			productReference = AA00000000000000000005 /* TrainStationManager.app */;
+			name = BeatTheRush;
+			productName = BeatTheRush;
+			productReference = AA00000000000000000005 /* BeatTheRush.app */;
 			productType = "com.apple.product-type.application";
 		};
-		AA000000000000000000E0 /* TrainStationManagerTests */ = {
+		AA000000000000000000E0 /* BeatTheRushTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "TrainStationManagerTests" */;
+			buildConfigurationList = AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "BeatTheRushTests" */;
 			buildPhases = (
 				AA000000000000000000E5 /* Sources */,
 				AA000000000000000000E6 /* Frameworks */,
@@ -83,11 +83,11 @@
 				AA000000000000000000E8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				AA000000000000000000E1 /* TrainStationManagerTests */,
+				AA000000000000000000E1 /* BeatTheRushTests */,
 			);
-			name = TrainStationManagerTests;
-			productName = TrainStationManagerTests;
-			productReference = AA000000000000000000EA /* TrainStationManagerTests.xctest */;
+			name = BeatTheRushTests;
+			productName = BeatTheRushTests;
+			productReference = AA000000000000000000EA /* BeatTheRushTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -98,14 +98,14 @@
 			containerPortal = AA0000000000000000000A /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = AA00000000000000000006;
-			remoteInfo = TrainStationManager;
+			remoteInfo = BeatTheRush;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXTargetDependency section */
 		AA000000000000000000E8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = AA00000000000000000006 /* TrainStationManager */;
+			target = AA00000000000000000006 /* BeatTheRush */;
 			targetProxy = AA000000000000000000E9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -151,7 +151,7 @@
 					};
 				};
 			};
-			buildConfigurationList = AA0000000000000000000B /* Build configuration list for PBXProject "TrainStationManager" */;
+			buildConfigurationList = AA0000000000000000000B /* Build configuration list for PBXProject "BeatTheRush" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -167,8 +167,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AA00000000000000000006 /* TrainStationManager */,
-				AA000000000000000000E0 /* TrainStationManagerTests */,
+				AA00000000000000000006 /* BeatTheRush */,
+				AA000000000000000000E0 /* BeatTheRushTests */,
 			);
 		};
 /* End PBXProject section */
@@ -197,7 +197,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Regenerate GeneratedBuildInfo.swift with the git short hash and build time BEFORE the\n# Swift compile, so the running build is identifiable on-device (read via BuildStamp.swift).\n# Writing a source file (not the signed bundle) keeps code signing intact.\nset -e\nHASH=$(git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo \"\")\nif [ -z \"$HASH\" ]; then HASH=\"nogit\"; elif ! git -C \"$SRCROOT\" diff --quiet -- . ':!*GeneratedBuildInfo.swift' 2>/dev/null; then HASH=\"${HASH}+\"; fi\nWHEN=$(date \"+%d %b %H:%M\")\nOUT=\"$SRCROOT/TrainStationManager/GeneratedBuildInfo.swift\"\nNEW=\"enum GeneratedBuild { static let hash = \\\"$HASH\\\"; static let date = \\\"$WHEN\\\" }\"\n# Only rewrite when the content changed, to avoid needless recompiles.\nif [ ! -f \"$OUT\" ] || [ \"$(cat \"$OUT\")\" != \"$NEW\" ]; then echo \"$NEW\" > \"$OUT\"; fi\n";
+			shellScript = "# Regenerate GeneratedBuildInfo.swift with the git short hash and build time BEFORE the\n# Swift compile, so the running build is identifiable on-device (read via BuildStamp.swift).\n# Writing a source file (not the signed bundle) keeps code signing intact.\nset -e\nHASH=$(git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo \"\")\nif [ -z \"$HASH\" ]; then HASH=\"nogit\"; elif ! git -C \"$SRCROOT\" diff --quiet -- . ':!*GeneratedBuildInfo.swift' 2>/dev/null; then HASH=\"${HASH}+\"; fi\nWHEN=$(date \"+%d %b %H:%M\")\nOUT=\"$SRCROOT/BeatTheRush/GeneratedBuildInfo.swift\"\nNEW=\"enum GeneratedBuild { static let hash = \\\"$HASH\\\"; static let date = \\\"$WHEN\\\" }\"\n# Only rewrite when the content changed, to avoid needless recompiles.\nif [ ! -f \"$OUT\" ] || [ \"$(cat \"$OUT\")\" != \"$NEW\" ]; then echo \"$NEW\" > \"$OUT\"; fi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -310,7 +310,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainStationManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainStationManager";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeatTheRush.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeatTheRush";
 			};
 			name = Debug;
 		};
@@ -331,14 +331,14 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainStationManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainStationManager";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BeatTheRush.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeatTheRush";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "TrainStationManagerTests" */ = {
+		AA000000000000000000E2 /* Build configuration list for PBXNativeTarget "BeatTheRushTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA000000000000000000E3 /* Debug */,
@@ -347,7 +347,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AA00000000000000000007 /* Build configuration list for PBXNativeTarget "TrainStationManager" */ = {
+		AA00000000000000000007 /* Build configuration list for PBXNativeTarget "BeatTheRush" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA0000000000000000000E /* Debug */,
@@ -356,7 +356,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AA0000000000000000000B /* Build configuration list for PBXProject "TrainStationManager" */ = {
+		AA0000000000000000000B /* Build configuration list for PBXProject "BeatTheRush" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA0000000000000000000C /* Debug */,

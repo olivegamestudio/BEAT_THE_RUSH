@@ -376,10 +376,10 @@ laid out and running in hours, not a day, and a signalling fix lands once.
 
 ## Build, run, deploy
 
-Test (RailSim regression harness — `TrainStationManagerTests`; run it after any change to `RailSim.swift`,
+Test (RailSim regression harness — `BeatTheRushTests`; run it after any change to `RailSim.swift`,
 since every level now rides it):
 ```bash
-xcodebuild test -scheme TrainStationManager -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
+xcodebuild test -scheme BeatTheRush -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
 The app's Debug config sets `ENABLE_TESTABILITY = YES` so the test target can `@testable import`. Tests
 assert the engine invariants (stops at ceiling, lane-follow / body-ahead never overlap, reverse, overrun,
@@ -387,18 +387,18 @@ speed limit, per-vehicle kinematics) — add a case here when you add a `RailSim
 
 Sim (fast iterate):
 ```bash
-xcodebuild -scheme TrainStationManager -destination 'platform=iOS Simulator,id=<UDID>' \
+xcodebuild -scheme BeatTheRush -destination 'platform=iOS Simulator,id=<UDID>' \
   -derivedDataPath build/sim -quiet build
-xcrun simctl install <UDID> build/sim/Build/Products/Debug-iphonesimulator/TrainStationManager.app
+xcrun simctl install <UDID> build/sim/Build/Products/Debug-iphonesimulator/BeatTheRush.app
 xcrun simctl launch <UDID> com.ogs.signalbox
 ```
 
 Device (signed):
 ```bash
-xcodebuild -scheme TrainStationManager -destination 'generic/platform=iOS' \
+xcodebuild -scheme BeatTheRush -destination 'generic/platform=iOS' \
   -allowProvisioningUpdates DEVELOPMENT_TEAM=ZQFRPBBFF3 -derivedDataPath build/dev build
 xcrun devicectl device install app --device <DEVICE_ID> \
-  build/dev/Build/Products/Debug-iphoneos/TrainStationManager.app   # retry on "Connection reset by peer"
+  build/dev/Build/Products/Debug-iphoneos/BeatTheRush.app   # retry on "Connection reset by peer"
 xcrun devicectl device process launch --device <DEVICE_ID> com.ogs.signalbox
 ```
 
