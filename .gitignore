@@ -1,9 +1,20 @@
-# Xcode / build artifacts
+# .NET / editors
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+TestResults/
+artifacts/
+# Xcode / preserved Swift prototype
 build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
 .DS_Store
-
-# Swift Package Manager
 .build/
+# Signing stays outside source control
+*.p12
+*.mobileprovision
+_ReSharper.Caches

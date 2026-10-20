@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BeatTheRush.Core/BeatTheRush.Core.csproj" />
+    <Project Path="src/BeatTheRush.Windows/BeatTheRush.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BeatTheRush.Core.Tests/BeatTheRush.Core.Tests.csproj" />
+    <Project Path="tests/BeatTheRush.Game.Tests/BeatTheRush.Game.Tests.csproj" />
+  </Folder>
+</Solution>
+

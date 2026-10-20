@@ -1,0 +1,262 @@
+{
+  "id": "saltash",
+  "name": "SALTASH",
+  "subtitle": "CORNWALL / ROYAL ALBERT BRIDGE",
+  "sectionName": "Royal Albert Bridge",
+  "nodes": [
+    {
+      "id": "east-in",
+      "x": -260,
+      "y": 370
+    },
+    {
+      "id": "east-berth",
+      "x": 650,
+      "y": 370
+    },
+    {
+      "id": "west-top",
+      "x": 720,
+      "y": 370
+    },
+    {
+      "id": "bridge-w",
+      "x": 840,
+      "y": 420
+    },
+    {
+      "id": "bridge-e",
+      "x": 1260,
+      "y": 420
+    },
+    {
+      "id": "east-top",
+      "x": 1380,
+      "y": 370
+    },
+    {
+      "id": "east-out",
+      "x": 1860,
+      "y": 370
+    },
+    {
+      "id": "west-in",
+      "x": 1860,
+      "y": 470
+    },
+    {
+      "id": "west-hold",
+      "x": 1400,
+      "y": 470
+    },
+    {
+      "id": "east-bottom",
+      "x": 1380,
+      "y": 470
+    },
+    {
+      "id": "west-bottom",
+      "x": 720,
+      "y": 470
+    },
+    {
+      "id": "west-berth",
+      "x": 380,
+      "y": 470
+    },
+    {
+      "id": "west-out",
+      "x": -260,
+      "y": 470
+    }
+  ],
+  "edges": [
+    {
+      "id": "up-platform",
+      "from": "east-in",
+      "to": "east-berth"
+    },
+    {
+      "id": "up-starter",
+      "from": "east-berth",
+      "to": "west-top"
+    },
+    {
+      "id": "west-up-turnout",
+      "from": "west-top",
+      "to": "bridge-w",
+      "via": [
+        {
+          "x": 750,
+          "y": 375
+        },
+        {
+          "x": 810,
+          "y": 415
+        }
+      ]
+    },
+    {
+      "id": "bridge",
+      "from": "bridge-w",
+      "to": "bridge-e"
+    },
+    {
+      "id": "east-up-turnout",
+      "from": "bridge-e",
+      "to": "east-top",
+      "via": [
+        {
+          "x": 1290,
+          "y": 415
+        },
+        {
+          "x": 1350,
+          "y": 375
+        }
+      ]
+    },
+    {
+      "id": "up-exit",
+      "from": "east-top",
+      "to": "east-out"
+    },
+    {
+      "id": "down-approach",
+      "from": "west-in",
+      "to": "west-hold"
+    },
+    {
+      "id": "down-home",
+      "from": "west-hold",
+      "to": "east-bottom"
+    },
+    {
+      "id": "east-down-turnout",
+      "from": "east-bottom",
+      "to": "bridge-e",
+      "via": [
+        {
+          "x": 1350,
+          "y": 465
+        },
+        {
+          "x": 1290,
+          "y": 425
+        }
+      ]
+    },
+    {
+      "id": "west-down-turnout",
+      "from": "bridge-w",
+      "to": "west-bottom",
+      "via": [
+        {
+          "x": 810,
+          "y": 425
+        },
+        {
+          "x": 750,
+          "y": 465
+        }
+      ]
+    },
+    {
+      "id": "down-platform",
+      "from": "west-bottom",
+      "to": "west-berth"
+    },
+    {
+      "id": "down-exit",
+      "from": "west-berth",
+      "to": "west-out"
+    }
+  ],
+  "platforms": [
+    {
+      "id": "p1",
+      "name": "01 / TO PLYMOUTH",
+      "x": 340,
+      "y": 300,
+      "width": 330,
+      "height": 48,
+      "capacity": 16
+    },
+    {
+      "id": "p2",
+      "name": "02 / TO CORNWALL",
+      "x": 340,
+      "y": 492,
+      "width": 330,
+      "height": 48,
+      "capacity": 16
+    }
+  ],
+  "routes": [
+    {
+      "id": "east",
+      "direction": "EASTBOUND",
+      "nodes": [
+        "east-in",
+        "east-berth",
+        "west-top",
+        "bridge-w",
+        "bridge-e",
+        "east-top",
+        "east-out"
+      ],
+      "platform": "p1",
+      "berth": "east-berth",
+      "sectionHold": "west-top",
+      "sectionRelease": "east-top",
+      "signal": {
+        "x": 728,
+        "y": 316
+      }
+    },
+    {
+      "id": "west",
+      "direction": "WESTBOUND",
+      "nodes": [
+        "west-in",
+        "west-hold",
+        "east-bottom",
+        "bridge-e",
+        "bridge-w",
+        "west-bottom",
+        "west-berth",
+        "west-out"
+      ],
+      "platform": "p2",
+      "berth": "west-berth",
+      "sectionHold": "west-hold",
+      "sectionRelease": "west-bottom",
+      "signal": {
+        "x": 1400,
+        "y": 524
+      }
+    }
+  ],
+  "rules": {
+    "goal": 30,
+    "dwellSeconds": 2.6,
+    "boardingPerSecond": 6,
+    "passengerIntervalMin": 2.8,
+    "passengerIntervalMax": 4.8,
+    "trainIntervalMin": 9,
+    "trainIntervalMax": 14,
+    "overflowGrace": 18,
+    "expressChance": 0.28,
+    "localSpeed": 100,
+    "expressSpeed": 132,
+    "maxTrains": 7,
+    "initialPassengers": 3
+  },
+  "scenery": {
+    "riverLeft": 920,
+    "riverRight": 1190,
+    "bridgeLeft": 840,
+    "bridgeRight": 1260,
+    "bridgeY": 420
+  }
+}

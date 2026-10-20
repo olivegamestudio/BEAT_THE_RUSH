@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BeatTheRush.Core/BeatTheRush.Core.csproj" />
+    <Project Path="src/BeatTheRush.iOS/BeatTheRush.iOS.csproj" />
+  </Folder>
+</Solution>

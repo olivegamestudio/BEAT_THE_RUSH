@@ -1,88 +1,87 @@
 # Beat the Rush
 
-**A landscape iOS signal-box puzzle.** The trains drive themselves — you control only the signals and
-points. Pull the right levers, in the right order, to route every service to a free platform, let the
-passengers board, and send it on its way *before* a platform overflows.
+A top-down 2D railway signalling game in C# and MonoGame, targeting iPhone/iPad with Windows as the development host. The original SwiftUI game is preserved in `prototype/`.
 
-Built in SwiftUI. Every station is a real British junction, hand-laid and run on a shared simulation
-toolkit ([RailKit](#railkit--the-engine)).
+## Run on Windows
 
----
+Install the .NET 10 SDK. MonoGame 3.8.6 is pinned through NuGet; no global MonoGame template or content-tool installation is required.
 
-## How it plays
-
-- **Trains navigate themselves.** They find their road, follow the train ahead, ease up to a red, and
-  pull away when it clears. You never drive a train — you clear its path.
-- **You work the box.** Tap a signal to clear a route, hold a starter to keep a boarded train at the
-  platform, grant a single line or a crossing to one direction at a time.
-- **People pile up.** A crowd builds on every platform. Board them before the platform overflows past its
-  grace period, or you lose. Carry the station's goal number of people and it's cleared — with 1–3 stars
-  for how comfortably you kept it flowing.
-- **Read the road.** The track just ahead of each train lights **green / amber / red** so you can see
-  what has the road and what's held, before it gets there.
-
-## Stations
-
-Seven bespoke junctions, each with its own real-world mechanic:
-
-| Station | Where | The knot to untie |
-|---|---|---|
-| **Saltash** | Cornwall | A single-line bridge over the Tamar — one train at a time; clear it east or west and they take turns. |
-| **Dawlish Warren** | Devon | Two through mains with platform loops; stop the locals to board while expresses and a steam special race straight through. |
-| **Worcester Foregate Street** | Worcestershire | A single line to Shrub Hill shared by both directions — grant it out east, or admit an arrival from London or Bristol. |
-| **Newark** | Nottinghamshire | The famous flat crossing, where two lines cross on the level — grant the diamond to one train at a time. |
-| **Lostwithiel** | Cornwall | A double-track section where the china-clay freight breaks down and blocks the line; divert the traffic and call the rescue loco. |
-| **Crewe** | Cheshire | A twelve-platform junction with terminating bays that reverse back out and fly-through expresses on the fast lines. |
-| **Birmingham New Street** | West Midlands | Twelve platforms buried under the city, fed by a full ladder throat — route every arrival across the weaving points to a free road. |
-
-## RailKit — the engine
-
-Rather than hand-code each level from scratch, the game runs on **RailKit**, a small shared toolkit. A
-new station is *assembled*, not written:
-
-- **`RailGraph`** — a station's track is named nodes joined by named edges; `route([...])` stitches a
-  chosen sequence into the path a train follows. Layout is a diagram of names, not a wall of coordinates.
-- **`RailSignals`** — one tested implementation of each signal kind: `HoldSignal` (a player's lever),
-  `HoldGroup` (a mutually-exclusive set — a single line that takes turns), and `BlockSignal` (an
-  automatic three-aspect signal that spaces a queue a block apart).
-- **`RailSim`** — the movement engine. Each tick it works out how far every train may advance — the end
-  of its road, the train ahead, and whatever the level says is holding it — then eases its speed toward
-  a smooth braking target and moves it. Levels plug their rules in through hooks. It supports lane and
-  position-based *body-ahead* following, eased and constant-speed feels, per-vehicle kinematics,
-  resource holds, overrun, and reversing bays.
-
-All seven bespoke levels run on this one engine, so a fix to the "feel" or a signalling rule improves
-every station at once. The engine is guarded by a small [XCTest regression harness](BeatTheRushTests).
-
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design canon.
-
-## Project layout
-
-```
-BeatTheRush/               App target — SwiftUI
-  RailGraph / RailSignals / RailSim   RailKit (the shared toolkit)
-  <Station>Station.swift    Per-level model (game logic + geometry)
-  <Station>View.swift       Per-level SwiftUI Canvas that draws it
-  StationDef.swift          The station roster
-  Station.swift, Carriage.swift, …    Shared primitives + drawing
-BeatTheRushTests/          RailSim regression tests
-docs/DESIGN.md             Design & reference (kept current with the code)
+```powershell
+dotnet restore BeatTheRush.slnx
+dotnet run --project src/BeatTheRush.Windows
 ```
 
-## Build & run
+Open `BeatTheRush.slnx` in a .NET 10 capable IDE, or use the included VS Code launch configuration. DesktopGL supplies the Windows development window; it is not the iOS backend.
 
-Requires **Xcode 16+**, targeting **iOS 17+**. Landscape only.
+## Title and station selection
 
-```bash
-# Simulator
-xcodebuild -scheme BeatTheRush -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
+The game opens on an animated title screen: staggered split-flap lettering, a pulsing Play button, and background trains obeying their own signals. Play opens departure-board station tiles. Saltash is playable; the six other bespoke stations from the prototype are shown as not in service until rebuilt. The briefing, pause, and outcome screens include a return to station selection. Best stars are retained for the current app session; persistence is still future work.
 
-# Tests (run after any change to RailSim.swift — it drives every level)
-xcodebuild test -scheme BeatTheRush -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
+Mouse buttons use a buffered SDL event stream, independent of simulation frames. Mobile input uses its own touch component. Both feed the same screen routing and camera transforms.
+
+## Saltash, first playable build
+
+- Two platforms and a single-track Royal Albert Bridge.
+- Trains follow the same track graph the renderer draws.
+- Automatic same-route following, acceleration, braking, and approach indicators.
+- Local and longer fast trains; both stop to board, as in the Swift prototype's Saltash.
+- Boarding, passenger capacity, platform pressure, an 18-second overflow grace period, and a 30-passenger objective.
+- A bridge reservation covering both throats. Changing a signal never releases a train's reservation early; its tail must clear.
+- Briefing, pause/resume, retry, and outcome screens.
+- One enlarged operational view, with signals controlled directly on the map.
+
+Click or tap an **E** or **W** signal to select that direction. Tap the selected signal again to hold both approaches. Green means selected and available; amber means selected while a train owns the protected section; red means held. Automatic approach lights have no tap controls.
+
+Menu shortcuts: **Enter** Play/select, **arrow keys** choose a station, **Escape** back. Windows game shortcuts: **Enter** start/resume, **E** east, **W** west, **H** hold both, **Space/Escape** pause/resume, **R** restart. Losing focus pauses the shift.
+
+This is an initial playable rebuild. Audio, haptics, saved progression, bespoke final art, and Dawlish are not implemented yet.
+
+## Build and test
+
+```powershell
+dotnet build BeatTheRush.slnx
+dotnet test BeatTheRush.slnx
+# Start the real graphics backend, run briefly, save an optional preview, then exit:
+dotnet run --project src/BeatTheRush.Windows -- --smoke-test --screen saltash --screenshot saltash.png
+# --screen title or --screen stations previews the menu screens.
 ```
 
-The app is playable, localised in **English, German, French and Spanish**.
+Tests exercise graph validation, path sampling, following, boarding, bridge ownership and tail clearance, overflow, victory, deterministic reset, a complete Saltash shift, mouse-to-signal coordinates across window sizes and DPI scales, menu navigation, split-flap timing, and title-scene signal holds.
 
----
+## iPhone and iPad
 
-© Olive Game Studio.
+`BeatTheRush.iOS.slnx` loads the iOS host and the same simulation. It compiles the exact same game source files as the Windows host against `MonoGame.Framework.iOS`. Landscape orientations, iPhone/iPad device families, a launch storyboard, safe-area handling, and background pausing are configured.
+
+A **Mac with a compatible Xcode and .NET 10 iOS toolchain is required** to build and deploy. On that Mac:
+
+```sh
+dotnet workload install ios maui
+dotnet build src/BeatTheRush.iOS -f net10.0-ios -r iossimulator-arm64
+# Physical device: configure your Apple signing identity/profile, then:
+dotnet build src/BeatTheRush.iOS -f net10.0-ios -r ios-arm64
+```
+
+Use `iossimulator-x64` for an Intel Mac. The development bundle ID is `com.ogs.signalbox`, matching the prototype. Supply your own signing configuration; no certificates are stored here. App Store icons and release packaging remain to be added.
+
+The default Windows solution deliberately excludes the iOS project so everyday builds and tests do not require mobile workloads. The iOS managed code compiles against the Windows iOS workload, but the app has not been packaged or tested on Apple hardware; safe areas, touch behaviour, lifecycle, and performance still need device validation.
+
+## Structure
+
+```text
+src/BeatTheRush.Core/       Framework-free simulation, graph, and station data
+src/BeatTheRush.Game/       Shared source: session, input, viewport, rendering components
+src/BeatTheRush.Windows/    DesktopGL entry point
+src/BeatTheRush.iOS/        .NET iOS entry point and Apple configuration
+tests/BeatTheRush.Core.Tests/
+docs/DESIGN.md              Current rebuild architecture and behaviour
+prototype/                 Preserved SwiftUI reference
+```
+
+The shared game directory intentionally has no framework-bound class-library project. Both hosts compile those sources against their own MonoGame backend, avoiding a DesktopGL dependency in the iOS application.
+
+The font atlas is generated from Barlow Medium under the SIL Open Font License. Its license is included in `src/BeatTheRush.Game/Assets/Barlow-OFL.txt`. No external art or font installation is required at runtime.
+
+Official platform/toolchain references: [MonoGame platforms](https://docs.monogame.net/articles/getting_started/platforms.html), [Windows setup](https://docs.monogame.net/articles/getting_started/1_setting_up_your_os_for_development_windows.html).
+
+
+
